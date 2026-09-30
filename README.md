@@ -1,7 +1,7 @@
 # <img src="singularity/static/logo.svg" width="36" height="36" alt="Singularity Logo" style="vertical-align: middle; margin-right: 8px;" /> Singularity
 
 > **One localhost endpoint. Eight AI providers. 226+ models. $0 spent on API keys.**
-> *(Because paying $20/mo to 5 different AI companies is a scam.)*
+> *(Because paying $20/mo to 5 different AI megacorps is pure maidenless behavior.)*
 
 Singularity turns your regular free (and paid) web accounts into a single, high-speed OpenAI-compatible API endpoint at `http://localhost:9000/v1`. 
 
@@ -11,10 +11,10 @@ Stack your **ChatGPT, Claude, Gemini, Grok, Kimi, GLM, DeepSeek, and Qwen** acco
 
 ## ⚡ TL;DR — For People Who Won't Read The Rest of This
 
-If you have attention span issues, just do this:
+If you have TikTok attention span, just run this:
 
 ### 🪟 Windows Users (Don't panic)
-1. Install **[Python 3.10+](https://www.python.org/downloads/)** *(⚠️ CHECK THE BOX THAT SAYS "Add python.exe to PATH" OR NOTHING WILL WORK)* and **[Node.js](https://nodejs.org/)**.
+1. Install **[Python 3.10+](https://www.python.org/downloads/)** *(⚠️ CHECK THE BOX THAT SAYS "Add python.exe to PATH" OR NOTHING WILL WORK, DONT BE A CASUAL)* and **[Node.js](https://nodejs.org/)**.
 2. Download this repo, open the folder, and double-click **`start.bat`**.
 3. Open `http://localhost:9000` in your browser. Done.
 
@@ -37,10 +37,10 @@ pkg update -y && pkg install -y python git nodejs-lts && git clone https://githu
 | What you want to do | How to do it |
 |---|---|
 | **Chat with Claude 3.7 / GPT-5 / DeepSeek V4** | Open the **Playground** tab at `http://localhost:9000` |
-| **Play with AI Visual Novels / Roleplay** | Open **Tavern Studio** at `http://localhost:5173` (launches automatically!) |
-| **Use it inside Cursor / VS Code / Cline** | Set Base URL to `http://localhost:9000/v1` (Model: anything you want) |
+| **Visual Novels / Character Roleplay** | Open **Tavern Studio** at `http://localhost:5173` *(Wake the fuck up Samurai, it launches automatically)* |
+| **Use it inside Cursor / VS Code / Cline** | Set Base URL to `http://localhost:9000/v1` *(Free unlimited coding assistant)* |
 | **Use it in SillyTavern** | Set API to `OpenAI`, URL to `http://localhost:9000/v1/chat/completions` |
-| **Run live React / HTML code previews** | Ask the AI to write an app in Playground — it renders live interactive **Artifacts** |
+| **Run live React / HTML code previews** | Ask the AI to build a game in Playground — it renders live interactive **Artifacts** |
 | **Check how many free messages you have left** | Check the **Limits & Quotas** tab |
 | **Host it on your phone & use it from your PC** | Run `./start.sh --lan` and browse to `http://<PHONE_IP>:9000` |
 
@@ -66,9 +66,9 @@ Singularity runs 8 independent backend workers:
 | Provider | Port | Models | What's Inside? |
 |---|---|---|---|
 | **ChatGPT** | 8000 | 20 | GPT-5.6-Mini/Sol/Terra, GPT-6-Astra, GPT-Image-2.5, Vision |
-| **Claude** | 8080 | 20 | Claude 3.7 Sonnet (with Thinking/CoT), Claude 4 Opus/Sonnet, Fable |
+| **Claude** | 8080 | 20 | Claude 3.7 Sonnet (Unlimited Thinking/CoT), Claude 4 Opus/Sonnet, Fable |
 | **Gemini** | 8084 | 21 | Gemini 3.8 Flash, 3.1 Pro, Imagen 3, Google Omni & Veo |
-| **DeepSeek** | 8088 | 12 | DeepSeek V3, R1 Reasoner, DeepSeek V4, V4-Pro, V4.1-Flash |
+| **DeepSeek** | 8088 | 12 | DeepSeek V3, R1 Reasoner (671B), DeepSeek V4, V4-Pro, V4.1-Flash |
 | **Grok** | 8087 | 8 | Grok 3, Grok 3 Mini, Grok Imagine (Real-time X/Twitter data) |
 | **Kimi** | 8086 | 31 | Kimi K3 Flagship, Thinking/Search, 200k huge context window |
 | **GLM** | 8085 | 86 | GLM 5.3, GLM Thinking, CogView 4 image gen, GLM Turbo |
@@ -105,7 +105,7 @@ client = OpenAI(
 
 response = client.chat.completions.create(
     model="claude-3-7-sonnet",
-    messages=[{"role": "user", "content": "Explain quantum physics like I am five"}],
+    messages=[{"role": "user", "content": "Gojo vs Sukuna: who actually wins without plot armor?"}],
     stream=True
 )
 
@@ -120,7 +120,7 @@ curl http://localhost:9000/v1/chat/completions \
   -H "Authorization: Bearer sk-singularity-local" \
   -d '{
     "model": "deepseek-v4",
-    "messages": [{"role": "user", "content": "Yo!"}],
+    "messages": [{"role": "user", "content": "Wake the fuck up Samurai, we have an API to burn."}],
     "stream": true
   }'
 ```
@@ -132,15 +132,16 @@ curl http://localhost:9000/v1/chat/completions \
 If you prefer using the terminal like a hacker:
 
 ```bash
-# Check if all 8 providers are alive and see your account counts
+# Check if all 8 providers are alive and see your stacked accounts
 ./singular status
 
 # Check your live message limits and image gen credits
 ./singular limits
 
 # Test a model directly with streaming text in your terminal
-./singular chat "Why is the sky blue?" -m claude-3-7-sonnet
-./singular chat "Write a python snake game" -m deepseek-v4
+./singular chat "Domain Expansion: Infinite Context" -m claude-3-7-sonnet
+./singular chat "Give me a Vergil motivation speech for coding" -m deepseek-v4
+./singular chat "Explain Dark Souls lore in 2 sentences" -m gpt-5-6-mini
 
 # Turn on fake simulation mode (test without internet/accounts)
 ./singular simulate on
@@ -167,10 +168,10 @@ If you prefer using the terminal like a hacker:
 ## ❓ FAQ & Troubleshooting (Read Before Asking For Help!)
 
 #### 1. "It crashed on Windows when I opened `start.bat`!"
-Did you check **"Add python.exe to PATH"** when installing Python? If you forgot, uninstall Python and reinstall it, and make sure that checkbox at the bottom of the installer is checked!
+Skill issue. Did you check **"Add python.exe to PATH"** when installing Python? If you forgot, reinstall Python and check that damn box at the bottom of the installer.
 
 #### 2. "Gemini says 'Are you signed in? I can search for images but cant create...'!"
-Google needs both `__Secure-1PSID` and `__Secure-1PSIDTS` cookies. The easiest fix: open `gemini.google.com`, press `F12` -> **Network** tab -> refresh -> click any request -> copy the entire `Cookie:` header from Request Headers and paste that into Singularity's Gemini cookie stacker.
+Google is acting tsundere because it needs both `__Secure-1PSID` and `__Secure-1PSIDTS` cookies. The 10-second fix: open `gemini.google.com`, press `F12` -> **Network** tab -> refresh -> click any request -> copy the entire `Cookie:` header from Request Headers and paste that into Singularity's Gemini cookie stacker.
 
 #### 3. "Can I access this on my phone while Singularity runs on my PC?"
 Yes! Launch with:
@@ -184,7 +185,7 @@ Then find your PC's local IP address (e.g. `192.168.1.50`) and open `http://192.
 Yes! Just run `./start.sh --lan` in Termux, check your phone's IP, and open `http://<PHONE_IP>:9000` on your laptop browser.
 
 #### 5. "Do I need to pay for anything?"
-No. It works with standard free accounts across all 8 providers.
+Zero dollars. It works with standard free accounts across all 8 providers.
 
 ---
 
