@@ -4098,33 +4098,42 @@ function getHeroGreetingText() {
 }
 
 const HERO_DIALOGUES = [
-  "How can I help you today?",
-  "What would you like to explore or build?",
-  "Ready to assist with code, writing, and research.",
-  "Ask a question, synthesize code, or explore ideas.",
-  "Frontier multi-model intelligence at your fingertips.",
-  "Let's work through your next breakthrough.",
-  "Unified access to all 8 AI model fleets.",
-  "Stream inference with live reasoning and tokens."
+  "Tomboys for the win !",
+  "9/11 was an insider job fr",
+  "Am I cooking, Chat?",
+  "Watch Konosuba, Trust.",
+  "Bro think he the main character",
+  "Let him cook, I said LET HIM COOK",
+  "It is what it is (it isn't)",
+  "Touch grass? In this economy?",
+  "Certified yapper in the building",
+  "Delusion is my superpower",
+  "Skill issue or cosmic malice?",
+  "We stay silly, we stay scheming",
+  "Works on my machine, ship it",
+  "Nah, I'd win",
+  "Frieren would be proud",
+  "Trust the process (I have no plan)",
+  "The voices told me to refactor",
+  "Peak fiction, zero budget",
+  "Submitting PR and fleeing the country",
+  "Steins;Gate was a documentary",
+  "Terminal open, brain disconnected",
+  "Who let bro cook in production?",
+  "I don't need sleep, I need answers"
 ];
 
 let lastGreetingIndex = -1;
 function updateHeroGreeting(forceNew = true) {
   const greetingEl = document.getElementById('claude-hero-greeting');
   if (!greetingEl) return;
-
-  let text = '';
-  if (!forceNew || Math.random() < 0.4) {
-    text = getHeroGreetingText();
-  } else {
-    const list = HERO_DIALOGUES;
-    let idx = Math.floor(Math.random() * list.length);
-    if (list.length > 1 && idx === lastGreetingIndex) {
-      idx = (idx + 1) % list.length;
-    }
-    lastGreetingIndex = idx;
-    text = list[idx];
+  const list = HERO_DIALOGUES;
+  let idx = Math.floor(Math.random() * list.length);
+  if (forceNew && list.length > 1 && idx === lastGreetingIndex) {
+    idx = (idx + 1) % list.length;
   }
+  lastGreetingIndex = idx;
+  const text = list[idx];
 
   greetingEl.className = 'claude-hero-greeting';
   greetingEl.style.opacity = '0';
