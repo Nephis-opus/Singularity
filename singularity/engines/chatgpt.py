@@ -717,9 +717,10 @@ async def _upload_image_to_chatgpt_session(
     """
     import io
     try:
-        import PIL.Image as PILImage
+        import importlib
+        PILImage = importlib.import_module("PIL.Image")
         HAS_PIL = True
-    except ImportError:
+    except (ImportError, ModuleNotFoundError, Exception):
         HAS_PIL = False
 
     # Decode base64
