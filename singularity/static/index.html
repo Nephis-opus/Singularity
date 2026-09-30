@@ -382,7 +382,7 @@
                   <div class="claude-hero-section" id="playground-hero">
                     <div class="claude-hero-brand" id="claude-hero-trigger" title="Click to cycle thoughts">
                       <img src="/logo.svg" alt="Singularity Logo" class="claude-hero-logo" />
-                      <h1 class="claude-hero-greeting" id="claude-hero-greeting">Tomboys for the win !</h1>
+                      <h1 class="claude-hero-greeting" id="claude-hero-greeting">Good evening, Operator</h1>
                     </div>
                   </div>
 
@@ -1050,6 +1050,33 @@
                 </div>
               </div>
 
+              <!-- Section: Allowed Websites & Origins -->
+              <div class="claude-settings-section-title" style="margin-top: 26px;">Allowed Websites &amp; Origins (CORS)</div>
+              <div class="claude-settings-row" data-search-text="allowed websites origins cors janitorai chub venus agnai sillytavern client">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Authorized Web Clients</div>
+                  <div class="claude-settings-item-desc">Add browser-based frontends (Janitor AI, Chub Venus, Agnai, LibreChat) authorized to send requests to your Singularity endpoint without terminal commands.</div>
+                </div>
+                <div class="claude-settings-row-control" style="flex-direction: column; align-items: stretch; width: 100%; max-width: 440px; gap: 10px;">
+                  <!-- Quick Preset Chips -->
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    <button type="button" class="btn btn-secondary btn-sm preset-origin-btn" data-origin="https://janitorai.com" style="font-size: 11px; padding: 3px 8px;">+ Janitor AI</button>
+                    <button type="button" class="btn btn-secondary btn-sm preset-origin-btn" data-origin="https://venus.chub.ai" style="font-size: 11px; padding: 3px 8px;">+ Chub Venus</button>
+                    <button type="button" class="btn btn-secondary btn-sm preset-origin-btn" data-origin="https://agnai.chat" style="font-size: 11px; padding: 3px 8px;">+ Agnai Chat</button>
+                    <button type="button" class="btn btn-secondary btn-sm preset-origin-btn" data-origin="http://localhost:5173" style="font-size: 11px; padding: 3px 8px;">+ Tavern Web</button>
+                  </div>
+                  <!-- Custom Input Row -->
+                  <div style="display: flex; gap: 8px;">
+                    <input type="text" id="input-new-allowed-origin" class="model-search-input smooth-input" placeholder="https://example.com" style="flex: 1; font-size: 12px; height: 32px;" />
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-add-allowed-origin" style="white-space: nowrap; height: 32px; padding: 0 12px;">Add Website</button>
+                  </div>
+                  <!-- Dynamic Active Origins Tag List -->
+                  <div id="allowed-origins-container" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; min-height: 24px;">
+                    <span style="font-size: 12px; color: var(--text-muted);">Loading authorized origins...</span>
+                  </div>
+                </div>
+              </div>
+
               <!-- Section: Data & Storage -->
               <div class="claude-settings-section-title" style="margin-top: 26px;">Data &amp; Privacy</div>
               <div class="claude-settings-row" data-search-text="cache clear reset local storage data draft">
@@ -1068,14 +1095,14 @@
               <div class="claude-settings-section-title">OpenAI-Compatible Gateway</div>
 
               <!-- Row: Endpoint URL -->
-              <div class="claude-settings-row" data-search-text="gateway endpoint url openai port 5000 api base url cursor janitorai">
+              <div class="claude-settings-row" data-search-text="gateway endpoint url openai port 9000 api base url cursor janitorai">
                 <div class="claude-settings-row-label">
                   <div class="claude-settings-item-title">Endpoint URL</div>
-                  <div class="claude-settings-item-desc">Universal OpenAI base URL on port 5000. Connect Janitor AI, SillyTavern, Cursor, or NextChat.</div>
+                  <div class="claude-settings-item-desc">Universal OpenAI base URL on port 9000. Connect Janitor AI, SillyTavern, Cursor, or NextChat.</div>
                 </div>
                 <div class="claude-settings-row-control" style="flex: 1; max-width: 320px;">
                   <div class="user-profile-endpoint-row" id="profile-copy-endpoint" role="button" tabindex="0" title="Click to copy API endpoint" style="margin: 0; width: 100%;">
-                    <code class="user-profile-endpoint-text" id="profile-endpoint-text">http://localhost:5000/v1</code>
+                    <code class="user-profile-endpoint-text" id="profile-endpoint-text">http://localhost:9000/v1</code>
                     <button type="button" class="user-profile-copy-btn" id="btn-copy-gateway-endpoint" aria-label="Copy API endpoint" title="Copy endpoint">
                       <svg class="copy-default-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -1091,14 +1118,14 @@
               </div>
 
               <!-- Row: API Key -->
-              <div class="claude-settings-row" data-search-text="api key token authorization gemini-rp">
+              <div class="claude-settings-row" data-search-text="api key token authorization sk-singularity-local">
                 <div class="claude-settings-row-label">
                   <div class="claude-settings-item-title">API Key</div>
-                  <div class="claude-settings-item-desc">Local gateway authentication token. Sunless accepts any token string or default local key.</div>
+                  <div class="claude-settings-item-desc">Local gateway authentication token. Singularity accepts any token string or default local key.</div>
                 </div>
                 <div class="claude-settings-row-control" style="flex: 1; max-width: 320px;">
                   <div class="user-profile-endpoint-row" id="apikey-copy-row" role="button" tabindex="0" title="Click to copy API key" style="margin: 0; width: 100%;">
-                    <code class="user-profile-endpoint-text">gemini-rp</code>
+                    <code class="user-profile-endpoint-text">sk-singularity-local</code>
                     <button type="button" class="user-profile-copy-btn" id="btn-copy-apikey" aria-label="Copy API key" title="Copy API key">
                       <svg class="copy-default-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>

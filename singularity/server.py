@@ -1382,7 +1382,59 @@ async def api_get_config():
 
 # Settings the HTTP API may change. Everything else (provider PIDs, provider hosts, the gateway key)
 # is written only by Singularity itself or the local CLI.
-API_WRITABLE_SETTINGS = {"simulation_mode"}
+API_WRITABLE_SETTINGS = {"simulation_mode", "allowed_origins"}
+
+
+@app.get("/api/security/allowed-origins")
+async def api_get_allowed_origins():
+    origins = list(security._extra_allowed_origins())
+    return {"allowed_origins": sorted(origins)}
+
+
+@app.post("/api/security/allowed-origins")
+async def api_add_allowed_origin(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    
+    origin = body.get("origin", "").strip().rstrip("/").lower()
+    if not origin:
+        raise HTTPException(status_code=400, detail="origin string is required")
+    
+    current_raw = db.get_setting("allowed_origins", "")
+    current_list = [o.strip().rstrip("/").lower() for o in current_raw.split(",") if o.strip()]
+    if origin not in current_list:
+        current_list.append(origin)
+    db.set_setting("allowed_origins", ",".join(current_list))
+    return {
+        "status": "ok",
+        "added": origin,
+        "allowed_origins": sorted(list(security._extra_allowed_origins()))
+    }
+
+
+@app.delete("/api/security/allowed-origins")
+async def api_delete_allowed_origin(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    origin = body.get("origin", "").strip().rstrip("/").lower()
+    if not origin and "origin" in request.query_params:
+        origin = request.query_params["origin"].strip().rstrip("/").lower()
+    
+    if not origin:
+        raise HTTPException(status_code=400, detail="origin string is required")
+    
+    current_raw = db.get_setting("allowed_origins", "")
+    current_list = [o.strip().rstrip("/").lower() for o in current_raw.split(",") if o.strip() and o.strip().rstrip("/").lower() != origin]
+    db.set_setting("allowed_origins", ",".join(current_list))
+    return {
+        "status": "ok",
+        "deleted": origin,
+        "allowed_origins": sorted(list(security._extra_allowed_origins()))
+    }
 
 
 @app.post("/api/config")

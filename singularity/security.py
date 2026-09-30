@@ -100,8 +100,24 @@ def _hostname(host_header: str) -> str:
 
 
 def _extra_allowed_origins() -> Iterable[str]:
-    raw = os.getenv("SINGULARITY_ALLOWED_ORIGINS", "")
-    return {o.strip().rstrip("/").lower() for o in raw.split(",") if o.strip()}
+    raw_env = os.getenv("SINGULARITY_ALLOWED_ORIGINS", "")
+    origins = {o.strip().rstrip("/").lower() for o in raw_env.split(",") if o.strip()}
+    try:
+        raw_db = db.get_setting("allowed_origins", "")
+        if raw_db:
+            if raw_db.strip().startswith("["):
+                try:
+                    for o in json.loads(raw_db):
+                        if isinstance(o, str) and o.strip():
+                            origins.add(o.strip().rstrip("/").lower())
+                except Exception:
+                    pass
+            for o in raw_db.split(","):
+                if o.strip():
+                    origins.add(o.strip().rstrip("/").lower())
+    except Exception:
+        pass
+    return origins
 
 
 def origin_allowed(origin: str, host_header: str) -> bool:

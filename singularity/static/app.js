@@ -713,6 +713,111 @@ function initClaudeSettings() {
     });
   }
 
+  // Allowed Web Origins / CORS Client Management
+  const originsContainer = document.getElementById('allowed-origins-container');
+  const newOriginInput = document.getElementById('input-new-allowed-origin');
+  const addOriginBtn = document.getElementById('btn-add-allowed-origin');
+  const presetOriginBtns = document.querySelectorAll('.preset-origin-btn');
+
+  const renderAllowedOrigins = (origins) => {
+    if (!originsContainer) return;
+    if (!origins || origins.length === 0) {
+      originsContainer.innerHTML = '<span style="font-size: 12px; color: var(--text-muted); font-style: italic;">No external web origins added. Gateway allows localhost and local network by default.</span>';
+      return;
+    }
+    originsContainer.innerHTML = origins.map(orig => `
+      <div class="origin-tag" style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 8px; font-size: 12px; font-family: var(--font-mono);">
+        <span style="color: var(--text-primary);">${orig}</span>
+        <button type="button" class="btn-delete-origin" data-origin="${orig}" title="Revoke origin" style="background: none; border: none; color: var(--color-error); cursor: pointer; padding: 0 2px; font-weight: bold; font-size: 14px; line-height: 1;">&times;</button>
+      </div>
+    `).join('');
+
+    originsContainer.querySelectorAll('.btn-delete-origin').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const orig = btn.getAttribute('data-origin');
+        if (!orig) return;
+        try {
+          const res = await fetch(`/api/security/allowed-origins?origin=${encodeURIComponent(orig)}`, { method: 'DELETE' });
+          if (res.ok) {
+            const data = await res.json();
+            renderAllowedOrigins(data.allowed_origins);
+            showToast(`Revoked access for ${orig}`, 'info', 2000);
+          } else {
+            showToast(`Failed to remove origin`, 'error', 2000);
+          }
+        } catch (err) {
+          showToast(`Error removing origin: ${err.message}`, 'error', 2000);
+        }
+      });
+    });
+  };
+
+  const loadAllowedOrigins = async () => {
+    if (!originsContainer) return;
+    try {
+      const res = await fetch('/api/security/allowed-origins');
+      if (res.ok) {
+        const data = await res.json();
+        renderAllowedOrigins(data.allowed_origins);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch allowed origins:', e);
+    }
+  };
+
+  const handleAddOrigin = async (originUrl) => {
+    let clean = (originUrl || '').trim();
+    if (!clean) return;
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = 'https://' + clean;
+    }
+    clean = clean.replace(/\/+$/, '');
+    try {
+      const res = await fetch('/api/security/allowed-origins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: clean })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        renderAllowedOrigins(data.allowed_origins);
+        if (newOriginInput) newOriginInput.value = '';
+        showToast(`Authorized ${clean} to access Singularity`, 'success', 2500);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.detail || 'Failed to add origin', 'error', 2500);
+      }
+    } catch (err) {
+      showToast(`Error adding origin: ${err.message}`, 'error', 2500);
+    }
+  };
+
+  if (addOriginBtn && newOriginInput) {
+    addOriginBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleAddOrigin(newOriginInput.value);
+    });
+    newOriginInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddOrigin(newOriginInput.value);
+      }
+    });
+  }
+
+  if (presetOriginBtns) {
+    presetOriginBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const orig = btn.getAttribute('data-origin');
+        if (orig) handleAddOrigin(orig);
+      });
+    });
+  }
+
+  loadAllowedOrigins();
+
   // Clear Local Cache
   const clearCacheBtn = document.getElementById('btn-clear-local-cache');
   if (clearCacheBtn) {
@@ -3878,126 +3983,44 @@ async function resetCurrentModelSettings() {
   }
 }
 
+function getHeroGreetingText() {
+  const hour = new Date().getHours();
+  const rawName = (localStorage.getItem('singularity_user_name') || 'Operator').trim();
+  const name = rawName || 'Operator';
+  if (hour >= 5 && hour < 12) return `Good morning, ${name}`;
+  if (hour >= 12 && hour < 17) return `Good afternoon, ${name}`;
+  if (hour >= 17 && hour < 22) return `Good evening, ${name}`;
+  return `Good night, ${name}`;
+}
+
 const HERO_DIALOGUES = [
-  // Sunny & The Flaw
-  "Flaw: [Clear Conscience] — Can't even lie",
-  "Treacherous Lost from Light strikes again",
-  "I never lie. I just omit with malice.",
-  "Fated attribute doing its daily sabotage",
-  "Humble shopkeeper, nothing to see here",
-  "Sunny crying about coins with Divine relics",
-  "Heroes end up dead in the Spire",
-  "Living rent-free in the shadows of bastards",
-  "Dying builds character. Ask Sunny.",
-  "Sunny: 'I am harmless.' [Lie Check: Passed]",
-  "Rain has no idea her brother is a calamity",
-  "Waking world coffee hits different",
-  "Sunny's cooking is a literal biohazard",
-  "The Spell exists purely to torment me",
-  "Two words: Fated. Run.",
-  "Outskirts broke boy built different",
-  "Mongrel will save us! (Needs rent money)",
-  "Lord Mongrel, sign my chestplate!",
-  "A treacherous shadow never reveals its hand",
-  "Trust no one. Especially your shadows.",
-
-  // The Shadows
-  "Gloomy is disappointed in your prompt",
-  "Happy shadow is hitting a jig behind you",
-  "Creepy shadow is staring from the corner",
-  "Haughty shadow refuses mortal foolishness",
-  "Naughty shadow stole your soul shards",
-  "Crazy shadow laughing at the void",
-  "Six shadows and zero respect for me",
-  "Shadow lantern lit. Shadows, assemble.",
-  "Lord Shadow is judging you silently",
-
-  // Nephis & Cohort
-  "Nephis smiled. Everyone started sweating.",
-  "Neph, stop setting yourself on fire",
-  "Changing Star didn't hesitate. Ever.",
-  "Her flaw is 3rd degree burns and no chill",
-  "Effie just ate the entire Citadel's food",
-  "Kai is too pretty again, punch him",
-  "Kai asked if I'm okay. Real tears shed.",
-  "Master Jet: 'Ready to die, slugger?'",
-  "Cassie foresaw this prompt 3 volumes ago",
-  "Cassie: 'I saw this.' Sunny: 'My suffering?'",
-  "Song of the Fallen playing softly...",
-  "Blind seer dropping ominous morning lore",
-
-  // Spell & Memories
-  "[Spell: Nightmare chosen you, Sleeper]",
-  "[Spell: Evaluated... Barely survived]",
-  "[Spell: Slain Corrupted Titan. Agony gained]",
-  "[Memory: Midnight Shard — Still sharp]",
-  "[Memory: Weaver's Mask — Time to lie]",
-  "[Memory: Prowling Thorn — Don't look]",
-  "[Echo: Scavenger ate your braincell]",
-  "[Shadow Core Saturated — Near-death rank up]",
-  "[True Name: Lost from Light]",
-  "[Attribute: Fated — You will never know peace]",
-  "[Rank: Transcendent — Status: Exhausted]",
-
-  // Saint & Echoes
-  "Saint gave you the silent obsidian death glare",
-  "Saint ate another darkness shard",
-  "Nightmare galloping across your trauma",
-  "Fiend chewing on an unexploded soul core",
-  "Covetous Coffer rattling for your loot",
-  "Mimic chest detected. Stab it first.",
-
-  // Forgotten Shore & Nightmare Realm
-  "Forgotten Shore PTSD never fades",
-  "The Dark Sea is rising. RUN.",
-  "Crimson Spire looming in the distance",
-  "Soul Devourer fruit: DO NOT EAT",
-  "Spire Messenger overhead. Take cover.",
-  "First Nightmare: Mountain King vs Butterknife",
-  "Mountain King was just hungry tbh",
-  "Surviving Ashen Barrow on spite and dirt",
-  "Dark City was rougher than Twitter",
-
-  // Weaver & Lore
-  "Praise Weaver, chief architect of my pain",
-  "Blood, Bone, Soul Weave... still flat broke",
-  "Drank divine ichor. Agony: Celestial.",
-  "Weaver left cryptic notes and dipped",
-  "Strings of Fate are thoroughly tangled",
-  "Hope chained in her ivory tower",
-  "Ariel built a pyramid just to hide lore",
-  "Tomb of Ariel time loops melting brains",
-  "Mad Prince: God-tier drip, zero sanity",
-  "Dead gods make the best loot",
-
-  // Mordret & Sovereigns
-  "Mordret is in your mirror. Don't look.",
-  "Prince of Nothing scheming behind glass",
-  "Never look into spoons near Mordret",
-  "Anvil and Ki Song having a mid-off",
-  "Asterion still doing side quests in space",
-  "Sovereigns play chess, Sunny steals board",
-
-  // Antarctica
-  "Antarctica: Snow, suffering, and dead Titans",
-  "Goliath was huge, gravity was Sunny's friend",
-  "Black Turtle Island cruising the storm",
-  "Chained Isles: Void gaping right below",
-  "Corrupted Titan spotted. Act like a rock.",
-  "Surviving horrors beyond comprehension"
+  "How can I help you today?",
+  "What would you like to explore or build?",
+  "Ready to assist with code, writing, and research.",
+  "Ask a question, synthesize code, or explore ideas.",
+  "Frontier multi-model intelligence at your fingertips.",
+  "Let's work through your next breakthrough.",
+  "Unified access to all 8 AI model fleets.",
+  "Stream inference with live reasoning and tokens."
 ];
 
 let lastGreetingIndex = -1;
 function updateHeroGreeting(forceNew = true) {
   const greetingEl = document.getElementById('claude-hero-greeting');
   if (!greetingEl) return;
-  const list = HERO_DIALOGUES;
-  let idx = Math.floor(Math.random() * list.length);
-  if (forceNew && list.length > 1 && idx === lastGreetingIndex) {
-    idx = (idx + 1) % list.length;
+
+  let text = '';
+  if (!forceNew || Math.random() < 0.4) {
+    text = getHeroGreetingText();
+  } else {
+    const list = HERO_DIALOGUES;
+    let idx = Math.floor(Math.random() * list.length);
+    if (list.length > 1 && idx === lastGreetingIndex) {
+      idx = (idx + 1) % list.length;
+    }
+    lastGreetingIndex = idx;
+    text = list[idx];
   }
-  lastGreetingIndex = idx;
-  const text = list[idx];
 
   greetingEl.className = 'claude-hero-greeting';
   greetingEl.style.opacity = '0';
