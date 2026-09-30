@@ -158,45 +158,106 @@ nativeFetch('/api/auth/status')
   .catch(() => {});
 
 // ===================================================================
+// Theme Controller (3-Option Segmented Control + OS Dynamic Scheme)
 // ===================================================================
-// Theme Toggle (Shifted to User Profile)
-// ===================================================================
-function initTheme() {
-  const saved = localStorage.getItem('singularity_theme') || 'dark';
-  setAppTheme(saved);
+let systemThemeMediaQuery = null;
 
-  // User Profile Theme Toggler
-  const btnDark = document.getElementById('btn-theme-dark');
+function applyThemePref(pref, animate = true) {
+  const validPref = ['system', 'light', 'dark'].includes(pref) ? pref : 'system';
+  localStorage.setItem('singularity_theme_pref', validPref);
+
+  let effectiveTheme = validPref;
+  if (validPref === 'system') {
+    const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    effectiveTheme = isDark ? 'dark' : 'light';
+  }
+
+  if (animate) {
+    document.documentElement.classList.add('theme-transitioning');
+    clearTimeout(window.__themeTransitionTimeout);
+    window.__themeTransitionTimeout = setTimeout(() => {
+      document.documentElement.classList.remove('theme-transitioning');
+    }, 280);
+  }
+
+  document.documentElement.setAttribute('data-theme', effectiveTheme);
+  localStorage.setItem('singularity_theme', effectiveTheme);
+
+  // Update 3-icon segmented control UI
+  const btnSystem = document.getElementById('btn-theme-system');
   const btnLight = document.getElementById('btn-theme-light');
+  const btnDark = document.getElementById('btn-theme-dark');
+  const indicator = document.getElementById('theme-seg-indicator');
 
-  if (btnDark) {
-    btnDark.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setAppTheme('dark');
-      showToast('Theme set to Dark Obsidian', 'info', 2000);
-    });
+  if (btnSystem) {
+    btnSystem.classList.toggle('active', validPref === 'system');
+    btnSystem.setAttribute('aria-checked', validPref === 'system' ? 'true' : 'false');
   }
-
   if (btnLight) {
-    btnLight.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setAppTheme('light');
-      showToast('Theme set to Warm Linen', 'info', 2000);
-    });
+    btnLight.classList.toggle('active', validPref === 'light');
+    btnLight.setAttribute('aria-checked', validPref === 'light' ? 'true' : 'false');
+  }
+  if (btnDark) {
+    btnDark.classList.toggle('active', validPref === 'dark');
+    btnDark.setAttribute('aria-checked', validPref === 'dark' ? 'true' : 'false');
   }
 
-  // Initialize Profile Popover Interactions
-  initClaudeSettings();
+  if (indicator) {
+    if (validPref === 'system') indicator.style.transform = 'translateX(0%)';
+    else if (validPref === 'light') indicator.style.transform = 'translateX(100%)';
+    else if (validPref === 'dark') indicator.style.transform = 'translateX(200%)';
+  }
 }
 
 function setAppTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('singularity_theme', theme);
+  applyThemePref(theme, true);
+}
 
-  const btnDark = document.getElementById('btn-theme-dark');
+function initTheme() {
+  const savedPref = localStorage.getItem('singularity_theme_pref') || 
+                    (localStorage.getItem('singularity_theme') ? localStorage.getItem('singularity_theme') : 'system');
+  applyThemePref(savedPref, false);
+
+  // Dynamic OS preference listener
+  if (window.matchMedia && !systemThemeMediaQuery) {
+    systemThemeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    systemThemeMediaQuery.addEventListener('change', (e) => {
+      const currentPref = localStorage.getItem('singularity_theme_pref') || 'system';
+      if (currentPref === 'system') {
+        applyThemePref('system', true);
+      }
+    });
+  }
+
+  // 3-Icon Segmented Buttons Event Listeners
+  const btnSystem = document.getElementById('btn-theme-system');
   const btnLight = document.getElementById('btn-theme-light');
-  if (btnDark) btnDark.classList.toggle('active', theme === 'dark');
-  if (btnLight) btnLight.classList.toggle('active', theme === 'light');
+  const btnDark = document.getElementById('btn-theme-dark');
+
+  if (btnSystem) {
+    btnSystem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyThemePref('system', true);
+      showToast('Theme set to Match System', 'info', 1800);
+    });
+  }
+  if (btnLight) {
+    btnLight.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyThemePref('light', true);
+      showToast('Theme set to Light Mode', 'info', 1800);
+    });
+  }
+  if (btnDark) {
+    btnDark.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyThemePref('dark', true);
+      showToast('Theme set to Dark Mode', 'info', 1800);
+    });
+  }
+
+  // Initialize Profile Settings
+  initClaudeSettings();
 }
 
 function initUserProfile() {
