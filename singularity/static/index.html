@@ -21,9 +21,47 @@
   <link rel="stylesheet" href="/static/tokens.css?v=60" />
   <link rel="stylesheet" href="/static/style.css?v=65" />
   <link rel="stylesheet" href="/static/glass-dock.css?v=60" />
+  <link rel="stylesheet" href="/static/preloader.css?v=1" />
 </head>
 
 <body data-active-tab="playground">
+  <!-- Skiper7 Nike-Inspired Shadow Slave Preloader -->
+  <div id="sunless-skiper-preloader" class="skiper7-preloader" aria-label="Singularity Gateway Intro Preloader">
+    <!-- Cinematic Montage Background Images -->
+    <div class="skiper7-media-container">
+      <div class="skiper7-images-wrapper">
+        <img src="/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg" class="skiper7-slide active" alt="Shadow Slave Art 1" />
+        <img src="/static/preloader/40efbc5694229238b0741afcce6c3ddf.jpg" class="skiper7-slide" alt="Shadow Slave Art 2" />
+        <img src="/static/preloader/795c223825dfa27440ac1da9ff8c1109.jpg" class="skiper7-slide" alt="Shadow Slave Art 3" />
+        <img src="/static/preloader/8300bdc6821115d2a56d8d507d2a1dde.jpg" class="skiper7-slide" alt="Shadow Slave Art 4" />
+        <img src="/static/preloader/9ac47ecd3a2f7e405b494a618a35298d.jpg" class="skiper7-slide" alt="Shadow Slave Art 5" />
+        <img src="/static/preloader/a1dfd20723b5e270ea911068051e6bf3.jpg" class="skiper7-slide" alt="Shadow Slave Art 6" />
+        <img src="/static/preloader/cbbb353701a4e0545a5903413d71c77e.jpg" class="skiper7-slide" alt="Shadow Slave Art 7" />
+      </div>
+      <div class="skiper7-overlay-grain"></div>
+      <div class="skiper7-scanlines"></div>
+      <div class="skiper7-overlay-vignette"></div>
+    </div>
+
+    <!-- Foreground Content: Just <logo> Singularity Gateway in the middle of screen -->
+    <div class="skiper7-content">
+      <div class="skiper7-brand-center">
+        <div class="skiper7-logo-box">
+          <img src="/logo.svg" class="skiper7-logo-img" alt="Singularity Logo" />
+        </div>
+        <div class="skiper7-brand-title">Singularity <span>Gateway</span></div>
+      </div>
+    </div>
+
+    <!-- Footer Progress Indicator -->
+    <div class="skiper7-footer">
+      <div class="skiper7-progress-track">
+        <div class="skiper7-progress-fill"></div>
+      </div>
+      <div class="skiper7-skip-prompt">CLICK ANYWHERE OR PRESS ESC TO ENTER</div>
+    </div>
+  </div>
+
   <div id="toast-container"></div>
 
   <div id="app">
@@ -1324,6 +1362,7 @@
   <script src="/static/vendor/react.min.js"></script>
   <script src="/static/vendor/react-dom.min.js"></script>
   <script src="/static/vendor/babel.min.js" defer></script>
+  <script src="/static/preloader.js?v=1"></script>
   <script src="/static/app.js?v=65"></script>
   <script src="/static/glass-dock.js?v=60"></script>
 </body>

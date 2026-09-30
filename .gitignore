@@ -24,6 +24,7 @@ grok2api/cookies.txt
 glm2api/token.txt
 *.png
 *.jpg
+!singularity/static/preloader/*.jpg
 *.db
 *.sqlite
 *.sqlite3
