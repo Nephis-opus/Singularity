@@ -260,5 +260,11 @@ Whenever an issue is identified or a user corrects a behavior, log the entry bel
     2. **Refined Popover Spacing & Ergonomics**: Offset popovers with 12px breathing room (`bottom: calc(100% + 12px)`), clean 14px border-radius, and smooth spring transitions so popovers don't cling awkwardly to input buttons.
     3. **Item Feedback & Selection State**: Add visual checkmark icons (`✓`) and provider tags for selected items, and update labels immediately.
     4. **Segmented Control Minimum Sizing**: Always declare fixed minimum container geometry (`width: 132px; height: 38px;`) on segmented controls so capsule indicators glide horizontally with correct aspect ratio.
+- **2026-09-30 (JavaScript Syntax Validation & Modal Initialization Execution Failure)**:
+  - *Mistake*: When refactoring Settings modal select dropdowns to custom components in `singularity/static/app.js`, an unclosed block in the font dropdown event listener left a dangling syntax error (`SyntaxError: missing ) after argument list`). This parse-time error aborted script evaluation, preventing `initClaudeSettings()` and global click listeners from attaching, causing the header gear icon (`#btn-open-settings`) to appear completely unresponsive when clicked.
+  - *Rule*:
+    1. **Mandatory AST / Syntax Check**: Always run `node --check singularity/static/app.js` immediately after modifying frontend script files before concluding work or testing in the browser.
+    2. **Defensive Initializer Scoping**: Keep core modal open/close triggers resilient to individual component failures and always verify script parse status if UI buttons fail to respond.
+
 
 

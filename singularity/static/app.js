@@ -567,6 +567,15 @@ function initClaudeSettings() {
         }
         fontSelectMenu.classList.remove('open');
       });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!fontSelectBtn.contains(e.target) && !fontSelectMenu.contains(e.target)) {
+        fontSelectMenu.classList.remove('open');
+      }
+    });
+  }
+
   // Generic Custom Dropdown Helper for Claude Settings
   const setupCustomDropdown = (wrapId, btnId, menuId, labelId, storageKey, defaultValue, onChange) => {
     const wrap = document.getElementById(wrapId);

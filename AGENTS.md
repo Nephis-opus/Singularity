@@ -203,3 +203,8 @@ Keep these past failures in mind to avoid repeating them:
 26. **Hardcoded Account Pool Count in Tavern UI Going Stale**:
     - *Mistake*: `GenerateExpressionSetDialog.tsx` had `(7 accounts pool)` hardcoded in the Parallel Processing label and `[1, 2, 3, 4, 7]` hardcoded in the concurrency button array. When the actual vault account count changed (e.g. only 6 accounts), the UI showed an incorrect number and allowed selecting more parallel streams than available accounts.
     - *Lesson*: Any UI label or button set that reflects the live account vault count **must** fetch the real count dynamically from `/api/services` (the `chatgpt.accounts` field). Use a `useEffect` on mount to hit `/api/services`, parse `data.services.find(s => s.id === 'chatgpt').accounts`, and store in a `useState`. Render the count only after it loads (hide until resolved). Cap the concurrency selector buttons to `maxConcurrency = gptAccountCount ?? fallback` so users can never attempt more parallel streams than they have accounts.
+
+27. **Frontend JavaScript AST & Syntax Validation Before Shipping**:
+    - *Mistake*: An unclosed parenthesis/bracket block inside an event handler in `singularity/static/app.js` caused a top-level `SyntaxError` at browser parse time, completely halting script execution and preventing event listeners (like the Settings gear icon modal trigger `#btn-open-settings`) from binding.
+    - *Lesson*: Always run `node --check singularity/static/app.js` (or equivalent AST check) immediately after modifying frontend script files before concluding work. Verify that all initializers execute cleanly without unhandled syntax or runtime errors.
+
