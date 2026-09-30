@@ -347,6 +347,14 @@
                   </div>
                 </div>
 
+                <!-- Settings Gear Button (Opens Claude Settings Modal) -->
+                <button class="claude-icon-btn claude-settings-gear-btn" id="btn-open-settings" type="button" title="Singularity System & Profile Settings" aria-label="Settings">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                  </svg>
+                </button>
+
                 <!-- Clear Chat Button -->
                 <button class="claude-icon-btn" id="btn-clear-chat" type="button" title="Clear chat history" aria-label="Clear chat">
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -424,6 +432,13 @@
 
                     <!-- Quick Navigation Links -->
                     <div class="user-profile-links">
+                      <button class="user-profile-link-btn" type="button" id="profile-open-settings" onclick="if(typeof openClaudeSettings==='function')openClaudeSettings();">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                        <span>System &amp; Profile Settings</span>
+                      </button>
                       <button class="user-profile-link-btn" type="button" id="profile-goto-cookies">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -831,6 +846,523 @@
         <!-- Rendered by JS -->
       </div>
     </div>
+
+    <!-- Claude Settings Modal (Multi-tab, Searchable, Spring Physics) -->
+    <div class="claude-settings-backdrop" id="claude-settings-modal" role="dialog" aria-modal="true" style="display: none;">
+      <div class="claude-settings-dialog" id="claude-settings-dialog">
+        <!-- Sidebar Navigation -->
+        <aside class="claude-settings-sidebar">
+          <div class="claude-settings-search-wrap">
+            <svg class="claude-settings-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="claude-settings-search" class="claude-settings-search-input" placeholder="Search" autocomplete="off" spellcheck="false" />
+          </div>
+
+          <div class="claude-settings-nav-list" role="tablist">
+            <div class="claude-settings-group-label">Settings</div>
+            <button type="button" class="claude-settings-nav-item active" data-tab="general" role="tab" aria-selected="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              <span>General</span>
+            </button>
+            <button type="button" class="claude-settings-nav-item" data-tab="account" role="tab" aria-selected="false">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <span>Account</span>
+            </button>
+            <button type="button" class="claude-settings-nav-item" data-tab="gateway" role="tab" aria-selected="false">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+              <span>Gateway &amp; API</span>
+            </button>
+            <button type="button" class="claude-settings-nav-item" data-tab="capabilities" role="tab" aria-selected="false">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <line x1="4" y1="21" x2="4" y2="14"></line>
+                <line x1="4" y1="10" x2="4" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12" y2="3"></line>
+                <line x1="20" y1="21" x2="20" y2="16"></line>
+                <line x1="20" y1="12" x2="20" y2="3"></line>
+                <line x1="1" y1="14" x2="7" y2="14"></line>
+                <line x1="9" y1="8" x2="15" y2="8"></line>
+                <line x1="17" y1="16" x2="23" y2="16"></line>
+              </svg>
+              <span>Capabilities</span>
+            </button>
+            <button type="button" class="claude-settings-nav-item" data-tab="memory" role="tab" aria-selected="false">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <path d="M12 2a9 9 0 0 0-9 9c0 4.17 2.84 7.67 6.69 8.69L9 22l3.35-1.68A9 9 0 0 0 12 2z"></path>
+                <circle cx="12" cy="11" r="3"></circle>
+              </svg>
+              <span>Memory &amp; Persona</span>
+            </button>
+
+            <div class="claude-settings-group-label" style="margin-top: 10px;">Customize</div>
+            <button type="button" class="claude-settings-nav-item" data-tab="skills" role="tab" aria-selected="false">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+              <span>Skills</span>
+            </button>
+            <button type="button" class="claude-settings-nav-item" data-tab="connectors" role="tab" aria-selected="false">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+              </svg>
+              <span>Connectors</span>
+            </button>
+            <button type="button" class="claude-settings-nav-item" data-tab="fleet" role="tab" aria-selected="false">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+              <span>Fleet Status</span>
+            </button>
+          </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="claude-settings-main">
+          <!-- Topbar with Close Button -->
+          <div class="claude-settings-topbar">
+            <button type="button" class="claude-settings-close-btn" id="btn-close-settings-modal" title="Close Settings (Esc)" aria-label="Close settings">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Scrollable Panels Container -->
+          <div class="claude-settings-scroll-area" id="claude-settings-panels-container">
+
+            <!-- Panel 1: General (Appearance, Chat font, Motion, Voice, Notifications) -->
+            <div class="claude-settings-panel active" id="settings-panel-general" role="tabpanel">
+              <div class="claude-settings-section-title">Appearance</div>
+
+              <!-- Row: Theme -->
+              <div class="claude-settings-row" data-search-text="theme appearance light dark system color">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Theme</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <div class="theme-segmented-control" id="profile-theme-toggle" role="radiogroup" aria-label="Appearance Theme">
+                    <div class="theme-seg-indicator" id="theme-seg-indicator"></div>
+                    <button type="button" class="theme-seg-btn" data-theme-pref="system" id="btn-theme-system" role="radio" aria-checked="false" title="Match System Theme" aria-label="System theme">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                      </svg>
+                    </button>
+                    <button type="button" class="theme-seg-btn" data-theme-pref="light" id="btn-theme-light" role="radio" aria-checked="false" title="Warm Linen (Light)" aria-label="Light theme">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                      </svg>
+                    </button>
+                    <button type="button" class="theme-seg-btn" data-theme-pref="dark" id="btn-theme-dark" role="radio" aria-checked="false" title="Dark Obsidian (Dark)" aria-label="Dark theme">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row: Chat font -->
+              <div class="claude-settings-row" data-search-text="chat font typography anthropic serif sans system opendyslexic monospace">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Chat font</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <div class="claude-custom-select-wrap" id="chat-font-select-wrap">
+                    <button type="button" class="claude-custom-select-btn" id="btn-chat-font-select">
+                      <span id="chat-font-selected-label">Anthropic Sans</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <div class="claude-custom-select-menu" id="chat-font-select-menu">
+                      <button type="button" class="claude-select-option" data-font="serif">
+                        <span>Anthropic Serif</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option active" data-font="sans">
+                        <span>Anthropic Sans</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-font="system">
+                        <span>System</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-font="mono">
+                        <span>OpenDyslexic</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row: Motion -->
+              <div class="claude-settings-row" data-search-text="motion animations streaming reduce motion accessibility">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Motion</div>
+                  <div class="claude-settings-item-desc">Reduce animation in streaming responses and other interface elements.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <label class="claude-switch" title="Toggle reduced motion">
+                    <input type="checkbox" id="toggle-reduce-motion" />
+                    <span class="claude-switch-slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Section: Voice -->
+              <div class="claude-settings-section-title" style="margin-top: 26px;">Voice</div>
+              <div class="claude-settings-row" data-search-text="voice language speech audio english">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Language</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <select class="claude-native-select" id="select-voice-language">
+                    <option value="en-US" selected>English</option>
+                    <option value="en-GB">English (UK)</option>
+                    <option value="es-ES">Español</option>
+                    <option value="fr-FR">Français</option>
+                    <option value="de-DE">Deutsch</option>
+                    <option value="zh-CN">中文 (Chinese)</option>
+                    <option value="ja-JP">日本語 (Japanese)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="claude-settings-row" data-search-text="voice style buttery natural warm direct tone">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Style</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <select class="claude-native-select" id="select-voice-style">
+                    <option value="buttery" selected>Buttery</option>
+                    <option value="natural">Natural</option>
+                    <option value="warm">Warm</option>
+                    <option value="concise">Concise</option>
+                    <option value="direct">Direct</option>
+                  </select>
+                </div>
+              </div>
+              <div class="claude-settings-row" data-search-text="voice speed normal slow fast rate">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Speed</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <select class="claude-native-select" id="select-voice-speed">
+                    <option value="normal" selected>Normal</option>
+                    <option value="slow">Slow</option>
+                    <option value="fast">Fast</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Section: Notifications -->
+              <div class="claude-settings-section-title" style="margin-top: 26px;">Notifications</div>
+              <div class="claude-settings-row" data-search-text="notifications streaming sound chime audio completion">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Completion sound chime</div>
+                  <div class="claude-settings-item-desc">Play a subtle audio tone when long generation streams finish.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <label class="claude-switch" title="Toggle audio chime">
+                    <input type="checkbox" id="toggle-response-chime" />
+                    <span class="claude-switch-slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel 2: Account (Profile Photo, Display Name, Cache) -->
+            <div class="claude-settings-panel" id="settings-panel-account" role="tabpanel">
+              <div class="claude-settings-section-title">Profile</div>
+
+              <!-- Row: Profile Photo Upload -->
+              <div class="claude-settings-row" data-search-text="profile photo picture avatar image upload">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Profile photo</div>
+                  <div class="claude-settings-item-desc">Square photo (JPG, PNG, WebP). Rendered on your chat bubbles and remembered across sessions.</div>
+                </div>
+                <div class="claude-settings-row-control" style="gap: 16px;">
+                  <label class="user-profile-avatar-wrap" id="user-avatar-upload-trigger" for="user-avatar-file-input" title="Click to upload profile picture" tabindex="0">
+                    <div class="user-profile-avatar-circle" id="user-profile-avatar-circle">
+                      <svg class="default-avatar-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                      </svg>
+                    </div>
+                    <div class="user-avatar-badge" title="Change photo">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                        <circle cx="12" cy="13" r="4"></circle>
+                      </svg>
+                    </div>
+                  </label>
+                  <input type="file" id="user-avatar-file-input" class="user-avatar-file-input" accept="image/*" />
+                  <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label for="user-avatar-file-input" class="btn btn-secondary btn-sm" id="btn-change-avatar-label" style="cursor: pointer; font-size: 12px; padding: 4px 12px;">Change photo</label>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-remove-avatar" style="display: none; font-size: 12px; padding: 4px 12px; color: var(--color-error);">Remove</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row: Display Name -->
+              <div class="claude-settings-row" data-search-text="name display name operator identity user">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Display name</div>
+                  <div class="claude-settings-item-desc">Your personal name. Upstream AI models will recognize and address you by this name.</div>
+                </div>
+                <div class="claude-settings-row-control" style="min-width: 240px;">
+                  <div class="user-profile-name-row" style="margin: 0; width: 100%;">
+                    <input type="text" id="user-profile-name-input" class="user-profile-name-input" value="Operator" placeholder="Your name" maxlength="32" autocomplete="off" spellcheck="false" title="Click to change your name" />
+                    <button type="button" class="user-profile-name-save-btn" id="btn-save-user-name" title="Save name">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section: Data & Storage -->
+              <div class="claude-settings-section-title" style="margin-top: 26px;">Data &amp; Privacy</div>
+              <div class="claude-settings-row" data-search-text="cache clear reset local storage data draft">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Clear local cache</div>
+                  <div class="claude-settings-item-desc">Reset browser draft state and locally cached responses while preserving server database credentials.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-local-cache">Reset Cache</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel 3: Gateway & API -->
+            <div class="claude-settings-panel" id="settings-panel-gateway" role="tabpanel">
+              <div class="claude-settings-section-title">OpenAI-Compatible Gateway</div>
+
+              <!-- Row: Endpoint URL -->
+              <div class="claude-settings-row" data-search-text="gateway endpoint url openai port 5000 api base url cursor janitorai">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Endpoint URL</div>
+                  <div class="claude-settings-item-desc">Universal OpenAI base URL on port 5000. Connect Janitor AI, SillyTavern, Cursor, or NextChat.</div>
+                </div>
+                <div class="claude-settings-row-control" style="flex: 1; max-width: 320px;">
+                  <div class="user-profile-endpoint-row" id="profile-copy-endpoint" role="button" tabindex="0" title="Click to copy API endpoint" style="margin: 0; width: 100%;">
+                    <code class="user-profile-endpoint-text" id="profile-endpoint-text">http://localhost:5000/v1</code>
+                    <button type="button" class="user-profile-copy-btn" id="btn-copy-gateway-endpoint" aria-label="Copy API endpoint" title="Copy endpoint">
+                      <svg class="copy-default-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                      </svg>
+                      <svg class="copy-success-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      <span class="user-profile-copy-hint" id="profile-copy-hint">Copy</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row: API Key -->
+              <div class="claude-settings-row" data-search-text="api key token authorization gemini-rp">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">API Key</div>
+                  <div class="claude-settings-item-desc">Local gateway authentication token. Sunless accepts any token string or default local key.</div>
+                </div>
+                <div class="claude-settings-row-control" style="flex: 1; max-width: 320px;">
+                  <div class="user-profile-endpoint-row" id="apikey-copy-row" role="button" tabindex="0" title="Click to copy API key" style="margin: 0; width: 100%;">
+                    <code class="user-profile-endpoint-text">gemini-rp</code>
+                    <button type="button" class="user-profile-copy-btn" id="btn-copy-apikey" aria-label="Copy API key" title="Copy API key">
+                      <svg class="copy-default-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                      </svg>
+                      <svg class="copy-success-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      <span class="user-profile-copy-hint" id="apikey-copy-hint">Copy</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row: Architecture Status -->
+              <div class="claude-settings-row" data-search-text="server architecture status asgi starlette sqlite">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Server Architecture</div>
+                  <div class="claude-settings-item-desc">High-concurrency async Starlette gateway with SQLite credential rotation engine.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <span class="badge" style="background: var(--color-success-bg); color: var(--color-success); border: 1px solid var(--color-success-border); font-size: 11px; padding: 4px 9px; border-radius: 6px; font-family: var(--font-mono);">Online :5000</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel 4: Capabilities (Reasoning Effort, Temperature, GenUI) -->
+            <div class="claude-settings-panel" id="settings-panel-capabilities" role="tabpanel">
+              <div class="claude-settings-section-title">Inference Defaults</div>
+
+              <!-- Row: Reasoning Effort -->
+              <div class="claude-settings-row" data-search-text="reasoning effort thinking budget chain of thought tokens claude o1 r1">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Reasoning Effort (Thinking Budget)</div>
+                  <div class="claude-settings-item-desc">Chain-of-thought tokens allocated for reasoning models (Claude 3.7 Thinking, o1, DeepSeek R1, Kimi K1.5).</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <select class="claude-native-select" id="settings-reasoning-effort">
+                    <option value="off">Off (0 tokens)</option>
+                    <option value="low">Low (2,048 tokens)</option>
+                    <option value="medium" selected>Medium (8,192 tokens)</option>
+                    <option value="high">High (16,384 tokens)</option>
+                    <option value="max">Max (32,768 tokens)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Row: Temperature -->
+              <div class="claude-settings-row" data-search-text="temperature randomness creativity determinism">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Default Temperature</div>
+                  <div class="claude-settings-item-desc">Controls creativity and variance. 0.0 is deterministic, 1.0+ is creative.</div>
+                </div>
+                <div class="claude-settings-row-control" style="display: flex; align-items: center; gap: 10px;">
+                  <input type="range" id="settings-temperature-slider" min="0" max="1.5" step="0.05" value="0.7" style="width: 130px; accent-color: var(--brand-primary);" />
+                  <span id="settings-temperature-val" style="font-family: var(--font-mono); font-size: 12px; width: 28px;">0.70</span>
+                </div>
+              </div>
+
+              <!-- Row: Artifacts / GenUI -->
+              <div class="claude-settings-row" data-search-text="artifacts genui sandboxing react html mermaid visual preview">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Universal Artifacts &amp; GenUI</div>
+                  <div class="claude-settings-item-desc">Automatically convert React, HTML, Mermaid diagrams, and SVGs into interactive side-by-side sandboxes.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <label class="claude-switch" title="Toggle Universal Artifacts">
+                    <input type="checkbox" id="toggle-genui-artifacts" checked />
+                    <span class="claude-switch-slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel 5: Memory & Persona -->
+            <div class="claude-settings-panel" id="settings-panel-memory" role="tabpanel">
+              <div class="claude-settings-section-title">AI Persona &amp; Custom Instructions</div>
+              <div class="claude-settings-row" data-search-text="memory persona custom instructions system prompt context role identity" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                <div class="claude-settings-row-label" style="max-width: 100%;">
+                  <div class="claude-settings-item-title">What should AI models know about you?</div>
+                  <div class="claude-settings-item-desc" style="max-width: 100%;">Provide details about your background, coding habits, or preferred style. These instructions are automatically injected into requests.</div>
+                </div>
+                <div class="claude-settings-row-control" style="width: 100%; display: flex; flex-direction: column; align-items: stretch;">
+                  <textarea id="settings-custom-instructions" class="claude-settings-textarea" placeholder="e.g. I am a software engineer. Keep responses concise, prioritize practical code examples, and omit unnecessary preamble." rows="5"></textarea>
+                  <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-save-custom-instructions">Save Instructions</button>
+                  </div>
+                </div>
+              </div>
+              <div class="claude-settings-row" data-search-text="identity injection address personal name">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Identity Awareness</div>
+                  <div class="claude-settings-item-desc">Allow AI models to know your display name and address you directly.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <label class="claude-switch" title="Toggle Identity Awareness">
+                    <input type="checkbox" id="toggle-identity-awareness" checked />
+                    <span class="claude-switch-slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel 6: Skills -->
+            <div class="claude-settings-panel" id="settings-panel-skills" role="tabpanel">
+              <div class="claude-settings-section-title">Agentic Skills</div>
+              <div class="claude-settings-row" data-search-text="skills web search live search brave ddg">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Web Search &amp; Grounding</div>
+                  <div class="claude-settings-item-desc">Live search grounding and web crawling via Brave and DuckDuckGo engines.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <span class="badge" style="background: var(--color-success-bg); color: var(--color-success); border: 1px solid var(--color-success-border); font-size: 11px; padding: 4px 8px; border-radius: 6px; font-family: var(--font-mono);">Enabled</span>
+                </div>
+              </div>
+              <div class="claude-settings-row" data-search-text="skills artifact workbench code runner react html preview">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Artifact Workbench</div>
+                  <div class="claude-settings-item-desc">Dual-pane live preview for HTML5, React, Mermaid diagrams, and code snippets.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <span class="badge" style="background: var(--color-success-bg); color: var(--color-success); border: 1px solid var(--color-success-border); font-size: 11px; padding: 4px 8px; border-radius: 6px; font-family: var(--font-mono);">Enabled</span>
+                </div>
+              </div>
+              <div class="claude-settings-row" data-search-text="skills image synthesis dall-e imagen grok aurora">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">High-Definition Image Synthesis</div>
+                  <div class="claude-settings-item-desc">Direct synthesis pipeline with WebGL fluid simulation loading states and instant export.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <span class="badge" style="background: var(--color-success-bg); color: var(--color-success); border: 1px solid var(--color-success-border); font-size: 11px; padding: 4px 8px; border-radius: 6px; font-family: var(--font-mono);">Enabled</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel 7: Connectors -->
+            <div class="claude-settings-panel" id="settings-panel-connectors" role="tabpanel">
+              <div class="claude-settings-section-title">AI Provider Connectors</div>
+              <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px;">Sunless reverse-engineers Google Gemini frontier models into high-speed local APIs optimized for Janitor AI roleplay.</p>
+              <div class="claude-settings-connectors-grid" id="settings-connectors-grid">
+                <!-- Populated dynamically via JS -->
+              </div>
+            </div>
+
+            <!-- Panel 8: Fleet Status -->
+            <div class="claude-settings-panel" id="settings-panel-fleet" role="tabpanel">
+              <div class="claude-settings-section-title">Fleet System Diagnostics</div>
+              <div class="claude-settings-row" data-search-text="fleet models catalog frontier gemini">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Cataloged Frontier Models</div>
+                  <div class="claude-settings-item-desc">All ChatGPT, Claude, Gemini, Grok, DeepSeek, Kimi, GLM, and Qwen frontier models.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <span style="font-family: var(--font-mono); font-weight: 700; color: var(--brand-primary); font-size: 14px;">216+ Models</span>
+                </div>
+              </div>
+              <div class="claude-settings-row" data-search-text="fleet database sqlite vault credentials">
+                <div class="claude-settings-row-label">
+                  <div class="claude-settings-item-title">Credential Vault Engine</div>
+                  <div class="claude-settings-item-desc">Local SQLite database with automatic multi-account rotation and quota protection.</div>
+                </div>
+                <div class="claude-settings-row-control">
+                  <span class="badge" style="background: var(--color-success-bg); color: var(--color-success); border: 1px solid var(--color-success-border); font-size: 11px; padding: 4px 8px; border-radius: 6px; font-family: var(--font-mono);">SQLite WAL</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </main>
+      </div>
+    </div>
+
 
   </div>
 

@@ -185,8 +185,8 @@ function initTheme() {
     });
   }
 
-  // User Profile Popover Interactions
-  initUserProfile();
+  // Initialize Profile Popover Interactions
+  initClaudeSettings();
 }
 
 function setAppTheme(theme) {
@@ -200,51 +200,647 @@ function setAppTheme(theme) {
 }
 
 function initUserProfile() {
-  const avatarBtn = document.getElementById('btn-user-avatar');
-  const profileDropdown = document.getElementById('user-profile-dropdown');
-  const copyEndpointBtn = document.getElementById('profile-copy-endpoint');
-  const gotoCookiesBtn = document.getElementById('profile-goto-cookies');
-  const gotoLimitsBtn = document.getElementById('profile-goto-limits');
+  return initClaudeSettings();
+}
 
-  if (!avatarBtn || !profileDropdown) return;
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (err) {
+      console.warn('navigator.clipboard write failed, using fallback:', err);
+    }
+  }
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    textArea.setAttribute('readonly', '');
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return successful;
+  } catch (err) {
+    console.error('Fallback clipboard copy failed:', err);
+    return false;
+  }
+}
 
-  avatarBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    profileDropdown.classList.toggle('open');
+function processAvatarFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith('image/')) {
+      return reject(new Error('Please select an image file (PNG, JPG, WebP).'));
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = Math.min(img.width, img.height);
+        const sx = (img.width - size) / 2;
+        const sy = (img.height - size) / 2;
+        const targetDim = Math.min(size, 256);
+        const canvas = document.createElement('canvas');
+        canvas.width = targetDim;
+        canvas.height = targetDim;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, targetDim, targetDim);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        resolve(dataUrl);
+      };
+      img.onerror = () => reject(new Error('Failed to load image.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file.'));
+    reader.readAsDataURL(file);
   });
+}
 
+function playCompletionChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    
+    // Smooth chime: C5 (523.25Hz) followed by E5 (659.25Hz)
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(523.25, now);
+    osc1.frequency.exponentialRampToValueAtTime(659.25, now + 0.12);
+
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(659.25, now + 0.08);
+
+    gainNode.gain.setValueAtTime(0.001, now);
+    gainNode.gain.linearRampToValueAtTime(0.06, now + 0.04);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now + 0.08);
+    osc1.stop(now + 0.45);
+    osc2.stop(now + 0.45);
+    setTimeout(() => ctx.close(), 600);
+  } catch (err) {
+    // AudioContext autoplay might be constrained; ignore silently
+  }
+}
+
+function initClaudeSettings() {
+  if (window._claudeSettingsInitialized) return;
+  window._claudeSettingsInitialized = true;
+
+  const settingsBtn = document.getElementById('btn-open-settings') || document.getElementById('btn-user-avatar');
+  const settingsModal = document.getElementById('claude-settings-modal');
+  const settingsDialog = document.getElementById('claude-settings-dialog');
+  const closeBtn = document.getElementById('btn-close-settings-modal');
+  const searchInput = document.getElementById('claude-settings-search');
+  const navItems = document.querySelectorAll('.claude-settings-nav-item');
+  const panels = document.querySelectorAll('.claude-settings-panel');
+  const avatarUploadTrigger = document.getElementById('user-avatar-upload-trigger');
+  const avatarCircle = document.getElementById('user-profile-avatar-circle');
+  const avatarFileInput = document.getElementById('user-avatar-file-input');
+  const removeAvatarBtn = document.getElementById('btn-remove-avatar');
+  const nameInput = document.getElementById('user-profile-name-input');
+  const saveNameBtn = document.getElementById('btn-save-user-name');
+  const copyEndpointRow = document.getElementById('profile-copy-endpoint');
+  const endpointTextEl = document.getElementById('profile-endpoint-text');
+  const endpointCopyBtn = document.getElementById('btn-copy-gateway-endpoint');
+  const copyHintEl = document.getElementById('profile-copy-hint');
+  const apikeyCopyRow = document.getElementById('apikey-copy-row');
+  const apikeyCopyBtn = document.getElementById('btn-copy-apikey');
+  const apikeyCopyHint = document.getElementById('apikey-copy-hint');
+
+  // Modal open / close logic
+  let isModalOpen = false;
+  let closeTimer = null;
+
+  const openModal = (defaultTab = null) => {
+    const modal = settingsModal || document.getElementById('claude-settings-modal');
+    if (!modal) return;
+    clearTimeout(closeTimer);
+    modal.style.display = 'flex';
+    void modal.offsetWidth; // Force reflow for CSS spring transition
+    modal.classList.add('open');
+    isModalOpen = true;
+
+    if (defaultTab) {
+      switchTab(defaultTab);
+    }
+    if (typeof initSmoothInputs === 'function') {
+      setTimeout(() => initSmoothInputs(), 50);
+    }
+  };
+
+  const closeModal = () => {
+    const modal = settingsModal || document.getElementById('claude-settings-modal');
+    if (!modal || !isModalOpen) return;
+    modal.classList.remove('open');
+    isModalOpen = false;
+    closeTimer = setTimeout(() => {
+      if (!isModalOpen) {
+        modal.style.display = 'none';
+      }
+    }, 220);
+  };
+
+  window.openClaudeSettings = openModal;
+  window.closeClaudeSettings = closeModal;
+
+  // Global event delegation for opening settings modal
   document.addEventListener('click', (e) => {
-    if (!profileDropdown.contains(e.target) && !avatarBtn.contains(e.target)) {
-      profileDropdown.classList.remove('open');
+    const trigger = e.target.closest('#btn-open-settings, #profile-open-settings, .claude-settings-gear-btn, [data-action="open-settings"]');
+    if (trigger) {
+      e.preventDefault();
+      e.stopPropagation();
+      openModal();
     }
   });
 
-  if (copyEndpointBtn) {
-    copyEndpointBtn.addEventListener('click', (e) => {
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', (e) => {
+      e.preventDefault();
       e.stopPropagation();
-      navigator.clipboard.writeText('http://localhost:9000/v1').then(() => {
-        showToast('Copied API endpoint: http://localhost:9000/v1', 'success', 2500);
+      openModal();
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeModal();
+    });
+  }
+
+  if (settingsModal) {
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target === settingsModal) {
+        closeModal();
+      }
+    });
+  }
+
+  if (settingsDialog) {
+    settingsDialog.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isModalOpen) {
+      closeModal();
+    }
+  });
+
+  // Tab switching logic
+  const switchTab = (tabId) => {
+    navItems.forEach(btn => {
+      const isMatch = btn.getAttribute('data-tab') === tabId;
+      btn.classList.toggle('active', isMatch);
+      btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+    });
+
+    panels.forEach(p => {
+      const isMatch = p.id === `settings-panel-${tabId}`;
+      p.classList.toggle('active', isMatch);
+    });
+
+    if (searchInput && searchInput.value.trim()) {
+      filterSettings(searchInput.value.trim());
+    }
+  };
+
+  navItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tabId = item.getAttribute('data-tab');
+      if (tabId) switchTab(tabId);
+    });
+  });
+
+  // Search filter across active panel & rows
+  const filterSettings = (query) => {
+    const q = query.toLowerCase();
+    const activePanel = document.querySelector('.claude-settings-panel.active');
+    if (!activePanel) return;
+
+    const rows = activePanel.querySelectorAll('.claude-settings-row');
+    rows.forEach(row => {
+      const searchAttr = row.getAttribute('data-search-text') || '';
+      const text = (row.textContent + ' ' + searchAttr).toLowerCase();
+      if (!q || text.includes(q)) {
+        row.style.display = 'flex';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  };
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      filterSettings(e.target.value.trim());
+    });
+  }
+
+  // Chat Font Selector Logic
+  const fontSelectWrap = document.getElementById('chat-font-select-wrap');
+  const fontSelectBtn = document.getElementById('btn-chat-font-select');
+  const fontSelectMenu = document.getElementById('chat-font-select-menu');
+  const fontSelectedLabel = document.getElementById('chat-font-selected-label');
+  const fontOptions = fontSelectMenu ? fontSelectMenu.querySelectorAll('.claude-select-option') : [];
+
+  const fontMap = {
+    'serif': { label: 'Anthropic Serif', value: 'var(--font-serif)' },
+    'sans': { label: 'Anthropic Sans', value: 'var(--font-sans)' },
+    'system': { label: 'System', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+    'mono': { label: 'OpenDyslexic', value: 'var(--font-mono)' }
+  };
+
+  const applyChatFont = (fontKey, save = true) => {
+    const config = fontMap[fontKey] || fontMap['sans'];
+    document.documentElement.style.setProperty('--chat-font', config.value);
+    if (fontSelectedLabel) fontSelectedLabel.textContent = config.label;
+
+    fontOptions.forEach(opt => {
+      opt.classList.toggle('active', opt.getAttribute('data-font') === fontKey);
+    });
+
+    if (save) {
+      localStorage.setItem('singularity_chat_font', fontKey);
+      showToast(`Chat font set to ${config.label}`, 'info', 1600);
+    }
+  };
+
+  const savedFont = localStorage.getItem('singularity_chat_font') || 'sans';
+  applyChatFont(savedFont, false);
+
+  if (fontSelectBtn && fontSelectMenu) {
+    fontSelectBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fontSelectMenu.classList.toggle('open');
+    });
+
+    fontOptions.forEach(opt => {
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const fontKey = opt.getAttribute('data-font');
+        if (fontKey) {
+          applyChatFont(fontKey, true);
+        }
+        fontSelectMenu.classList.remove('open');
       });
     });
-  }
 
-  if (gotoCookiesBtn) {
-    gotoCookiesBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      profileDropdown.classList.remove('open');
-      switchTab('cookies');
+    document.addEventListener('click', (e) => {
+      if (fontSelectWrap && !fontSelectWrap.contains(e.target)) {
+        fontSelectMenu.classList.remove('open');
+      }
     });
   }
 
-  if (gotoLimitsBtn) {
-    gotoLimitsBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      profileDropdown.classList.remove('open');
-      switchTab('limits');
+  // Motion Toggle Switch
+  const motionToggle = document.getElementById('toggle-reduce-motion');
+  if (motionToggle) {
+    const isReduced = localStorage.getItem('singularity_reduce_motion') === 'true';
+    motionToggle.checked = isReduced;
+    document.documentElement.classList.toggle('reduce-motion', isReduced);
+
+    motionToggle.addEventListener('change', (e) => {
+      const reduced = e.target.checked;
+      document.documentElement.classList.toggle('reduce-motion', reduced);
+      localStorage.setItem('singularity_reduce_motion', reduced ? 'true' : 'false');
+      showToast(reduced ? 'Reduced motion enabled' : 'Smooth animations restored', 'info', 1800);
     });
+  }
+
+  // Audio Chime Toggle
+  const chimeToggle = document.getElementById('toggle-response-chime');
+  if (chimeToggle) {
+    chimeToggle.checked = localStorage.getItem('singularity_response_chime') === 'true';
+    chimeToggle.addEventListener('change', (e) => {
+      localStorage.setItem('singularity_response_chime', e.target.checked ? 'true' : 'false');
+      if (e.target.checked) {
+        playCompletionChime();
+        showToast('Completion chime enabled', 'info', 1800);
+      }
+    });
+  }
+
+  // Profile Avatar & Name in Account Panel
+  const renderUserAvatar = (dataUrl) => {
+    if (dataUrl) {
+      if (avatarCircle) {
+        avatarCircle.innerHTML = `<img src="${dataUrl}" class="user-avatar-img" alt="Profile Picture" />`;
+      }
+      if (removeAvatarBtn) removeAvatarBtn.style.display = 'inline-block';
+    } else {
+      if (avatarCircle) {
+        avatarCircle.innerHTML = `
+          <svg class="default-avatar-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        `;
+      }
+      if (removeAvatarBtn) removeAvatarBtn.style.display = 'none';
+    }
+  };
+
+  const storedAvatar = localStorage.getItem('singularity_user_avatar');
+  renderUserAvatar(storedAvatar);
+
+  const savedName = (localStorage.getItem('singularity_user_name') || 'Operator').trim();
+  if (nameInput) {
+    nameInput.value = savedName;
+  }
+
+  const saveProfileName = (showNotification = true) => {
+    const raw = nameInput ? nameInput.value.trim() : '';
+    const name = raw || 'Operator';
+    if (nameInput) nameInput.value = name;
+    localStorage.setItem('singularity_user_name', name);
+
+    if (saveNameBtn) {
+      saveNameBtn.classList.remove('visible');
+      saveNameBtn.classList.add('saved');
+      setTimeout(() => saveNameBtn.classList.remove('saved'), 1500);
+    }
+    if (showNotification) {
+      showToast(`Profile name saved as "${name}"`, 'success', 2000);
+    }
+  };
+
+  if (nameInput) {
+    nameInput.addEventListener('input', () => {
+      const currentStored = localStorage.getItem('singularity_user_name') || 'Operator';
+      if (nameInput.value.trim() !== currentStored) {
+        if (saveNameBtn) saveNameBtn.classList.add('visible');
+      } else {
+        if (saveNameBtn) saveNameBtn.classList.remove('visible');
+      }
+    });
+
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        nameInput.blur();
+        saveProfileName(true);
+      }
+    });
+
+    nameInput.addEventListener('blur', () => {
+      const currentStored = localStorage.getItem('singularity_user_name') || 'Operator';
+      if (nameInput.value.trim() && nameInput.value.trim() !== currentStored) {
+        saveProfileName(true);
+      }
+    });
+  }
+
+  if (saveNameBtn) {
+    saveNameBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      saveProfileName(true);
+    });
+  }
+
+  if (avatarUploadTrigger && avatarFileInput) {
+    avatarUploadTrigger.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        avatarFileInput.click();
+      }
+    });
+
+    avatarFileInput.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    avatarFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const dataUrl = await processAvatarFile(file);
+        localStorage.setItem('singularity_user_avatar', dataUrl);
+        renderUserAvatar(dataUrl);
+        showToast('Profile picture updated', 'success', 2200);
+      } catch (err) {
+        showToast(err.message || 'Failed to process picture', 'error', 3000);
+      } finally {
+        avatarFileInput.value = '';
+      }
+    });
+  }
+
+  if (removeAvatarBtn) {
+    removeAvatarBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      localStorage.removeItem('singularity_user_avatar');
+      renderUserAvatar(null);
+      showToast('Profile picture removed', 'info', 2000);
+    });
+  }
+
+  // Clear Local Cache
+  const clearCacheBtn = document.getElementById('btn-clear-local-cache');
+  if (clearCacheBtn) {
+    clearCacheBtn.addEventListener('click', () => {
+      try {
+        const keysToKeep = ['singularity_user_avatar', 'singularity_user_name', 'singularity_theme', 'singularity_theme_pref', 'singularity_chat_font', 'singularity_custom_instructions'];
+        const saved = {};
+        keysToKeep.forEach(k => {
+          const val = localStorage.getItem(k);
+          if (val) saved[k] = val;
+        });
+        localStorage.clear();
+        Object.entries(saved).forEach(([k, v]) => localStorage.setItem(k, v));
+        showToast('Local cache reset successfully', 'success', 2200);
+      } catch (err) {
+        showToast('Failed to reset cache', 'error', 2000);
+      }
+    });
+  }
+
+  // Gateway Endpoint Quick-Copy with animated feedback
+  const dynamicOrigin = (window.location && window.location.origin && window.location.origin.startsWith('http'))
+    ? window.location.origin
+    : 'http://localhost:9000';
+  const gatewayEndpointUrl = `${dynamicOrigin}/v1`;
+
+  if (endpointTextEl) {
+    endpointTextEl.textContent = gatewayEndpointUrl;
+  }
+
+  let copyResetTimer = null;
+  const executeEndpointCopy = async (e) => {
+    if (e) e.stopPropagation();
+    const success = await copyTextToClipboard(gatewayEndpointUrl);
+    if (success) {
+      if (copyEndpointRow) copyEndpointRow.classList.add('copied');
+      if (copyHintEl) copyHintEl.textContent = 'Copied!';
+      const defaultIcon = copyEndpointRow ? copyEndpointRow.querySelector('.copy-default-icon') : null;
+      const successIcon = copyEndpointRow ? copyEndpointRow.querySelector('.copy-success-icon') : null;
+      if (defaultIcon) defaultIcon.style.display = 'none';
+      if (successIcon) successIcon.style.display = 'inline-block';
+
+      showToast(`Copied API endpoint: ${gatewayEndpointUrl}`, 'success', 2500);
+
+      clearTimeout(copyResetTimer);
+      copyResetTimer = setTimeout(() => {
+        if (copyEndpointRow) copyEndpointRow.classList.remove('copied');
+        if (copyHintEl) copyHintEl.textContent = 'Copy';
+        if (defaultIcon) defaultIcon.style.display = 'inline-block';
+        if (successIcon) successIcon.style.display = 'none';
+      }, 2000);
+    } else {
+      showToast('Failed to copy endpoint to clipboard', 'error', 2500);
+    }
+  };
+
+  if (copyEndpointRow) {
+    copyEndpointRow.addEventListener('click', executeEndpointCopy);
+    copyEndpointRow.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        executeEndpointCopy(e);
+      }
+    });
+  }
+
+  if (endpointCopyBtn) {
+    endpointCopyBtn.addEventListener('click', executeEndpointCopy);
+  }
+
+  // API Key Quick-Copy
+  let apiKeyResetTimer = null;
+  const executeApiKeyCopy = async (e) => {
+    if (e) e.stopPropagation();
+    const apiKey = 'sk-singularity-local';
+    const success = await copyTextToClipboard(apiKey);
+    if (success) {
+      if (apikeyCopyRow) apikeyCopyRow.classList.add('copied');
+      if (apikeyCopyHint) apikeyCopyHint.textContent = 'Copied!';
+      const defaultIcon = apikeyCopyRow ? apikeyCopyRow.querySelector('.copy-default-icon') : null;
+      const successIcon = apikeyCopyRow ? apikeyCopyRow.querySelector('.copy-success-icon') : null;
+      if (defaultIcon) defaultIcon.style.display = 'none';
+      if (successIcon) successIcon.style.display = 'inline-block';
+
+      showToast(`Copied local API Key: ${apiKey}`, 'success', 2200);
+
+      clearTimeout(apiKeyResetTimer);
+      apiKeyResetTimer = setTimeout(() => {
+        if (apikeyCopyRow) apikeyCopyRow.classList.remove('copied');
+        if (apikeyCopyHint) apikeyCopyHint.textContent = 'Copy';
+        if (defaultIcon) defaultIcon.style.display = 'inline-block';
+        if (successIcon) successIcon.style.display = 'none';
+      }, 2000);
+    } else {
+      showToast('Failed to copy endpoint to clipboard', 'error', 2500);
+    }
+  };
+
+  if (apikeyCopyRow) {
+    apikeyCopyRow.addEventListener('click', executeApiKeyCopy);
+  }
+  if (apikeyCopyBtn) {
+    apikeyCopyBtn.addEventListener('click', executeApiKeyCopy);
+  }
+
+  // Capabilities & Inference Defaults
+  const reasoningSelect = document.getElementById('settings-reasoning-effort');
+  if (reasoningSelect) {
+    reasoningSelect.value = localStorage.getItem('singularity_reasoning_effort') || 'medium';
+    reasoningSelect.addEventListener('change', (e) => {
+      localStorage.setItem('singularity_reasoning_effort', e.target.value);
+    });
+  }
+
+  const tempSlider = document.getElementById('settings-temperature-slider');
+  const tempVal = document.getElementById('settings-temperature-val');
+  if (tempSlider && tempVal) {
+    const savedTemp = localStorage.getItem('singularity_default_temp') || '0.7';
+    tempSlider.value = savedTemp;
+    tempVal.textContent = parseFloat(savedTemp).toFixed(2);
+
+    tempSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value).toFixed(2);
+      tempVal.textContent = val;
+      localStorage.setItem('singularity_default_temp', val);
+    });
+  }
+
+  const genuiToggle = document.getElementById('toggle-genui-artifacts');
+  if (genuiToggle) {
+    genuiToggle.checked = localStorage.getItem('singularity_genui_enabled') !== 'false';
+    genuiToggle.addEventListener('change', (e) => {
+      localStorage.setItem('singularity_genui_enabled', e.target.checked ? 'true' : 'false');
+    });
+  }
+
+  // Memory & Custom Instructions
+  const customInstructionsArea = document.getElementById('settings-custom-instructions');
+  const saveInstructionsBtn = document.getElementById('btn-save-custom-instructions');
+  const identityToggle = document.getElementById('toggle-identity-awareness');
+
+  if (customInstructionsArea) {
+    customInstructionsArea.value = localStorage.getItem('singularity_custom_instructions') || '';
+  }
+
+  if (saveInstructionsBtn && customInstructionsArea) {
+    saveInstructionsBtn.addEventListener('click', () => {
+      const instructions = customInstructionsArea.value.trim();
+      localStorage.setItem('singularity_custom_instructions', instructions);
+      showToast('Custom instructions saved for AI models', 'success', 2200);
+    });
+  }
+
+  if (identityToggle) {
+    identityToggle.checked = localStorage.getItem('singularity_identity_awareness') !== 'false';
+    identityToggle.addEventListener('change', (e) => {
+      localStorage.setItem('singularity_identity_awareness', e.target.checked ? 'true' : 'false');
+    });
+  }
+
+  // Dynamic Connectors Grid across all 8 providers
+  const connectorsGrid = document.getElementById('settings-connectors-grid');
+  if (connectorsGrid && connectorsGrid.children.length === 0) {
+    const providers = [
+      { id: 'chatgpt', name: 'OpenAI ChatGPT', meta: 'GPT-5.4, GPT-5.3 Thinking, GPT-4o, Canvas', icon: '/static/icons/chatgpt.svg' },
+      { id: 'claude', name: 'Anthropic Claude', meta: 'Claude 3.7 Sonnet, Thinking, Opus, Haiku', icon: '/static/icons/claude.svg' },
+      { id: 'gemini', name: 'Google Gemini', meta: 'Gemini 3.8 Flash & Thinking, 3.7, 3.1 Pro', icon: '/static/icons/gemini.svg' },
+      { id: 'grok', name: 'xAI Grok', meta: 'Grok 3, Grok 3 Mini, Thinking Mode', icon: '/static/icons/grok.svg' },
+      { id: 'deepseek', name: 'DeepSeek AI', meta: 'DeepSeek V4, V3, R1 Reasoner', icon: '/static/icons/deepseek.svg' },
+      { id: 'kimi', name: 'Moonshot Kimi', meta: 'Kimi K2.5, K1.5 Long Context & Research', icon: '/static/icons/kimi.svg' },
+      { id: 'glm', name: 'Zhipu GLM', meta: 'GLM-5, GLM-4 Plus & Flash', icon: '/static/icons/glm.svg' },
+      { id: 'qwen', name: 'Alibaba Qwen', meta: 'Qwen 2.5 Max, QwQ 32B Reasoner', icon: '/static/icons/qwen.svg' }
+    ];
+
+    connectorsGrid.innerHTML = providers.map(p => `
+      <div class="claude-connector-card">
+        <div class="claude-connector-icon">
+          <img src="${p.icon}" width="24" height="24" alt="${p.name}" />
+        </div>
+        <div class="claude-connector-info">
+          <div class="claude-connector-name">${p.name}</div>
+          <div class="claude-connector-meta">${p.meta}</div>
+        </div>
+      </div>
+    `).join('');
   }
 }
+window.initUserProfile = initClaudeSettings;
+window.initClaudeSettings = initClaudeSettings;
 
 // ===================================================================
 // Navigation Tabs
@@ -6191,6 +6787,7 @@ function initSidebar() {
 // ===================================================================
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  initClaudeSettings();
   initSidebar();
   initTooltips();
   initNavigation();
