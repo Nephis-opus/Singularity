@@ -1681,17 +1681,26 @@ async function loadCookiesTab() {
 
   listContainer.innerHTML = accounts.map((acc, idx) => {
     const label = acc.email || acc.name || acc.masked || `Account #${idx + 1}`;
-    const sub = acc.plan ? `Plan: ${acc.plan.toUpperCase()} • Status: ${acc.status || 'Active'}` : (acc.masked || 'Active Session');
+    const sub = acc.plan ? `Plan: ${acc.plan.toUpperCase()}` : (acc.masked || 'Active Session');
+    const ident = acc.identifier || acc.email || acc.sessionKey || acc.token || acc.raw || '';
+    const cardId = `acc-card-${p}-${acc.id != null ? acc.id : idx}`;
+    const badgeId = `acc-badge-${p}-${acc.id != null ? acc.id : idx}`;
+    const descId = `acc-desc-${p}-${acc.id != null ? acc.id : idx}`;
 
     return `
-      <div class="account-card">
+      <div class="account-card" id="${cardId}">
         <div class="account-card-info">
           <div class="account-card-title">${escapeHtml(label)}</div>
-          <div class="account-card-desc">${escapeHtml(sub)}</div>
+          <div class="account-card-desc" id="${descId}" style="display:flex;align-items:center;gap:6px;">
+            <span>${escapeHtml(sub)}</span>
+            <span id="${badgeId}" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;background:rgba(255,255,255,0.07);color:var(--text-muted);">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="animation:spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              Checking…
+            </span>
+          </div>
         </div>
         <div class="account-card-actions">
-          <span class="lock-badge unlocked">STACKED</span>
-          <button class="btn-remove-acc" onclick="removeStackedAccount('${escapeHtml(p)}', ${Number(acc.id != null ? acc.id : idx)})" title="Remove this account">
+          <button class="btn-remove-acc" onclick="removeStackedAccount('${escapeHtml(p)}', ${Number(acc.id != null ? acc.id : idx)}, '${escapeHtml(ident)}')" title="Remove this account">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"></polyline>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -1704,6 +1713,70 @@ async function loadCookiesTab() {
       </div>
     `;
   }).join('');
+
+  // Fire real-time token validation for providers that support it
+  if (p === 'chatgpt' || p === 'gemini') {
+    _validateAccountsLive(p, accounts);
+  } else {
+    // For other providers just show DB status
+    accounts.forEach((acc, idx) => {
+      const badgeId = `acc-badge-${p}-${acc.id != null ? acc.id : idx}`;
+      const badge = document.getElementById(badgeId);
+      if (badge) {
+        badge.innerHTML = '● STACKED';
+        badge.style.background = 'rgba(34,197,94,0.12)';
+        badge.style.color = '#4ade80';
+        badge.style.animation = 'none';
+      }
+    });
+  }
+}
+
+async function _validateAccountsLive(provider, accounts) {
+  // Show spinner CSS if not already added
+  if (!document.getElementById('spin-keyframes')) {
+    const style = document.createElement('style');
+    style.id = 'spin-keyframes';
+    style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+    document.head.appendChild(style);
+  }
+
+  try {
+    const res = await fetch(`/api/accounts/validate?provider=${encodeURIComponent(provider)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const validated = data.accounts || [];
+
+    validated.forEach(vAcc => {
+      const cardIndex = accounts.findIndex(a => (a.id != null ? a.id : -1) === (vAcc.id != null ? vAcc.id : -2));
+      const idx = cardIndex >= 0 ? cardIndex : validated.indexOf(vAcc);
+      const badgeId = `acc-badge-${provider}-${vAcc.id != null ? vAcc.id : idx}`;
+      const badge = document.getElementById(badgeId);
+      if (!badge) return;
+
+      if (vAcc.valid) {
+        let expLabel = '';
+        if (vAcc.expires_at) {
+          const d = new Date(vAcc.expires_at * 1000);
+          expLabel = ` · exp ${d.toLocaleDateString()}`;
+        }
+        badge.innerHTML = `✓ Valid${expLabel}`;
+        badge.style.background = 'rgba(34,197,94,0.12)';
+        badge.style.color = '#4ade80';
+      } else {
+        badge.innerHTML = `✗ Expired`;
+        badge.style.background = 'rgba(239,68,68,0.12)';
+        badge.style.color = '#f87171';
+        badge.title = vAcc.reason || 'Token expired or invalid';
+        // Also dim the whole card
+        const cardId = `acc-card-${provider}-${vAcc.id != null ? vAcc.id : idx}`;
+        const card = document.getElementById(cardId);
+        if (card) card.style.opacity = '0.55';
+      }
+    });
+  } catch (e) {
+    // Validation probe failed silently — leave badges as-is
+  }
 }
 
 async function removeStackedAccount(provider, index, identifier) {
@@ -3149,29 +3222,112 @@ async function resetCurrentModelSettings() {
 }
 
 const HERO_DIALOGUES = [
-  "Tomboys for the win !",
-  "9/11 was an insider job fr",
-  "Am I cooking, Chat?",
-  "Watch Konosuba, Trust.",
-  "Bro think he the main character",
-  "Let him cook, I said LET HIM COOK",
-  "It is what it is (it isn't)",
-  "Touch grass? In this economy?",
-  "Certified yapper in the building",
-  "Delusion is my superpower",
-  "Skill issue or cosmic malice?",
-  "We stay silly, we stay scheming",
-  "Works on my machine, ship it",
-  "Nah, I'd win",
-  "Frieren would be proud",
-  "Trust the process (I have no plan)",
-  "The voices told me to refactor",
-  "Peak fiction, zero budget",
-  "Submitting PR and fleeing the country",
-  "Steins;Gate was a documentary",
-  "Terminal open, brain disconnected",
-  "Who let bro cook in production?",
-  "I don't need sleep, I need answers"
+  // Sunny & The Flaw
+  "Flaw: [Clear Conscience] — Can't even lie",
+  "Treacherous Lost from Light strikes again",
+  "I never lie. I just omit with malice.",
+  "Fated attribute doing its daily sabotage",
+  "Humble shopkeeper, nothing to see here",
+  "Sunny crying about coins with Divine relics",
+  "Heroes end up dead in the Spire",
+  "Living rent-free in the shadows of bastards",
+  "Dying builds character. Ask Sunny.",
+  "Sunny: 'I am harmless.' [Lie Check: Passed]",
+  "Rain has no idea her brother is a calamity",
+  "Waking world coffee hits different",
+  "Sunny's cooking is a literal biohazard",
+  "The Spell exists purely to torment me",
+  "Two words: Fated. Run.",
+  "Outskirts broke boy built different",
+  "Mongrel will save us! (Needs rent money)",
+  "Lord Mongrel, sign my chestplate!",
+  "A treacherous shadow never reveals its hand",
+  "Trust no one. Especially your shadows.",
+
+  // The Shadows
+  "Gloomy is disappointed in your prompt",
+  "Happy shadow is hitting a jig behind you",
+  "Creepy shadow is staring from the corner",
+  "Haughty shadow refuses mortal foolishness",
+  "Naughty shadow stole your soul shards",
+  "Crazy shadow laughing at the void",
+  "Six shadows and zero respect for me",
+  "Shadow lantern lit. Shadows, assemble.",
+  "Lord Shadow is judging you silently",
+
+  // Nephis & Cohort
+  "Nephis smiled. Everyone started sweating.",
+  "Neph, stop setting yourself on fire",
+  "Changing Star didn't hesitate. Ever.",
+  "Her flaw is 3rd degree burns and no chill",
+  "Effie just ate the entire Citadel's food",
+  "Kai is too pretty again, punch him",
+  "Kai asked if I'm okay. Real tears shed.",
+  "Master Jet: 'Ready to die, slugger?'",
+  "Cassie foresaw this prompt 3 volumes ago",
+  "Cassie: 'I saw this.' Sunny: 'My suffering?'",
+  "Song of the Fallen playing softly...",
+  "Blind seer dropping ominous morning lore",
+
+  // Spell & Memories
+  "[Spell: Nightmare chosen you, Sleeper]",
+  "[Spell: Evaluated... Barely survived]",
+  "[Spell: Slain Corrupted Titan. Agony gained]",
+  "[Memory: Midnight Shard — Still sharp]",
+  "[Memory: Weaver's Mask — Time to lie]",
+  "[Memory: Prowling Thorn — Don't look]",
+  "[Echo: Scavenger ate your braincell]",
+  "[Shadow Core Saturated — Near-death rank up]",
+  "[True Name: Lost from Light]",
+  "[Attribute: Fated — You will never know peace]",
+  "[Rank: Transcendent — Status: Exhausted]",
+
+  // Saint & Echoes
+  "Saint gave you the silent obsidian death glare",
+  "Saint ate another darkness shard",
+  "Nightmare galloping across your trauma",
+  "Fiend chewing on an unexploded soul core",
+  "Covetous Coffer rattling for your loot",
+  "Mimic chest detected. Stab it first.",
+
+  // Forgotten Shore & Nightmare Realm
+  "Forgotten Shore PTSD never fades",
+  "The Dark Sea is rising. RUN.",
+  "Crimson Spire looming in the distance",
+  "Soul Devourer fruit: DO NOT EAT",
+  "Spire Messenger overhead. Take cover.",
+  "First Nightmare: Mountain King vs Butterknife",
+  "Mountain King was just hungry tbh",
+  "Surviving Ashen Barrow on spite and dirt",
+  "Dark City was rougher than Twitter",
+
+  // Weaver & Lore
+  "Praise Weaver, chief architect of my pain",
+  "Blood, Bone, Soul Weave... still flat broke",
+  "Drank divine ichor. Agony: Celestial.",
+  "Weaver left cryptic notes and dipped",
+  "Strings of Fate are thoroughly tangled",
+  "Hope chained in her ivory tower",
+  "Ariel built a pyramid just to hide lore",
+  "Tomb of Ariel time loops melting brains",
+  "Mad Prince: God-tier drip, zero sanity",
+  "Dead gods make the best loot",
+
+  // Mordret & Sovereigns
+  "Mordret is in your mirror. Don't look.",
+  "Prince of Nothing scheming behind glass",
+  "Never look into spoons near Mordret",
+  "Anvil and Ki Song having a mid-off",
+  "Asterion still doing side quests in space",
+  "Sovereigns play chess, Sunny steals board",
+
+  // Antarctica
+  "Antarctica: Snow, suffering, and dead Titans",
+  "Goliath was huge, gravity was Sunny's friend",
+  "Black Turtle Island cruising the storm",
+  "Chained Isles: Void gaping right below",
+  "Corrupted Titan spotted. Act like a rock.",
+  "Surviving horrors beyond comprehension"
 ];
 
 let lastGreetingIndex = -1;
@@ -6044,6 +6200,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPlayground();
   initCopyAction();
   initTunnelControls();
+  initSmoothInputs();
 
   // Fleet controls (Desktop & Mobile)
   const handleRefresh = () => {
@@ -6288,6 +6445,201 @@ window.switchArtifactVersion = switchArtifactVersion;
 window.copyActiveArtifactCode = copyActiveArtifactCode;
 window.downloadActiveArtifact = downloadActiveArtifact;
 window.toggleArtifactFullscreen = toggleArtifactFullscreen;
+
+// ===================================================================
+// Skiper106 Smooth Caret Input Component (@skiper-ui/skiper106)
+// Spring-interpolated smooth caret with Canvas & DOM mirror tracking
+// ===================================================================
+
+class SkiperSmoothCaret {
+  constructor(inputEl) {
+    if (!inputEl || inputEl._skiperSmoothCaret) return;
+    this.el = inputEl;
+    this.el._skiperSmoothCaret = this;
+
+    this.isTextarea = this.el.tagName.toLowerCase() === 'textarea';
+    this.canvas = document.createElement('canvas');
+    this.ctx = this.canvas.getContext('2d');
+    
+    this.idleTimer = null;
+    this.mirrorEl = null;
+
+    this.setupDOM();
+    this.bindEvents();
+  }
+
+  setupDOM() {
+    let wrapper = this.el.parentElement;
+    if (!wrapper || !wrapper.classList.contains('skiper-smooth-wrapper')) {
+      wrapper = document.createElement('div');
+      wrapper.className = 'skiper-smooth-wrapper';
+      if (this.isTextarea) {
+        wrapper.classList.add('block-wrapper');
+      }
+      this.el.parentNode.insertBefore(wrapper, this.el);
+      wrapper.appendChild(this.el);
+    }
+    this.wrapper = wrapper;
+
+    this.caret = document.createElement('div');
+    this.caret.className = 'skiper-smooth-caret';
+    this.wrapper.appendChild(this.caret);
+
+    this.el.classList.add('skiper-smooth-input');
+
+    if (this.isTextarea) {
+      this.mirrorEl = document.createElement('div');
+      this.mirrorEl.setAttribute('aria-hidden', 'true');
+      this.mirrorEl.style.cssText = `
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+        visibility: hidden;
+        pointer-events: none;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+      `;
+      document.body.appendChild(this.mirrorEl);
+    }
+  }
+
+  bindEvents() {
+    const update = () => this.updateCaretPosition();
+    const onActivity = () => {
+      this.caret.classList.add('active-typing', 'visible');
+      this.caret.classList.remove('idle-blinking');
+      update();
+      clearTimeout(this.idleTimer);
+      this.idleTimer = setTimeout(() => {
+        this.caret.classList.remove('active-typing');
+        if (document.activeElement === this.el) {
+          this.caret.classList.add('idle-blinking');
+        }
+      }, 380);
+    };
+
+    this.el.addEventListener('focus', () => {
+      this.caret.classList.add('visible', 'idle-blinking');
+      update();
+    });
+
+    this.el.addEventListener('blur', () => {
+      this.caret.classList.remove('visible', 'active-typing', 'idle-blinking');
+    });
+
+    this.el.addEventListener('input', onActivity);
+    this.el.addEventListener('keydown', onActivity);
+    this.el.addEventListener('keyup', update);
+    this.el.addEventListener('click', update);
+    this.el.addEventListener('select', update);
+    this.el.addEventListener('mouseup', update);
+    this.el.addEventListener('scroll', update);
+
+    window.addEventListener('resize', update);
+  }
+
+  updateCaretPosition() {
+    if (document.activeElement !== this.el) return;
+
+    const start = this.el.selectionStart;
+    const end = this.el.selectionEnd;
+
+    // Hide caret if there's an active text selection range
+    if (start === null || start === undefined || start !== end) {
+      this.caret.style.opacity = '0';
+      return;
+    } else {
+      this.caret.style.opacity = '';
+    }
+
+    const style = window.getComputedStyle(this.el);
+    const fontSize = parseFloat(style.fontSize) || 14;
+    const paddingLeft = parseFloat(style.paddingLeft) || 0;
+    const paddingTop = parseFloat(style.paddingTop) || 0;
+    const borderLeft = parseFloat(style.borderLeftWidth) || 0;
+    const borderTop = parseFloat(style.borderTopWidth) || 0;
+
+    const val = this.el.value || '';
+    const textBefore = val.substring(0, start);
+
+    let caretX = 0;
+    let caretY = 0;
+    let caretHeight = fontSize * 1.18;
+
+    if (!this.isTextarea) {
+      // Single-line text/password/search input
+      let measuredText = textBefore;
+      if (this.el.type === 'password') {
+        measuredText = '•'.repeat(textBefore.length);
+      }
+      this.ctx.font = `${style.fontStyle} ${style.fontVariant} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const textWidth = this.ctx.measureText(measuredText).width;
+      
+      const inputHeight = this.el.offsetHeight || parseFloat(style.height) || (fontSize + paddingTop * 2);
+      caretX = paddingLeft + borderLeft + textWidth - this.el.scrollLeft;
+      caretY = Math.max(0, (inputHeight - caretHeight) / 2);
+    } else {
+      // Multi-line textarea with pixel-perfect DOM mirror probe
+      if (this.mirrorEl) {
+        const mirrorStyles = [
+          'boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+          'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+          'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight',
+          'textTransform', 'wordSpacing', 'textIndent', 'whiteSpace', 'wordBreak', 'overflowWrap'
+        ];
+        mirrorStyles.forEach(prop => {
+          this.mirrorEl.style[prop] = style[prop];
+        });
+        this.mirrorEl.style.width = `${this.el.clientWidth}px`;
+
+        // Escape HTML
+        const safeText = textBefore
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+
+        this.mirrorEl.innerHTML = `${safeText}<span id="skiper-probe" style="display:inline-block;width:0;height:${caretHeight}px;vertical-align:baseline;">&#8203;</span>`;
+        const probe = this.mirrorEl.querySelector('#skiper-probe');
+
+        if (probe) {
+          caretX = paddingLeft + borderLeft + probe.offsetLeft - this.el.scrollLeft;
+          caretY = paddingTop + borderTop + probe.offsetTop - this.el.scrollTop;
+        } else {
+          caretX = paddingLeft;
+          caretY = paddingTop;
+        }
+      }
+    }
+
+    this.caret.style.height = `${Math.round(caretHeight)}px`;
+    this.caret.style.transform = `translate3d(${Math.round(caretX)}px, ${Math.round(caretY)}px, 0)`;
+  }
+}
+
+function initSmoothInputs() {
+  const selectors = [
+    '#chat-input',
+    '#model-search',
+    '#model-filter-input',
+    '#claude-settings-search',
+    '#input-ngrok-authtoken',
+    '#user-profile-name-input',
+    '#system-prompt-input',
+    '.smooth-input',
+    '[data-smooth-input]'
+  ];
+  document.querySelectorAll(selectors.join(', ')).forEach(el => {
+    if (!el._skiperSmoothCaret) {
+      new SkiperSmoothCaret(el);
+    }
+  });
+}
+
+window.initSmoothInputs = initSmoothInputs;
+window.SkiperSmoothCaret = SkiperSmoothCaret;
 
 
 

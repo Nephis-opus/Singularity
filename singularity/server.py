@@ -1477,6 +1477,165 @@ async def api_delete_model_settings(request: Request, model: Optional[str] = Non
 
 
 
+@app.get("/api/accounts/validate")
+async def api_validate_accounts(request: Request):
+    """
+    Probe each stacked account for the given provider and return live token validity.
+
+    For ChatGPT: decodes the JWT exp field (instant, no network) or hits
+    /api/auth/session for session-token based accounts.
+    For Gemini: tries extracting SNlM0e from gemini.google.com with the stored cookie.
+    For all others: returns db status as-is.
+
+    Response: { "accounts": [{ "id", "identifier", "name", "plan", "valid": bool, "reason": str, "expires_at": int|null }] }
+    """
+    provider = request.query_params.get("provider", "chatgpt").lower().strip()
+    try:
+        accounts = db.get_accounts(provider)
+    except Exception as e:
+        return JSONResponse({"error": f"DB error: {str(e)}"}, status_code=500)
+
+    results = []
+
+    def _decode_jwt_local(token: str):
+        """Decode JWT payload without verifying signature."""
+        try:
+            parts = token.split(".")
+            if len(parts) < 2:
+                return None
+            padded = parts[1] + "=" * (-len(parts[1]) % 4)
+            return json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
+        except Exception:
+            return None
+
+    if provider == "chatgpt":
+        from singularity.engines.chatgpt import extract_chatgpt_credentials
+        now = time.time()
+
+        for acc in accounts:
+            acc_id = acc.get("id")
+            ident = acc.get("identifier") or acc.get("name") or str(acc_id)
+            raw_token = acc.get("token", "")
+            valid = False
+            reason = "Unknown"
+            expires_at = None
+
+            try:
+                creds = extract_chatgpt_credentials(raw_token)
+                access_token = creds.get("access_token", "")
+                session_token = creds.get("session_token", "")
+
+                if access_token:
+                    jwt = _decode_jwt_local(access_token)
+                    if jwt:
+                        exp = float(jwt.get("exp", 0))
+                        expires_at = int(exp)
+                        if exp > now + 30:
+                            valid = True
+                            reason = "Token valid"
+                        else:
+                            reason = "Access token expired"
+                    else:
+                        valid = True
+                        reason = "Could not decode JWT (assuming valid)"
+                elif session_token:
+                    try:
+                        async with httpx.AsyncClient(
+                            timeout=10.0,
+                            follow_redirects=True,
+                            headers={
+                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+                                "Cookie": f"__Secure-next-auth.session-token={session_token}",
+                                "Accept": "application/json",
+                            }
+                        ) as client:
+                            r = await client.get("https://chatgpt.com/api/auth/session")
+                            if r.status_code == 200:
+                                data = r.json()
+                                new_at = data.get("accessToken")
+                                if new_at:
+                                    jwt = _decode_jwt_local(new_at)
+                                    if jwt:
+                                        exp = float(jwt.get("exp", now + 3600))
+                                        expires_at = int(exp)
+                                    valid = True
+                                    reason = "Session active"
+                                else:
+                                    reason = "Session expired or no access token returned"
+                            elif r.status_code == 401:
+                                reason = "Session token expired (401)"
+                            else:
+                                reason = f"Auth check returned HTTP {r.status_code}"
+                    except Exception as probe_err:
+                        reason = f"Network probe failed: {str(probe_err)[:80]}"
+                else:
+                    jwt = _decode_jwt_local(raw_token)
+                    if jwt:
+                        exp = float(jwt.get("exp", 0))
+                        expires_at = int(exp)
+                        if exp > now + 30:
+                            valid = True
+                            reason = "Raw token valid"
+                        else:
+                            reason = "Raw token expired"
+                    else:
+                        valid = True
+                        reason = "Cannot decode (assuming active)"
+            except Exception as e:
+                reason = f"Validation error: {str(e)[:100]}"
+
+            results.append({
+                "id": acc_id,
+                "identifier": ident,
+                "name": acc.get("name") or ident,
+                "plan": acc.get("plan", "FREE"),
+                "valid": valid,
+                "reason": reason,
+                "expires_at": expires_at,
+            })
+
+    elif provider == "gemini":
+        from singularity.engines.gemini import _get_gemini_session_context
+        for acc in accounts:
+            acc_id = acc.get("id")
+            ident = acc.get("identifier") or acc.get("name") or str(acc_id)
+            cookie_str = acc.get("token", "")
+            valid = False
+            reason = "Unknown"
+            try:
+                snlm0e, bl = await _get_gemini_session_context(cookie_str)
+                if snlm0e:
+                    valid = True
+                    reason = "SNlM0e session active"
+                else:
+                    reason = "Could not extract SNlM0e — cookie likely expired or missing __Secure-1PSIDTS"
+            except Exception as e:
+                reason = f"Probe error: {str(e)[:100]}"
+            results.append({
+                "id": acc_id,
+                "identifier": ident,
+                "name": acc.get("name") or ident,
+                "plan": acc.get("plan", "FREE"),
+                "valid": valid,
+                "reason": reason,
+                "expires_at": None,
+            })
+
+    else:
+        for acc in accounts:
+            results.append({
+                "id": acc.get("id"),
+                "identifier": acc.get("identifier") or acc.get("name", ""),
+                "name": acc.get("name", ""),
+                "plan": acc.get("plan", "FREE"),
+                "valid": acc.get("status", "active").lower() == "active",
+                "reason": "Active in database",
+                "expires_at": None,
+            })
+
+    return {"accounts": results}
+
+
 @app.get("/api/cookies")
 async def api_get_cookies():
     return get_stored_cookies()

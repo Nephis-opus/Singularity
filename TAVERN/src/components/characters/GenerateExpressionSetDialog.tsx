@@ -74,6 +74,15 @@ export function GenerateExpressionSetDialog({
   const stopRef = useRef(false)
   const controllerRef = useRef<AbortController | null>(null)
   const startTimeRef = useRef<number>(0)
+  // Real account count fetched from Singularity — falls back to null (hides the label) until loaded
+  const [gptAccountCount, setGptAccountCount] = useState<number | null>(null)
+
+  const openMayhemApiKey = useSettingsStore((s) => s.openMayhemApiKey)
+  const imageBackend = useSettingsStore((s) => s.imageBackend)
+  const imageBackendBaseUrl = useSettingsStore((s) => s.imageBackendBaseUrl)
+  const imageBackendUsername = useSettingsStore((s) => s.imageBackendUsername)
+  const imageBackendPassword = useSettingsStore((s) => s.imageBackendPassword)
+  const imageBackendModel = useSettingsStore((s) => s.imageBackendModel)
 
   useEffect(() => {
     if (characterPortrait) {
@@ -87,6 +96,23 @@ export function GenerateExpressionSetDialog({
     }
   }, [characterPortrait])
 
+  // Fetch real ChatGPT account count from Singularity when using singularity/chatgpt-image backend
+  useEffect(() => {
+    const isSingularityBackend = imageBackend === 'singularity' || (imageBackend as string) === 'chatgpt-image'
+    if (!isSingularityBackend) return
+    const base = (imageBackendBaseUrl || 'http://localhost:9000').replace(/\/v1\/?$/, '')
+    fetch(`${base}/api/services`)
+      .then((r) => r.json())
+      .then((data) => {
+        const chatgptService = (data.services as { id: string; accounts?: number }[] | undefined)
+          ?.find((s) => s.id === 'chatgpt')
+        if (chatgptService?.accounts != null) {
+          setGptAccountCount(chatgptService.accounts)
+        }
+      })
+      .catch(() => { /* server may not be running yet */ })
+  }, [imageBackend, imageBackendBaseUrl])
+
   useEffect(() => () => { stopRef.current = true; controllerRef.current?.abort() }, [])
   const [progress, setProgress] = useState<{ done: number; total: number; currentLabel: string | null; estRemainingSecs: number | null }>({
     done: 0,
@@ -96,15 +122,9 @@ export function GenerateExpressionSetDialog({
   })
   const [results, setResults] = useState<{ succeeded: string[]; failed: string[] } | null>(null)
 
-  const openMayhemApiKey = useSettingsStore((s) => s.openMayhemApiKey)
-  const imageBackend = useSettingsStore((s) => s.imageBackend)
-  const imageBackendBaseUrl = useSettingsStore((s) => s.imageBackendBaseUrl)
-  const imageBackendUsername = useSettingsStore((s) => s.imageBackendUsername)
-  const imageBackendPassword = useSettingsStore((s) => s.imageBackendPassword)
-  const imageBackendModel = useSettingsStore((s) => s.imageBackendModel)
-
   const [concurrency, setConcurrency] = useState<number>(imageBackend === 'singularity' ? 3 : 2)
-  const effectiveConcurrency = imageBackend === 'singularity' ? concurrency : 2
+  const maxConcurrency = gptAccountCount ?? 7
+  const effectiveConcurrency = imageBackend === 'singularity' ? Math.min(concurrency, maxConcurrency) : 2
   const estSecsPerRound = imageBackend === 'singularity' ? 12 : 20
   const initialEstTotalSecs = Math.ceil(selected.size / effectiveConcurrency) * estSecsPerRound
 
@@ -366,23 +386,27 @@ ${backgroundSpec}`
               <Sparkles size={13} className="text-accent" />
               <div>
                 <span className="text-xs font-medium text-text">Parallel Processing</span>
-                <span className="ml-1.5 text-[10px] text-text-muted">(7 accounts pool)</span>
+                {gptAccountCount != null && (
+                  <span className="ml-1.5 text-[10px] text-text-muted">({gptAccountCount} accounts pool)</span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {[1, 2, 3, 4, 7].map((num) => (
+              {[1, 2, 3, 4].concat(maxConcurrency > 4 ? [maxConcurrency] : []).map((num) => (
                 <button
                   key={num}
                   type="button"
-                  disabled={busy}
+                  disabled={busy || num > maxConcurrency}
                   onClick={() => setConcurrency(num)}
                   className={`rounded-lg px-2 py-0.5 text-xs font-medium transition-colors ${
                     concurrency === num
                       ? 'bg-accent text-accent-fg shadow-sm'
-                      : 'bg-bg-elevated text-text-muted hover:text-text hover:bg-bg-subtle'
+                      : num > maxConcurrency
+                        ? 'bg-bg-elevated text-text-muted/30 cursor-not-allowed'
+                        : 'bg-bg-elevated text-text-muted hover:text-text hover:bg-bg-subtle'
                   }`}
                 >
-                  {num === 7 ? '7x (Max)' : `${num}x`}
+                  {num === maxConcurrency && num > 4 ? `${num}x (Max)` : `${num}x`}
                 </button>
               ))}
             </div>

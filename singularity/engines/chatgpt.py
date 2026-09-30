@@ -616,29 +616,80 @@ def _format_messages_to_prompt(messages: List[Dict[str, Any]]) -> str:
     return "\n\n".join(parts) if parts else "Hello"
 
 
-def _api_messages_to_conversation_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _api_messages_to_conversation_messages(
+    messages: List[Dict[str, Any]],
+    uploaded_file_ids: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
     """Convert OpenAI messages array into ChatGPT web conversation format."""
     conv_messages = []
+    file_ids_used = False
+
     for m in messages:
         role = m.get("role", "user")
         content = m.get("content", "")
+        has_image_block = False
+
         if isinstance(content, list):
             sub_txt = []
             for item in content:
                 if isinstance(item, dict) and item.get("type") == "text":
                     sub_txt.append(item.get("text", ""))
+                elif isinstance(item, dict) and item.get("type") == "image_url":
+                    has_image_block = True
                 elif isinstance(item, str):
                     sub_txt.append(item)
-            content = " ".join(sub_txt)
-        text_content = str(content).strip()
-        if not text_content:
-            continue
-        conv_messages.append({
-            "id": str(uuid.uuid4()),
-            "author": {"role": role},
-            "content": {"content_type": "text", "parts": [text_content]},
-            "metadata": {},
-        })
+            text_content = " ".join(sub_txt).strip()
+        else:
+            text_content = str(content).strip()
+
+        # Inject uploaded files into the first user message that had image_url blocks
+        if role == "user" and has_image_block and uploaded_file_ids and not file_ids_used:
+            file_ids_used = True
+            # Build multimodal_text parts: file references + text
+            parts = []
+            for finfo in uploaded_file_ids:
+                parts.append({
+                    "asset_pointer": f"file-service://file-{finfo['file_id']}",
+                    "content_type": finfo.get("mime_type", "image/png"),
+                    "size_bytes": finfo.get("size_bytes", 0),
+                    "width": finfo.get("width"),
+                    "height": finfo.get("height"),
+                    "metadata": {"dalle": None},
+                })
+            if text_content:
+                parts.append(text_content)
+
+            conv_messages.append({
+                "id": str(uuid.uuid4()),
+                "author": {"role": role},
+                "content": {
+                    "content_type": "multimodal_text",
+                    "parts": parts,
+                },
+                "metadata": {
+                    "attachments": [
+                        {
+                            "id": f"file-{finfo['file_id']}",
+                            "name": finfo.get("name", "reference.png"),
+                            "size": finfo.get("size_bytes", 0),
+                            "mimeType": finfo.get("mime_type", "image/png"),
+                            "width": finfo.get("width"),
+                            "height": finfo.get("height"),
+                        }
+                        for finfo in uploaded_file_ids
+                    ]
+                },
+            })
+        else:
+            if not text_content:
+                continue
+            conv_messages.append({
+                "id": str(uuid.uuid4()),
+                "author": {"role": role},
+                "content": {"content_type": "text", "parts": [text_content]},
+                "metadata": {},
+            })
+
     if not conv_messages:
         conv_messages.append({
             "id": str(uuid.uuid4()),
@@ -647,6 +698,119 @@ def _api_messages_to_conversation_messages(messages: List[Dict[str, Any]]) -> Li
             "metadata": {},
         })
     return conv_messages
+
+
+async def _upload_image_to_chatgpt_session(
+    sess,
+    base_headers: Dict[str, Any],
+    data_uri: str,
+    filename: str = "reference.png",
+) -> Optional[Dict[str, Any]]:
+    """
+    Upload an image (data URI or raw base64) to ChatGPT's file upload endpoint.
+
+    Returns dict with {file_id, mime_type, size_bytes, width, height, name} or None on failure.
+    ChatGPT upload flow:
+      1. POST /backend-api/files  → {file_id, upload_url, status}
+      2. PUT  <upload_url>        → (GCS presigned URL)
+      3. POST /backend-api/files/{file_id}/uploaded → confirms the upload
+    """
+    import io
+    try:
+        import PIL.Image as PILImage
+        HAS_PIL = True
+    except ImportError:
+        HAS_PIL = False
+
+    # Decode base64
+    try:
+        if data_uri.startswith("data:"):
+            header, b64_data = data_uri.split(",", 1)
+            mime_type = header.split(":")[1].split(";")[0]
+        else:
+            b64_data = data_uri
+            mime_type = "image/png"
+        image_bytes = base64.b64decode(b64_data)
+    except Exception:
+        return None
+
+    size_bytes = len(image_bytes)
+    width, height = None, None
+
+    if HAS_PIL:
+        try:
+            img = PILImage.open(io.BytesIO(image_bytes))
+            width, height = img.size
+        except Exception:
+            pass
+
+    # Derive a safe filename based on mime
+    ext = mime_type.split("/")[-1].replace("jpeg", "jpg")
+    if not filename.endswith(f".{ext}"):
+        filename = f"reference.{ext}"
+
+    upload_headers = dict(base_headers)
+    upload_headers["Content-Type"] = "application/json"
+
+    # Step 1: Create the file entry
+    try:
+        create_resp = await sess.post(
+            "https://chatgpt.com/backend-api/files",
+            headers=upload_headers,
+            json={
+                "file_name": filename,
+                "file_size": size_bytes,
+                "use_case": "multimodal",
+            },
+            timeout=15.0,
+        )
+        if create_resp.status_code not in (200, 201):
+            return None
+        create_data = create_resp.json()
+    except Exception:
+        return None
+
+    file_id = create_data.get("file_id") or create_data.get("id")
+    upload_url = create_data.get("upload_url")
+
+    if not file_id or not upload_url:
+        return None
+
+    # Step 2: PUT image bytes to presigned GCS URL
+    try:
+        put_resp = await sess.put(
+            upload_url,
+            headers={"Content-Type": mime_type, "x-ms-blob-type": "BlockBlob"},
+            content=image_bytes,
+            timeout=30.0,
+        )
+        if put_resp.status_code not in (200, 201):
+            return None
+    except Exception:
+        return None
+
+    # Step 3: Confirm upload
+    try:
+        confirm_resp = await sess.post(
+            f"https://chatgpt.com/backend-api/files/{file_id}/uploaded",
+            headers=upload_headers,
+            json={},
+            timeout=10.0,
+        )
+        # 200 or 204 both indicate success
+        if confirm_resp.status_code >= 400:
+            return None
+    except Exception:
+        return None
+
+    return {
+        "file_id": file_id,
+        "name": filename,
+        "mime_type": mime_type,
+        "size_bytes": size_bytes,
+        "width": width,
+        "height": height,
+    }
 
 
 def is_thought_message(message: Dict[str, Any]) -> bool:
@@ -1101,11 +1265,28 @@ async def stream_chatgpt_chat(
                         last_error_msg = f"Sentinel handshake error: {str(sent_err)}"
                         continue
 
+                    # Extract image_url blocks from messages and upload them to ChatGPT files API
+                    uploaded_file_ids: List[Dict[str, Any]] = []
+                    if is_image_model:
+                        for msg in messages:
+                            msg_content = msg.get("content", "")
+                            if isinstance(msg_content, list):
+                                for item in msg_content:
+                                    if isinstance(item, dict) and item.get("type") == "image_url":
+                                        img_url_data = item.get("image_url", {})
+                                        img_src = img_url_data.get("url", "") if isinstance(img_url_data, dict) else str(img_url_data)
+                                        if img_src:
+                                            finfo = await _upload_image_to_chatgpt_session(
+                                                sess, base_headers, img_src
+                                            )
+                                            if finfo:
+                                                uploaded_file_ids.append(finfo)
+
                     # Construct conversation payload
                     conv_path = "/backend-api/conversation"
                     conv_payload = {
                         "action": "next",
-                        "messages": _api_messages_to_conversation_messages(messages),
+                        "messages": _api_messages_to_conversation_messages(messages, uploaded_file_ids=uploaded_file_ids or None),
                         "model": target_model_slug,
                         "parent_message_id": str(uuid.uuid4()),
                         "timezone_offset_min": -330,
