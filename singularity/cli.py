@@ -708,6 +708,42 @@ def cmd_tunnel(args):
             print(f"[!] Failed to configure token: {res.get('message')}")
 
 
+def cmd_update(args):
+    """Check for and pull latest updates from git repository."""
+    import subprocess
+    print_header("Singularity Repository Auto-Updater")
+    root_dir = SCRIPT_DIR.parent
+    if not (root_dir / ".git").exists():
+        print("  [!] Not a git repository directory. Auto-updater unavailable.")
+        return
+
+    print("  [*] Checking remote repository for latest commits...")
+    try:
+        subprocess.run(["git", "fetch", "--quiet", "--depth=1", "origin", "main"], cwd=root_dir, check=False, timeout=12)
+        local_rev = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root_dir, text=True).strip()
+        try:
+            remote_rev = subprocess.check_output(["git", "rev-parse", "origin/main"], cwd=root_dir, text=True).strip()
+        except Exception:
+            remote_rev = subprocess.check_output(["git", "rev-parse", "@{u}"], cwd=root_dir, text=True).strip()
+
+        if local_rev == remote_rev:
+            print(f"  [✓] Singularity is already up to date! (commit {local_rev[:8]})")
+            return
+
+        print(f"  [🔄] Updating from {local_rev[:8]} -> {remote_rev[:8]}...")
+        res = subprocess.run(["git", "pull", "--ff-only"], cwd=root_dir, text=True, capture_output=True)
+        if res.returncode == 0:
+            print("  [✨] Singularity successfully updated to the latest version!")
+        else:
+            res = subprocess.run(["git", "pull"], cwd=root_dir, text=True, capture_output=True)
+            if res.returncode == 0:
+                print("  [✨] Singularity successfully updated!")
+            else:
+                print(f"  [!] Git pull failed: {res.stderr.strip()}")
+    except Exception as e:
+        print(f"  [!] Auto-update error: {e}")
+
+
 # ==============================================================================
 # Main Dispatcher
 # ==============================================================================
@@ -778,6 +814,10 @@ def main():
     p_key = subparsers.add_parser("key", help="Show or rotate the gateway key for LAN/phone/tunnel access")
     p_key.add_argument("action", nargs="?", choices=["show", "rotate"], default="show")
 
+    # update / upgrade
+    subparsers.add_parser("update", help="Check and pull latest updates from repository")
+    subparsers.add_parser("upgrade", help="Alias for update")
+
     args = parser.parse_args()
 
     if not args.subcommand or args.subcommand == "status":
@@ -804,6 +844,8 @@ def main():
         cmd_tunnel(args)
     elif args.subcommand == "key":
         cmd_key(args)
+    elif args.subcommand in ("update", "upgrade"):
+        cmd_update(args)
 
 
 if __name__ == "__main__":

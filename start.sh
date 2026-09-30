@@ -24,6 +24,27 @@ if [ ! -d "$DIR/singularity" ]; then
     fi
 fi
 
+# ==============================================================================
+# 0. Auto-Updater (Automatically pull latest updates on startup)
+# ==============================================================================
+if [ "${SINGULARITY_NO_UPDATE:-0}" != "1" ] && [ "$1" != "--no-update" ]; then
+    if command -v git >/dev/null 2>&1 && [ -d "$DIR/.git" ]; then
+        (
+            cd "$DIR"
+            # Fast shallow fetch of origin with silent fallback
+            git fetch --quiet --depth=1 origin main 2>/dev/null || git fetch --quiet origin 2>/dev/null || true
+            LOCAL_REV="$(git rev-parse HEAD 2>/dev/null || echo "")"
+            REMOTE_REV="$(git rev-parse origin/main 2>/dev/null || git rev-parse '@{u}' 2>/dev/null || echo "")"
+            if [ -n "$LOCAL_REV" ] && [ -n "$REMOTE_REV" ] && [ "$LOCAL_REV" != "$REMOTE_REV" ]; then
+                echo "  [🔄] New update found! Updating Singularity to latest version..."
+                if git pull --ff-only 2>/dev/null || git pull 2>/dev/null; then
+                    echo "  [✨] Successfully updated Singularity to latest version!"
+                fi
+            fi
+        ) || true
+    fi
+fi
+
 # Auto-link 'singular', 'singularity', and 'c2a' binaries into PATH if in Termux
 if [ -n "$PREFIX" ] && [ -d "$PREFIX/bin" ]; then
     ln -sf "$DIR/start.sh" "$PREFIX/bin/singular" 2>/dev/null || true
@@ -162,11 +183,14 @@ if ! "$PYTHON_BIN" -c "import starlette, uvicorn, httpx" 2>/dev/null; then
 fi
 
 # --lan: listen on all interfaces so phones / other PCs can connect (they log in with the gateway key).
+# --no-update: bypass automatic startup git pull.
 # Default is this machine only.
 ARGS=()
 for arg in "$@"; do
     if [ "$arg" = "--lan" ]; then
         export SINGULARITY_LAN=1
+    elif [ "$arg" = "--no-update" ]; then
+        export SINGULARITY_NO_UPDATE=1
     else
         ARGS+=("$arg")
     fi
@@ -175,7 +199,7 @@ set -- ${ARGS[@]+"${ARGS[@]}"}
 
 # Route CLI commands vs server launch
 case "$1" in
-    status|limits|accounts|import|export|simulate|host|chat|thinking|service|tunnel|key|-h|--help)
+    status|limits|accounts|import|export|simulate|host|chat|thinking|service|tunnel|key|update|upgrade|-h|--help)
         exec "$PYTHON_BIN" cli.py "$@"
         ;;
     server|"")

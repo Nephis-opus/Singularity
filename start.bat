@@ -6,6 +6,29 @@ title Singularity Unified AI Gateway
 set "ROOT_DIR=%~dp0"
 set "SING_DIR=%ROOT_DIR%singularity"
 
+:: 0. Auto-Updater [Pulls latest updates automatically on startup]
+if not "%SINGULARITY_NO_UPDATE%"=="1" (
+    if not "%~1"=="--no-update" (
+        where git >nul 2>&1
+        if !errorlevel! equ 0 (
+            if exist "%ROOT_DIR%.git" (
+                pushd "%ROOT_DIR%"
+                git fetch --quiet --depth=1 origin main >nul 2>&1
+                for /f "delims=" %%i in ('git rev-parse HEAD 2^>nul') do set "LOCAL_HASH=%%i"
+                for /f "delims=" %%i in ('git rev-parse origin/main 2^>nul') do set "REMOTE_HASH=%%i"
+                if defined LOCAL_HASH if defined REMOTE_HASH (
+                    if not "!LOCAL_HASH!"=="!REMOTE_HASH!" (
+                        echo   [+] Updating Singularity to latest version...
+                        git pull --ff-only >nul 2>&1 || git pull >nul 2>&1
+                        echo   [*] Successfully updated Singularity!
+                    )
+                )
+                popd
+            )
+        )
+    )
+)
+
 :: 1. Detect Python Executable
 set "PYTHON_EXE="
 set "PYTHON_ARGS="
@@ -112,15 +135,19 @@ if "%ARG1%"=="thinking" goto :RUN_CLI
 if "%ARG1%"=="service" goto :RUN_CLI
 if "%ARG1%"=="tunnel" goto :RUN_CLI
 if "%ARG1%"=="key" goto :RUN_CLI
+if "%ARG1%"=="update" goto :RUN_CLI
+if "%ARG1%"=="upgrade" goto :RUN_CLI
 if "%ARG1%"=="-h" goto :RUN_CLI
 if "%ARG1%"=="--help" goto :RUN_CLI
 if "%ARG1%"=="help" goto :RUN_CLI
 
 :: Launch Gateway Server
 :: --lan listens on all interfaces so phones / other PCs can connect with the gateway key.
+:: --no-update skips the automatic startup git pull.
 :: Default is this machine only.
 set "SINGULARITY_LAN="
 for %%A in (%*) do if /I "%%~A"=="--lan" set "SINGULARITY_LAN=1"
+for %%A in (%*) do if /I "%%~A"=="--no-update" set "SINGULARITY_NO_UPDATE=1"
 set "API_HOST=127.0.0.1"
 if defined SINGULARITY_LAN set "API_HOST=0.0.0.0"
 set "RP_ALLOWED_ORIGINS="
