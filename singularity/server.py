@@ -1380,9 +1380,9 @@ async def api_get_config():
     }
 
 
-# Settings the HTTP API may change. Everything else (provider PIDs, provider hosts, the gateway key)
+# Settings the HTTP API may change. Everything else (provider PIDs, provider hosts)
 # is written only by Singularity itself or the local CLI.
-API_WRITABLE_SETTINGS = {"simulation_mode", "allowed_origins"}
+API_WRITABLE_SETTINGS = {"simulation_mode", "allowed_origins", "gateway_key"}
 
 
 @app.get("/api/security/allowed-origins")
@@ -1434,6 +1434,34 @@ async def api_delete_allowed_origin(request: Request):
         "status": "ok",
         "deleted": origin,
         "allowed_origins": sorted(list(security._extra_allowed_origins()))
+    }
+
+
+@app.get("/api/security/gateway-key")
+async def api_get_gateway_key():
+    return {
+        "status": "ok",
+        "gateway_key": security.get_gateway_key()
+    }
+
+
+@app.post("/api/security/gateway-key")
+async def api_set_gateway_key(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    
+    action = body.get("action", "")
+    if action == "rotate":
+        new_key = security.rotate_gateway_key()
+    else:
+        raw_key = body.get("gateway_key", "")
+        new_key = security.set_gateway_key(raw_key)
+        
+    return {
+        "status": "ok",
+        "gateway_key": new_key
     }
 
 

@@ -71,6 +71,18 @@ def rotate_gateway_key() -> str:
     return key
 
 
+def set_gateway_key(new_key: str) -> str:
+    """Set or customize the gateway API key. Empty string generates a random key."""
+    global _KEY_CACHE
+    key = (new_key or "").strip()
+    if not key:
+        key = "sk-sing-" + secrets.token_urlsafe(32)
+    with _KEY_LOCK:
+        db.set_setting("gateway_key", key)
+        _KEY_CACHE = key
+    return key
+
+
 def session_token() -> str:
     """Stateless session cookie value; changes whenever the gateway key is rotated."""
     return hmac.new(get_gateway_key().encode(), b"singularity-browser-session-v1", hashlib.sha256).hexdigest()

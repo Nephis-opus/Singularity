@@ -382,6 +382,11 @@ function initClaudeSettings() {
   const apikeyCopyRow = document.getElementById('apikey-copy-row');
   const apikeyCopyBtn = document.getElementById('btn-copy-apikey');
   const apikeyCopyHint = document.getElementById('apikey-copy-hint');
+  const profileApikeyText = document.getElementById('profile-apikey-text');
+  const inputGatewayKey = document.getElementById('input-gateway-key');
+  const btnSaveGatewayKey = document.getElementById('btn-save-gateway-key');
+  const btnCopyCustomGatewayKey = document.getElementById('btn-copy-custom-gateway-key');
+  const btnRotateGatewayKey = document.getElementById('btn-rotate-gateway-key');
 
   // Modal open / close logic
   let isModalOpen = false;
@@ -818,6 +823,105 @@ function initClaudeSettings() {
 
   loadAllowedOrigins();
 
+  // Gateway Custom API Key Management
+  let currentGatewayKey = 'sk-singularity-local';
+
+  const updateGatewayKeyDisplays = (key) => {
+    currentGatewayKey = key;
+    if (inputGatewayKey) inputGatewayKey.value = key;
+    if (profileApikeyText) profileApikeyText.textContent = key;
+  };
+
+  const loadGatewayKey = async () => {
+    try {
+      const res = await fetch('/api/security/gateway-key');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.gateway_key) {
+          updateGatewayKeyDisplays(data.gateway_key);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load gateway key:', err);
+    }
+  };
+
+  const handleSaveGatewayKey = async (newKey) => {
+    const key = (newKey || '').trim();
+    if (!key) {
+      showToast('API Key cannot be empty', 'error', 2000);
+      return;
+    }
+    try {
+      const res = await fetch('/api/security/gateway-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gateway_key: key })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        updateGatewayKeyDisplays(data.gateway_key || key);
+        showToast(`Gateway API Key saved: ${data.gateway_key || key}`, 'success', 2500);
+      } else {
+        showToast('Failed to save API key', 'error', 2500);
+      }
+    } catch (err) {
+      showToast(`Error saving API key: ${err.message}`, 'error', 2500);
+    }
+  };
+
+  const handleRotateGatewayKey = async () => {
+    try {
+      const res = await fetch('/api/security/gateway-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rotate' })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        updateGatewayKeyDisplays(data.gateway_key);
+        showToast(`Generated new Gateway API Key`, 'success', 2500);
+      } else {
+        showToast('Failed to generate key', 'error', 2500);
+      }
+    } catch (err) {
+      showToast(`Error generating key: ${err.message}`, 'error', 2500);
+    }
+  };
+
+  if (btnSaveGatewayKey && inputGatewayKey) {
+    btnSaveGatewayKey.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleSaveGatewayKey(inputGatewayKey.value);
+    });
+    inputGatewayKey.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSaveGatewayKey(inputGatewayKey.value);
+      }
+    });
+  }
+
+  if (btnRotateGatewayKey) {
+    btnRotateGatewayKey.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleRotateGatewayKey();
+    });
+  }
+
+  if (btnCopyCustomGatewayKey) {
+    btnCopyCustomGatewayKey.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const val = inputGatewayKey ? inputGatewayKey.value : currentGatewayKey;
+      if (val) {
+        const ok = await copyTextToClipboard(val);
+        if (ok) showToast('Copied Gateway API Key to clipboard', 'success', 2000);
+      }
+    });
+  }
+
+  loadGatewayKey();
+
   // Clear Local Cache
   const clearCacheBtn = document.getElementById('btn-clear-local-cache');
   if (clearCacheBtn) {
@@ -892,7 +996,7 @@ function initClaudeSettings() {
   let apiKeyResetTimer = null;
   const executeApiKeyCopy = async (e) => {
     if (e) e.stopPropagation();
-    const apiKey = 'sk-singularity-local';
+    const apiKey = currentGatewayKey || 'sk-singularity-local';
     const success = await copyTextToClipboard(apiKey);
     if (success) {
       if (apikeyCopyRow) apikeyCopyRow.classList.add('copied');
@@ -902,7 +1006,7 @@ function initClaudeSettings() {
       if (defaultIcon) defaultIcon.style.display = 'none';
       if (successIcon) successIcon.style.display = 'inline-block';
 
-      showToast(`Copied local API Key: ${apiKey}`, 'success', 2200);
+      showToast(`Copied Gateway API Key: ${apiKey}`, 'success', 2200);
 
       clearTimeout(apiKeyResetTimer);
       apiKeyResetTimer = setTimeout(() => {
@@ -912,7 +1016,7 @@ function initClaudeSettings() {
         if (successIcon) successIcon.style.display = 'none';
       }, 2000);
     } else {
-      showToast('Failed to copy endpoint to clipboard', 'error', 2500);
+      showToast('Failed to copy API key to clipboard', 'error', 2500);
     }
   };
 

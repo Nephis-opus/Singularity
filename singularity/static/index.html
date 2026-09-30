@@ -1077,6 +1077,26 @@
                 </div>
               </div>
 
+              <!-- Section: Gateway API Key Configuration -->
+              <div class="claude-settings-section-title" style="margin-top: 26px;">Gateway API Key</div>
+              <div class="claude-settings-row" data-search-text="gateway api key token authorization sk-singularity-local custom key janitor" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                <div class="claude-settings-row-label" style="max-width: 100%;">
+                  <div class="claude-settings-item-title">Custom Gateway API Key</div>
+                  <div class="claude-settings-item-desc">Configure the API Key for external clients (Janitor AI, SillyTavern, Cursor). You can customize it to any key (e.g. <code>sk-singularity-local</code>) or generate a new secure key.</div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="input-gateway-key" class="model-search-input smooth-input" placeholder="sk-sing-..." style="flex: 1; font-size: 12px; height: 34px; font-family: var(--font-mono);" />
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-save-gateway-key" style="white-space: nowrap; height: 34px; padding: 0 14px;">Save Key</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-custom-gateway-key" title="Copy Key" style="white-space: nowrap; height: 34px; padding: 0 12px;">Copy</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-rotate-gateway-key" title="Generate New Key" style="white-space: nowrap; height: 34px; padding: 0 10px;">↻ Generate</button>
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-muted);">
+                    Use this key in your Janitor AI API settings under <strong>API Key</strong> (or <code>Bearer &lt;key&gt;</code>).
+                  </div>
+                </div>
+              </div>
+
               <!-- Section: Data & Storage -->
               <div class="claude-settings-section-title" style="margin-top: 26px;">Data &amp; Privacy</div>
               <div class="claude-settings-row" data-search-text="cache clear reset local storage data draft">
@@ -1118,14 +1138,14 @@
               </div>
 
               <!-- Row: API Key -->
-              <div class="claude-settings-row" data-search-text="api key token authorization sk-singularity-local">
+              <div class="claude-settings-row" data-search-text="api key token authorization sk-singularity-local custom key">
                 <div class="claude-settings-row-label">
                   <div class="claude-settings-item-title">API Key</div>
-                  <div class="claude-settings-item-desc">Local gateway authentication token. Singularity accepts any token string or default local key.</div>
+                  <div class="claude-settings-item-desc">Active gateway authentication key. Syncs with your custom key settings.</div>
                 </div>
                 <div class="claude-settings-row-control" style="flex: 1; max-width: 320px;">
                   <div class="user-profile-endpoint-row" id="apikey-copy-row" role="button" tabindex="0" title="Click to copy API key" style="margin: 0; width: 100%;">
-                    <code class="user-profile-endpoint-text">sk-singularity-local</code>
+                    <code class="user-profile-endpoint-text" id="profile-apikey-text">sk-sing-...</code>
                     <button type="button" class="user-profile-copy-btn" id="btn-copy-apikey" aria-label="Copy API key" title="Copy API key">
                       <svg class="copy-default-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
