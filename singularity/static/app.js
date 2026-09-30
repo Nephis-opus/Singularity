@@ -567,14 +567,109 @@ function initClaudeSettings() {
         }
         fontSelectMenu.classList.remove('open');
       });
+  // Generic Custom Dropdown Helper for Claude Settings
+  const setupCustomDropdown = (wrapId, btnId, menuId, labelId, storageKey, defaultValue, onChange) => {
+    const wrap = document.getElementById(wrapId);
+    const btn = document.getElementById(btnId);
+    const menu = document.getElementById(menuId);
+    const label = document.getElementById(labelId);
+    if (!wrap || !btn || !menu) return null;
+
+    const options = menu.querySelectorAll('.claude-select-option');
+
+    const setValue = (val, save = true) => {
+      let activeText = '';
+      options.forEach(opt => {
+        const isMatch = opt.getAttribute('data-value') === val || opt.getAttribute('data-font') === val;
+        opt.classList.toggle('active', isMatch);
+        if (isMatch) {
+          const spanEl = opt.querySelector('span');
+          activeText = spanEl ? spanEl.textContent : opt.textContent.trim();
+        }
+      });
+
+      if (label && activeText) {
+        label.textContent = activeText;
+      }
+
+      if (save && storageKey) {
+        localStorage.setItem(storageKey, val);
+      }
+
+      if (typeof onChange === 'function') {
+        onChange(val, save);
+      }
+    };
+
+    const initial = storageKey ? (localStorage.getItem(storageKey) || defaultValue) : defaultValue;
+    if (initial) {
+      setValue(initial, false);
+    }
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.claude-custom-select-menu.open').forEach(m => {
+        if (m !== menu) m.classList.remove('open');
+      });
+      menu.classList.toggle('open');
+    });
+
+    options.forEach(opt => {
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const val = opt.getAttribute('data-value') || opt.getAttribute('data-font');
+        if (val) {
+          setValue(val, true);
+        }
+        menu.classList.remove('open');
+      });
     });
 
     document.addEventListener('click', (e) => {
-      if (fontSelectWrap && !fontSelectWrap.contains(e.target)) {
-        fontSelectMenu.classList.remove('open');
+      if (!wrap.contains(e.target)) {
+        menu.classList.remove('open');
       }
     });
-  }
+
+    return { setValue };
+  };
+
+  // Voice Custom Select Dropdowns
+  setupCustomDropdown(
+    'voice-language-select-wrap',
+    'btn-voice-language-select',
+    'voice-language-select-menu',
+    'voice-language-selected-label',
+    'singularity_voice_language',
+    'en-US',
+    (val, save) => {
+      if (save) showToast(`Voice language set to ${val}`, 'info', 1600);
+    }
+  );
+
+  setupCustomDropdown(
+    'voice-style-select-wrap',
+    'btn-voice-style-select',
+    'voice-style-select-menu',
+    'voice-style-selected-label',
+    'singularity_voice_style',
+    'buttery',
+    (val, save) => {
+      if (save) showToast(`Voice style set to ${val}`, 'info', 1600);
+    }
+  );
+
+  setupCustomDropdown(
+    'voice-speed-select-wrap',
+    'btn-voice-speed-select',
+    'voice-speed-select-menu',
+    'voice-speed-selected-label',
+    'singularity_voice_speed',
+    'normal',
+    (val, save) => {
+      if (save) showToast(`Voice speed set to ${val}`, 'info', 1600);
+    }
+  );
 
   // Motion Toggle Switch
   const motionToggle = document.getElementById('toggle-reduce-motion');
@@ -1027,14 +1122,18 @@ function initClaudeSettings() {
     apikeyCopyBtn.addEventListener('click', executeApiKeyCopy);
   }
 
-  // Capabilities & Inference Defaults
-  const reasoningSelect = document.getElementById('settings-reasoning-effort');
-  if (reasoningSelect) {
-    reasoningSelect.value = localStorage.getItem('singularity_reasoning_effort') || 'medium';
-    reasoningSelect.addEventListener('change', (e) => {
-      localStorage.setItem('singularity_reasoning_effort', e.target.value);
-    });
-  }
+  // Capabilities & Inference Defaults - Reasoning Effort Custom Dropdown
+  setupCustomDropdown(
+    'reasoning-effort-select-wrap',
+    'btn-reasoning-effort-select',
+    'reasoning-effort-select-menu',
+    'reasoning-effort-selected-label',
+    'singularity_reasoning_effort',
+    'medium',
+    (val, save) => {
+      if (save) showToast(`Reasoning effort set to ${val}`, 'info', 1600);
+    }
+  );
 
   const tempSlider = document.getElementById('settings-temperature-slider');
   const tempVal = document.getElementById('settings-temperature-val');

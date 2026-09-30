@@ -111,9 +111,20 @@ def _hostname(host_header: str) -> str:
     return host
 
 
+DEFAULT_ALLOWED_ORIGINS = {
+    "https://janitorai.com",
+    "https://www.janitorai.com",
+    "https://venus.chub.ai",
+    "https://agnai.chat",
+}
+
+
 def _extra_allowed_origins() -> Iterable[str]:
     raw_env = os.getenv("SINGULARITY_ALLOWED_ORIGINS", "")
-    origins = {o.strip().rstrip("/").lower() for o in raw_env.split(",") if o.strip()}
+    origins = set(DEFAULT_ALLOWED_ORIGINS)
+    for o in raw_env.split(","):
+        if o.strip():
+            origins.add(o.strip().rstrip("/").lower())
     try:
         raw_db = db.get_setting("allowed_origins", "")
         if raw_db:

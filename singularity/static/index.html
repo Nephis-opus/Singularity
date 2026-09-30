@@ -983,15 +983,42 @@
                   <div class="claude-settings-item-title">Language</div>
                 </div>
                 <div class="claude-settings-row-control">
-                  <select class="claude-native-select" id="select-voice-language">
-                    <option value="en-US" selected>English</option>
-                    <option value="en-GB">English (UK)</option>
-                    <option value="es-ES">Español</option>
-                    <option value="fr-FR">Français</option>
-                    <option value="de-DE">Deutsch</option>
-                    <option value="zh-CN">中文 (Chinese)</option>
-                    <option value="ja-JP">日本語 (Japanese)</option>
-                  </select>
+                  <div class="claude-custom-select-wrap" id="voice-language-select-wrap">
+                    <button type="button" class="claude-custom-select-btn" id="btn-voice-language-select" aria-haspopup="listbox">
+                      <span id="voice-language-selected-label">English</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <div class="claude-custom-select-menu" id="voice-language-select-menu">
+                      <button type="button" class="claude-select-option active" data-value="en-US">
+                        <span>English</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="en-GB">
+                        <span>English (UK)</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="es-ES">
+                        <span>Español</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="fr-FR">
+                        <span>Français</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="de-DE">
+                        <span>Deutsch</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="zh-CN">
+                        <span>中文 (Chinese)</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="ja-JP">
+                        <span>日本語 (Japanese)</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="claude-settings-row" data-search-text="voice style buttery natural warm direct tone">
@@ -999,13 +1026,34 @@
                   <div class="claude-settings-item-title">Style</div>
                 </div>
                 <div class="claude-settings-row-control">
-                  <select class="claude-native-select" id="select-voice-style">
-                    <option value="buttery" selected>Buttery</option>
-                    <option value="natural">Natural</option>
-                    <option value="warm">Warm</option>
-                    <option value="concise">Concise</option>
-                    <option value="direct">Direct</option>
-                  </select>
+                  <div class="claude-custom-select-wrap" id="voice-style-select-wrap">
+                    <button type="button" class="claude-custom-select-btn" id="btn-voice-style-select" aria-haspopup="listbox">
+                      <span id="voice-style-selected-label">Buttery</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <div class="claude-custom-select-menu" id="voice-style-select-menu">
+                      <button type="button" class="claude-select-option active" data-value="buttery">
+                        <span>Buttery</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="natural">
+                        <span>Natural</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="warm">
+                        <span>Warm</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="concise">
+                        <span>Concise</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="direct">
+                        <span>Direct</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="claude-settings-row" data-search-text="voice speed normal slow fast rate">
@@ -1013,11 +1061,26 @@
                   <div class="claude-settings-item-title">Speed</div>
                 </div>
                 <div class="claude-settings-row-control">
-                  <select class="claude-native-select" id="select-voice-speed">
-                    <option value="normal" selected>Normal</option>
-                    <option value="slow">Slow</option>
-                    <option value="fast">Fast</option>
-                  </select>
+                  <div class="claude-custom-select-wrap" id="voice-speed-select-wrap">
+                    <button type="button" class="claude-custom-select-btn" id="btn-voice-speed-select" aria-haspopup="listbox">
+                      <span id="voice-speed-selected-label">Normal</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <div class="claude-custom-select-menu" id="voice-speed-select-menu">
+                      <button type="button" class="claude-select-option active" data-value="normal">
+                        <span>Normal</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="slow">
+                        <span>Slow</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="fast">
+                        <span>Fast</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1221,13 +1284,34 @@
                   <div class="claude-settings-item-desc">Chain-of-thought tokens allocated for reasoning models (Claude 3.7 Thinking, o1, DeepSeek R1, Kimi K1.5).</div>
                 </div>
                 <div class="claude-settings-row-control">
-                  <select class="claude-native-select" id="settings-reasoning-effort">
-                    <option value="off">Off (0 tokens)</option>
-                    <option value="low">Low (2,048 tokens)</option>
-                    <option value="medium" selected>Medium (8,192 tokens)</option>
-                    <option value="high">High (16,384 tokens)</option>
-                    <option value="max">Max (32,768 tokens)</option>
-                  </select>
+                  <div class="claude-custom-select-wrap" id="reasoning-effort-select-wrap">
+                    <button type="button" class="claude-custom-select-btn" id="btn-reasoning-effort-select" aria-haspopup="listbox" style="min-width: 175px;">
+                      <span id="reasoning-effort-selected-label">Medium (8,192 tokens)</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <div class="claude-custom-select-menu" id="reasoning-effort-select-menu" style="min-width: 200px;">
+                      <button type="button" class="claude-select-option" data-value="off">
+                        <span>Off (0 tokens)</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="low">
+                        <span>Low (2,048 tokens)</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option active" data-value="medium">
+                        <span>Medium (8,192 tokens)</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="high">
+                        <span>High (16,384 tokens)</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                      <button type="button" class="claude-select-option" data-value="max">
+                        <span>Max (32,768 tokens)</span>
+                        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
