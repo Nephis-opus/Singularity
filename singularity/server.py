@@ -18,9 +18,9 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 try:
     if os.getenv("NO_FASTAPI", "").strip() in ("1", "true", "yes"):
         raise ImportError("FastAPI disabled by NO_FASTAPI env var")
-    from fastapi import FastAPI, HTTPException, Request, Response, status
-    from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-    from fastapi.staticfiles import StaticFiles
+    from fastapi import FastAPI, HTTPException, Request, Response, status  # type: ignore[import-untyped]
+    from fastapi.responses import FileResponse, JSONResponse, StreamingResponse  # type: ignore[import-untyped]
+    from fastapi.staticfiles import StaticFiles  # type: ignore[import-untyped]
 
     app = FastAPI(title="Singularity Unified AI Gateway", version="1.0.0")
 except Exception:

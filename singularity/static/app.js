@@ -397,6 +397,7 @@ function initClaudeSettings() {
     if (!modal) return;
     clearTimeout(closeTimer);
     modal.style.display = 'flex';
+    modal.style.pointerEvents = 'auto';
     void modal.offsetWidth; // Force reflow for CSS spring transition
     modal.classList.add('open');
     isModalOpen = true;
@@ -413,6 +414,7 @@ function initClaudeSettings() {
     const modal = settingsModal || document.getElementById('claude-settings-modal');
     if (!modal || !isModalOpen) return;
     modal.classList.remove('open');
+    modal.style.pointerEvents = 'none';
     isModalOpen = false;
     closeTimer = setTimeout(() => {
       if (!isModalOpen) {
