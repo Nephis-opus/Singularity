@@ -744,6 +744,18 @@ def cmd_update(args):
         print(f"  [!] Auto-update error: {e}")
 
 
+def cmd_restart(args):
+    """Restart Singularity gateway and Tavern Studio by clearing ports and launching server."""
+    from server import free_listening_ports
+    print_header("RESTARTING SINGULARITY GATEWAY & TAVERN")
+    print("  [*] Clearing ports 9000, 5173, 3001...", flush=True)
+    free_listening_ports([9000, 5173, 3001])
+    time.sleep(0.4)
+    print("  [✓] Ports successfully cleared. Launching gateway...\n", flush=True)
+    # Clean exec replacement
+    os.execv(sys.executable, [sys.executable, str(SCRIPT_DIR / "server.py")])
+
+
 # ==============================================================================
 # Main Dispatcher
 # ==============================================================================
@@ -818,6 +830,9 @@ def main():
     subparsers.add_parser("update", help="Check and pull latest updates from repository")
     subparsers.add_parser("upgrade", help="Alias for update")
 
+    # restart
+    subparsers.add_parser("restart", help="Restart Singularity gateway and Tavern Studio (clears ports 9000, 5173, 3001)")
+
     args = parser.parse_args()
 
     if not args.subcommand or args.subcommand == "status":
@@ -846,6 +861,8 @@ def main():
         cmd_key(args)
     elif args.subcommand in ("update", "upgrade"):
         cmd_update(args)
+    elif args.subcommand == "restart":
+        cmd_restart(args)
 
 
 if __name__ == "__main__":

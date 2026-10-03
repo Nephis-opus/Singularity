@@ -197,13 +197,44 @@ for arg in "$@"; do
 done
 set -- ${ARGS[@]+"${ARGS[@]}"}
 
+kill_port_listeners() {
+    for port in "$@"; do
+        # 1. fuser sends SIGKILL directly to processes using the port socket
+        if command -v fuser >/dev/null 2>&1; then
+            fuser -k -9 "${port}/tcp" >/dev/null 2>&1 || true
+        fi
+        # 2. lsof filtered specifically to LISTEN sockets (avoids touching client connections)
+        if command -v lsof >/dev/null 2>&1; then
+            lsof -sTCP:LISTEN -iTCP:"${port}" -t 2>/dev/null | xargs -r kill -9 >/dev/null 2>&1 || true
+        fi
+        # 3. ss socket statistics parser for listening PIDs on Linux
+        if command -v ss >/dev/null 2>&1; then
+            ss -lptn "sport = :${port}" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | xargs -r kill -9 >/dev/null 2>&1 || true
+        fi
+    done
+}
+
 # Route CLI commands vs server launch
 case "$1" in
     status|limits|accounts|import|export|simulate|host|chat|thinking|service|tunnel|key|update|upgrade|-h|--help)
         exec "$PYTHON_BIN" cli.py "$@"
         ;;
-    server|"")
-        [ "$1" = "server" ] && shift
+    restart|server|"")
+        IS_RESTART=0
+        if [ "$1" = "restart" ]; then
+            IS_RESTART=1
+            shift
+        elif [ "$1" = "server" ]; then
+            shift
+        fi
+
+        # Cleanly terminate any stale processes holding port 9000 or Tavern ports (5173, 3001)
+        GATEWAY_PORT="${PORT:-9000}"
+        if [ "$IS_RESTART" = "1" ]; then
+            echo "  [🔄] Restarting Singularity (clearing ports $GATEWAY_PORT, 5173, 3001)..."
+        fi
+        kill_port_listeners "$GATEWAY_PORT" 5173 3001
+        sleep 0.3
 
         # Auto-launch Tavern Studio if TAV-TEST or TAVERN directory exists
         TAVERN_DIR=""

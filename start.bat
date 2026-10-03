@@ -123,6 +123,7 @@ if %errorlevel% neq 0 (
 :: 3. Route CLI subcommands vs Gateway Server
 set "ARG1=%~1"
 
+if "%ARG1%"=="restart" goto :RESTART_SERVER
 if "%ARG1%"=="status" goto :RUN_CLI
 if "%ARG1%"=="limits" goto :RUN_CLI
 if "%ARG1%"=="accounts" goto :RUN_CLI
@@ -140,6 +141,26 @@ if "%ARG1%"=="upgrade" goto :RUN_CLI
 if "%ARG1%"=="-h" goto :RUN_CLI
 if "%ARG1%"=="--help" goto :RUN_CLI
 if "%ARG1%"=="help" goto :RUN_CLI
+goto :LAUNCH_GATEWAY
+
+:RESTART_SERVER
+shift
+echo.
+echo   [🔄] Restarting Singularity [clearing ports 9000, 5173, 3001]...
+for %%P in (9000 5173 3001) do (
+    for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":%%P .*LISTENING"') do (
+        taskkill /F /PID %%A >nul 2>&1
+    )
+)
+timeout /t 1 /nobreak >nul 2>&1
+
+:LAUNCH_GATEWAY
+:: Terminate any stale processes holding port 9000, 5173, or 3001
+for %%P in (9000 5173 3001) do (
+    for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":%%P .*LISTENING"') do (
+        taskkill /F /PID %%A >nul 2>&1
+    )
+)
 
 :: Launch Gateway Server
 :: --lan listens on all interfaces so phones / other PCs can connect with the gateway key.

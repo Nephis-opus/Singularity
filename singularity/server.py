@@ -12,6 +12,9 @@ import time
 import uuid
 import re
 import inspect
+import socket
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
 from urllib.parse import urlsplit
@@ -1891,12 +1894,51 @@ async def on_startup():
         pass
 
 
+def free_listening_ports(ports: List[int]):
+    """Terminate stale processes listening on specified ports so uvicorn and Tavern can bind cleanly."""
+    current_pid = os.getpid()
+    for p in ports:
+        # Check if port is occupied first
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.15)
+                if s.connect_ex(("127.0.0.1", p)) != 0:
+                    continue
+        except Exception:
+            pass
+
+        if sys.platform == "win32":
+            try:
+                out = subprocess.check_output(f'netstat -ano | findstr /R /C:":{p} .*LISTENING"', shell=True, text=True, stderr=subprocess.DEVNULL)
+                for line in out.strip().splitlines():
+                    parts = line.strip().split()
+                    if parts:
+                        pid = parts[-1]
+                        if pid.isdigit() and int(pid) != current_pid and int(pid) != 0:
+                            subprocess.run(f"taskkill /F /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+        else:
+            try:
+                subprocess.run(["fuser", "-k", "-9", f"{p}/tcp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+            try:
+                subprocess.run(f"lsof -sTCP:LISTEN -iTCP:{p} -t | xargs -r kill -9", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+    time.sleep(0.2)
+
+
 def main():
     if "--lan" in sys.argv[1:]:
         os.environ["SINGULARITY_LAN"] = "1"
     lan_mode = security.is_lan_mode()
     host = os.getenv("HOST") or ("0.0.0.0" if lan_mode else "127.0.0.1")
     port = int(os.getenv("PORT", "9000"))
+
+    # Free port 9000 (gateway) and Tavern ports (5173, 3001) if occupied by stale processes
+    free_listening_ports([port, 5173, 3001])
 
     try:
         db.init_db()
