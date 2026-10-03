@@ -1426,6 +1426,16 @@ async def api_add_allowed_origin(request: Request):
         if root_origin not in candidates and root_origin not in current_list:
             candidates.append(root_origin)
 
+    if parts.hostname and "lorebary" in parts.hostname:
+        for extra in ("https://lorebary.com", "https://lorebary.sophiamccarty.com", "https://sophiamccarty.com"):
+            if extra not in candidates and extra not in current_list:
+                candidates.append(extra)
+
+    if parts.hostname and "janitor" in parts.hostname:
+        for extra in ("https://janitorai.com", "https://www.janitorai.com", "https://janitor.ai"):
+            if extra not in candidates and extra not in current_list:
+                candidates.append(extra)
+
     for cand in candidates:
         if cand not in current_list:
             current_list.append(cand)

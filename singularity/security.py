@@ -114,6 +114,8 @@ def _hostname(host_header: str) -> str:
 DEFAULT_ALLOWED_ORIGINS = {
     "https://janitorai.com",
     "https://www.janitorai.com",
+    "https://janitor.ai",
+    "https://www.janitor.ai",
     "https://venus.chub.ai",
     "https://chub.ai",
     "https://www.chub.ai",
@@ -121,6 +123,9 @@ DEFAULT_ALLOWED_ORIGINS = {
     "https://lorebary.com",
     "https://www.lorebary.com",
     "https://api.lorebary.com",
+    "https://lorebary.sophiamccarty.com",
+    "https://sophiamccarty.com",
+    "https://beta.lorebary.com",
 }
 
 
@@ -204,6 +209,11 @@ def origin_allowed(origin: str, host_header: str) -> bool:
             return True
         if a_host.endswith("." + req_host):
             return True
+        # Cross-domain brand matching for known frontends (e.g. lorebary.sophiamccarty.com)
+        if "lorebary" in a_host and "lorebary" in req_host:
+            return True
+        if "janitor" in a_host and "janitor" in req_host:
+            return True
 
     return False
 
@@ -264,17 +274,46 @@ def evaluate(method: str, path: str, client_ip: Optional[str], headers: Dict[str
     """Return (0, "") to allow, else (http_status, reason)."""
     origin = headers.get("origin")
     host = headers.get("host", "")
+
+    # Resolve effective origin from Origin or Referer
+    effective_origin = origin
+    if not effective_origin and headers.get("referer"):
+        try:
+            r_parts = urlsplit(headers["referer"])
+            if r_parts.scheme and r_parts.netloc:
+                effective_origin = f"{r_parts.scheme}://{r_parts.netloc}"
+        except Exception:
+            pass
+
     if method in ("GET", "HEAD") and is_public_path(path):
         # UI assets carry no secrets; sandboxed artifacts load /static/vendor/* cross-origin.
         return 0, ""
-    if origin is not None and not origin_allowed(origin, host):
-        return 403, "Cross-origin request blocked by Singularity"
-    if origin is None and headers.get("sec-fetch-site") == "cross-site":
-        return 403, "Cross-site request blocked by Singularity"
+
+    is_cross_site = headers.get("sec-fetch-site") == "cross-site"
+    has_valid_api_key = check_key(_bearer(headers))
+
+    # Check origin allowlist if an origin or referer was identified
+    if effective_origin is not None:
+        if not origin_allowed(effective_origin, host):
+            if not has_valid_api_key:
+                return 403, "Cross-origin request blocked by Singularity"
+    elif is_cross_site:
+        # Cross-site request without identifiable origin or referer:
+        # Only permit if explicitly authenticated with the gateway API key.
+        # Ambient loopback trust (127.0.0.1) MUST NOT authenticate cross-site browser requests!
+        if not has_valid_api_key:
+            return 403, "Cross-site request blocked by Singularity"
+
     if method == "OPTIONS" or is_public_path(path):
         return 0, ""
+
     if is_authenticated(client_ip, headers):
+        # Guard: Ambient loopback trust alone (without key or session cookie) must not satisfy
+        # cross-site requests unless the origin is explicitly allowed or a valid key was passed.
+        if is_cross_site and not has_valid_api_key and not (effective_origin and origin_allowed(effective_origin, host)):
+            return 403, "Cross-site request blocked by Singularity"
         return 0, ""
+
     return 401, "Singularity gateway key required"
 
 
@@ -308,10 +347,20 @@ class SecurityMiddleware:
 
         status, reason = evaluate(method, path, client_ip, headers)
         origin = headers.get("origin")
+        effective_origin = origin
+        if not effective_origin and headers.get("referer"):
+            try:
+                r_parts = urlsplit(headers["referer"])
+                if r_parts.scheme and r_parts.netloc:
+                    effective_origin = f"{r_parts.scheme}://{r_parts.netloc}"
+            except Exception:
+                pass
+
         cors = []
-        if origin and origin_allowed(origin, headers.get("host", "")):
+        allow_origin = origin or effective_origin
+        if allow_origin and origin_allowed(allow_origin, headers.get("host", "")):
             cors = [
-                (b"access-control-allow-origin", origin.encode("latin-1")),
+                (b"access-control-allow-origin", allow_origin.encode("latin-1")),
                 (b"access-control-allow-credentials", b"true"),
                 (b"vary", b"Origin"),
             ]
@@ -333,7 +382,7 @@ class SecurityMiddleware:
             await send({"type": "http.response.body", "body": body})
             return
 
-        if method == "OPTIONS" and origin and "access-control-request-method" in headers:
+        if method == "OPTIONS" and (origin or allow_origin) and "access-control-request-method" in headers:
             req_headers = headers.get("access-control-request-headers", "")
             allow_hdrs = req_headers.encode("latin-1") if req_headers else b"*"
             if allow_hdrs == b"*":
