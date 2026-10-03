@@ -880,10 +880,17 @@ function initClaudeSettings() {
   const handleAddOrigin = async (originUrl) => {
     let clean = (originUrl || '').trim();
     if (!clean) return;
-    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+    if (clean !== '*' && !clean.startsWith('http://') && !clean.startsWith('https://')) {
       clean = 'https://' + clean;
     }
-    clean = clean.replace(/\/+$/, '');
+    if (clean !== '*') {
+      try {
+        const parsed = new URL(clean);
+        clean = `${parsed.protocol}//${parsed.host}`;
+      } catch (e) {
+        clean = clean.replace(/\/+$/, '');
+      }
+    }
     try {
       const res = await fetch('/api/security/allowed-origins', {
         method: 'POST',

@@ -115,47 +115,97 @@ DEFAULT_ALLOWED_ORIGINS = {
     "https://janitorai.com",
     "https://www.janitorai.com",
     "https://venus.chub.ai",
+    "https://chub.ai",
+    "https://www.chub.ai",
     "https://agnai.chat",
+    "https://lorebary.com",
+    "https://www.lorebary.com",
+    "https://api.lorebary.com",
 }
+
+
+def _clean_origin_string(raw: str) -> Optional[str]:
+    raw = (raw or "").strip().rstrip("/").lower()
+    if not raw or raw == "null":
+        return None
+    if raw == "*":
+        return "*"
+    if "://" not in raw:
+        raw = "https://" + raw
+    try:
+        parts = urlsplit(raw)
+        if not parts.scheme or not parts.netloc:
+            return None
+        return f"{parts.scheme}://{parts.netloc}".rstrip("/")
+    except Exception:
+        return None
 
 
 def _extra_allowed_origins() -> Iterable[str]:
     raw_env = os.getenv("SINGULARITY_ALLOWED_ORIGINS", "")
     origins = set(DEFAULT_ALLOWED_ORIGINS)
     for o in raw_env.split(","):
-        if o.strip():
-            origins.add(o.strip().rstrip("/").lower())
+        cleaned = _clean_origin_string(o)
+        if cleaned:
+            origins.add(cleaned)
     try:
         raw_db = db.get_setting("allowed_origins", "")
         if raw_db:
             if raw_db.strip().startswith("["):
                 try:
                     for o in json.loads(raw_db):
-                        if isinstance(o, str) and o.strip():
-                            origins.add(o.strip().rstrip("/").lower())
+                        if isinstance(o, str):
+                            cleaned = _clean_origin_string(o)
+                            if cleaned:
+                                origins.add(cleaned)
                 except Exception:
                     pass
             for o in raw_db.split(","):
-                if o.strip():
-                    origins.add(o.strip().rstrip("/").lower())
+                cleaned = _clean_origin_string(o)
+                if cleaned:
+                    origins.add(cleaned)
     except Exception:
         pass
     return origins
 
 
 def origin_allowed(origin: str, host_header: str) -> bool:
-    origin = origin.strip().rstrip("/").lower()
-    if not origin or origin == "null":
+    cleaned = _clean_origin_string(origin)
+    if not cleaned or cleaned == "null":
         return False
-    if origin in _extra_allowed_origins():
+    
+    allowed_list = set(_extra_allowed_origins())
+    if "*" in allowed_list:
         return True
-    parts = urlsplit(origin)
-    if parts.scheme not in ("http", "https") or not parts.hostname:
+    if cleaned in allowed_list:
+        return True
+
+    parts = urlsplit(cleaned)
+    req_host = (parts.hostname or "").lower()
+    if not req_host:
         return False
-    if parts.hostname in LOOPBACK_NAMES:
+    if req_host in LOOPBACK_NAMES:
         return True
     # Same machine, other port (Tavern on :5173 calling the gateway on :9000 over the LAN).
-    return parts.hostname == _hostname(host_header)
+    if req_host == _hostname(host_header):
+        return True
+
+    # Domain & subdomain matching (e.g. allowed: https://lorebary.com matches api.lorebary.com)
+    for allowed in allowed_list:
+        if allowed == "*":
+            return True
+        a_parts = urlsplit(allowed)
+        a_host = (a_parts.hostname or "").lower()
+        if not a_host:
+            continue
+        if req_host == a_host:
+            return True
+        if req_host.endswith("." + a_host):
+            return True
+        if a_host.endswith("." + req_host):
+            return True
+
+    return False
 
 
 def is_loopback_ip(ip: Optional[str]) -> bool:
@@ -173,10 +223,16 @@ def is_trusted_local(client_ip: Optional[str], headers: Dict[str, str]) -> bool:
 
 
 def _bearer(headers: Dict[str, str]) -> Optional[str]:
-    auth = headers.get("authorization", "")
+    auth = (headers.get("authorization") or "").strip()
     if auth.lower().startswith("bearer "):
         return auth[7:].strip()
-    return headers.get("x-api-key")
+    if auth:
+        return auth
+    for header_name in ("x-api-key", "api-key", "x-gateway-key"):
+        val = headers.get(header_name)
+        if val and val.strip():
+            return val.strip()
+    return None
 
 
 def _cookie(headers: Dict[str, str], name: str) -> Optional[str]:
@@ -279,13 +335,17 @@ class SecurityMiddleware:
 
         if method == "OPTIONS" and origin and "access-control-request-method" in headers:
             req_headers = headers.get("access-control-request-headers", "")
+            allow_hdrs = req_headers.encode("latin-1") if req_headers else b"*"
+            if allow_hdrs == b"*":
+                allow_hdrs = b"authorization, content-type, x-api-key, api-key, x-gateway-key, ngrok-skip-browser-warning, accept, origin, user-agent, x-requested-with"
             await send({
                 "type": "http.response.start",
                 "status": 204,
                 "headers": cors + [
                     (b"access-control-allow-methods", b"GET, POST, PUT, PATCH, DELETE, OPTIONS"),
-                    (b"access-control-allow-headers", req_headers.encode("latin-1") or b"*"),
-                    (b"access-control-max-age", b"600"),
+                    (b"access-control-allow-headers", allow_hdrs),
+                    (b"access-control-expose-headers", b"*"),
+                    (b"access-control-max-age", b"86400"),
                 ],
             })
             await send({"type": "http.response.body", "body": b""})

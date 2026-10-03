@@ -14,6 +14,7 @@ import re
 import inspect
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
+from urllib.parse import urlsplit
 
 try:
     if os.getenv("NO_FASTAPI", "").strip() in ("1", "true", "yes"):
@@ -1398,18 +1399,38 @@ async def api_add_allowed_origin(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON body")
     
-    origin = body.get("origin", "").strip().rstrip("/").lower()
-    if not origin:
+    raw = body.get("origin", "").strip()
+    if not raw:
         raise HTTPException(status_code=400, detail="origin string is required")
     
+    cleaned = security._clean_origin_string(raw)
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="Invalid origin format. Please enter a valid URL (e.g. https://lorebary.com)")
+    
     current_raw = db.get_setting("allowed_origins", "")
-    current_list = [o.strip().rstrip("/").lower() for o in current_raw.split(",") if o.strip()]
-    if origin not in current_list:
-        current_list.append(origin)
+    current_list = []
+    for o in current_raw.split(","):
+        c = security._clean_origin_string(o)
+        if c and c not in current_list:
+            current_list.append(c)
+    
+    candidates = [cleaned]
+    # If a subdomain or domain was added (e.g. https://api.lorebary.com), also add root domain
+    parts = urlsplit(cleaned)
+    if parts.hostname and parts.hostname.count(".") >= 2:
+        root_host = ".".join(parts.hostname.split(".")[-2:])
+        root_origin = f"{parts.scheme}://{root_host}"
+        if root_origin not in candidates and root_origin not in current_list:
+            candidates.append(root_origin)
+
+    for cand in candidates:
+        if cand not in current_list:
+            current_list.append(cand)
+
     db.set_setting("allowed_origins", ",".join(current_list))
     return {
         "status": "ok",
-        "added": origin,
+        "added": cleaned,
         "allowed_origins": sorted(list(security._extra_allowed_origins()))
     }
 
@@ -1420,19 +1441,27 @@ async def api_delete_allowed_origin(request: Request):
         body = await request.json()
     except Exception:
         body = {}
-    origin = body.get("origin", "").strip().rstrip("/").lower()
-    if not origin and "origin" in request.query_params:
-        origin = request.query_params["origin"].strip().rstrip("/").lower()
+    raw = body.get("origin", "").strip()
+    if not raw and "origin" in request.query_params:
+        raw = request.query_params["origin"].strip()
     
-    if not origin:
+    if not raw:
         raise HTTPException(status_code=400, detail="origin string is required")
     
+    cleaned = security._clean_origin_string(raw) or raw.lower().rstrip("/")
+    
     current_raw = db.get_setting("allowed_origins", "")
-    current_list = [o.strip().rstrip("/").lower() for o in current_raw.split(",") if o.strip() and o.strip().rstrip("/").lower() != origin]
+    current_list = []
+    for o in current_raw.split(","):
+        c = security._clean_origin_string(o) or o.strip().rstrip("/").lower()
+        if c and c != cleaned and o.strip().rstrip("/").lower() != raw.lower().rstrip("/"):
+            if c not in current_list:
+                current_list.append(c)
+
     db.set_setting("allowed_origins", ",".join(current_list))
     return {
         "status": "ok",
-        "deleted": origin,
+        "deleted": cleaned,
         "allowed_origins": sorted(list(security._extra_allowed_origins()))
     }
 
