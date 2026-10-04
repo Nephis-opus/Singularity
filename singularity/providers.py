@@ -73,6 +73,30 @@ def is_simulation_active() -> bool:
         return False
 
 
+# Providers whose engines still work with no stored account (anonymous / guest sessions).
+GUEST_CAPABLE_PROVIDERS = frozenset({"gemini", "glm"})
+
+# Environment variables an engine reads when the vault holds no account for it.
+ENV_CREDENTIALS = {
+    "deepseek": ("DEEPSEEK_TOKEN",),
+    "qwen": ("QWEN_TOKEN", "QWEN_COOKIES"),
+    "grok": ("GROK_COOKIE",),
+}
+
+
+def missing_credentials(provider_id: str) -> bool:
+    """True when this provider needs an account and none is stored or supplied by environment."""
+    if provider_id not in PROVIDERS_CONFIG or provider_id in GUEST_CAPABLE_PROVIDERS:
+        return False
+    if any(os.getenv(name, "").strip() for name in ENV_CREDENTIALS.get(provider_id, ())):
+        return False
+    try:
+        return not db.get_accounts(provider_id)
+    except Exception:
+        # A vault read error is not proof that no account exists: let the engine report it.
+        return False
+
+
 def get_provider_host(provider_id: str) -> str:
     """Resolve provider host dynamically from DB setting, env var, or default."""
     try:
@@ -1997,6 +2021,19 @@ def get_dynamic_models_catalog() -> List[Dict[str, Any]]:
             m["reason"] = None
 
         catalog.append(m)
+
+    # Models of external provider connections (OpenAI-compatible APIs), named `connection/model`.
+    try:
+        for c in db.list_connections():
+            if not c["enabled"]:
+                continue
+            for model_id in c["models"]:
+                catalog.append({
+                    "id": f"{c['name']}/{model_id}", "name": model_id, "provider": "external", "connection": c["name"],
+                    "capabilities": [], "locked": False, "reason": None,
+                })
+    except Exception:
+        pass   # a database problem must not hide the built-in models
 
     return catalog
 

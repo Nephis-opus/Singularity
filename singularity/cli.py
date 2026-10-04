@@ -485,6 +485,31 @@ def cmd_thinking(args):
                 print(f"    • Temperature         : {cfg['temperature']}")
 
 
+def _print_tool_event(event):
+    """Show one tool-loop event from a streamed reply."""
+    kind = event.get("type")
+    if kind == "step_start":
+        sys.stdout.write(f"\n\033[36m[step {event.get('step')}]\033[0m\n")
+    elif kind == "tool_start":
+        sys.stdout.write(f"\033[36m[tool]\033[0m {event.get('name')} {json.dumps(event.get('arguments') or {}, ensure_ascii=False)}\n")
+    elif kind == "tool_result":
+        if event.get("ok"):
+            backend = f" via {event['backend']}" if event.get("backend") else ""
+            sys.stdout.write(f"\033[36m[result]\033[0m {event.get('summary', '')}{backend} ({event.get('ms', 0)} ms)\n")
+            for src in event.get("sources", []):
+                sys.stdout.write(f"    [{src.get('n')}] {src.get('title', '')} - {src.get('url', '')}\n")
+        else:
+            sys.stdout.write(f"\033[31m[tool failed]\033[0m {event.get('error', '')}\n")
+    elif kind == "step_limit":
+        sys.stdout.write("\033[33m[step limit reached; answering with what was found]\033[0m\n")
+    sys.stdout.flush()
+
+
+def _print_tool_call(call):
+    _print_tool_event({"type": "tool_start", **call})
+    _print_tool_event({"type": "tool_result", **call})
+
+
 def cmd_chat(args):
     """Execute a quick test completion through the local gateway."""
     import httpx
@@ -502,12 +527,18 @@ def cmd_chat(args):
         payload["simulate"] = True
     if getattr(args, "thinking", None) is not None:
         payload["thinking_budget"] = args.thinking
+    tool_names = [t.strip() for t in (getattr(args, "tools", None) or "").split(",") if t.strip()]
+    if tool_names:
+        payload["singularity_tools"] = tool_names
+        if getattr(args, "max_steps", None):
+            payload["singularity_max_steps"] = args.max_steps
+    timeout = 240.0 if tool_names else 60.0
 
     print(f"[*] Routing to Singularity Gateway ({model})...\n")
 
     if args.stream:
         try:
-            with httpx.stream("POST", url, json=payload, timeout=60.0) as resp:
+            with httpx.stream("POST", url, json=payload, timeout=timeout) as resp:
                 if resp.status_code != 200:
                     print(f"[-] HTTP {resp.status_code}: {resp.read().decode('utf-8')}")
                     return
@@ -521,6 +552,10 @@ def cmd_chat(args):
                             choices = chunk.get("choices", [])
                             if choices:
                                 delta = choices[0].get("delta", {})
+                                event = delta.get("singularity_event")
+                                if event:
+                                    _print_tool_event(event)
+                                    continue
                                 content = delta.get("content", "")
                                 reasoning = delta.get("reasoning_content", "")
                                 if reasoning:
@@ -540,16 +575,74 @@ def cmd_chat(args):
             print("    Start it first with: ./start.sh")
     else:
         try:
-            resp = httpx.post(url, json=payload, timeout=60.0)
+            resp = httpx.post(url, json=payload, timeout=timeout)
             if resp.status_code == 200:
                 data = resp.json()
-                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                print(content)
+                message = data.get("choices", [{}])[0].get("message", {})
+                for step in message.get("singularity_steps", []):
+                    for call in step.get("calls", []):
+                        _print_tool_call(call)
+                print(message.get("content", ""))
             else:
                 print(f"[-] HTTP {resp.status_code}: {resp.text}")
         except httpx.ConnectError:
             print(f"[-] Could not connect to Singularity gateway at {url}.")
             print("    Start it first with: ./start.sh")
+
+
+def cmd_bench(args):
+    """Run the scripted test chats against a preset through the running gateway and print what passed."""
+    import httpx
+    base = f"http://127.0.0.1:{args.port}"
+    try:
+        if args.list:
+            res = httpx.get(f"{base}/api/bench/scenarios", timeout=10.0)
+            if res.status_code == 404:
+                print("The running gateway is older than this command. Restart it (./start.sh restart) and try again.")
+                sys.exit(1)
+            data = res.json()
+            rows = [[s["id"], "built-in" if s.get("builtin") else "yours", s["expect"]["search"], s["name"]] for s in data["builtin"] + data["custom"]]
+            print_table(["ID", "KIND", "SEARCH", "NAME"], rows)
+            return
+        if not args.preset or not args.model:
+            print("Give a preset and a model:  ./singular bench --preset miyabi --model kimi-k3   (or --list)")
+            sys.exit(2)
+        body = {"preset": args.preset, "model": args.model}
+        if args.only:
+            body["scenarios"] = [x.strip() for x in args.only.split(",") if x.strip()]
+        started = httpx.post(f"{base}/api/bench/runs", json=body, timeout=15.0)
+        if started.status_code == 404:
+            print("The running gateway is older than this command. Restart it (./start.sh restart) and try again.")
+            sys.exit(1)
+        if started.status_code >= 400:
+            err = started.json().get("error", started.text)
+            print("Could not start:", err.get("message", err) if isinstance(err, dict) else err)
+            sys.exit(1)
+        run = started.json()
+        print_header(f"Test bench: {args.model}@{args.preset}  ({run['total']} tests, uses your provider quota)")
+        shown = 0
+        while True:
+            time.sleep(2.0)
+            run = httpx.get(f"{base}/api/bench/runs/{run['id']}", timeout=15.0).json()
+            for r in run["results"][shown:]:
+                mark = {"pass": "PASS", "fail": "FAIL", "error": "ERROR"}.get(r["status"], r["status"])
+                print(f"[{mark}] {r['name']}  ({(r.get('ms') or 0) / 1000:.1f} s)" + (f"  searched: {'; '.join(r['queries'])}" if r["queries"] else ""))
+                for c in r["checks"]:
+                    if not c["ok"]:
+                        print(f"        x {c['name']}: {c['detail']}")
+                for n in r.get("notes", []):
+                    print(f"        i {n}")
+                if r["status"] != "pass":
+                    print(f"        log entry #{r.get('log_id')}  (Presets tab, Request log)")
+            shown = len(run["results"])
+            if run["status"] != "running":
+                break
+        s = run["summary"]
+        print(f"\n{s['pass']} passed, {s['fail']} failed, {s['error']} errors, {s['done']} of {s['total']} run  [{run['status']}]")
+        sys.exit(0 if run["status"] == "done" and not s["fail"] and not s["error"] else 1)
+    except httpx.ConnectError:
+        print(f"Cannot reach the gateway on port {args.port}. Start Singularity first (./start.sh).")
+        sys.exit(1)
 
 
 def cmd_service(args):
@@ -803,8 +896,18 @@ def main():
     p_chat.add_argument("--stream", action="store_true", default=True, help="Stream response via SSE")
     p_chat.add_argument("--no-stream", dest="stream", action="store_false")
     p_chat.add_argument("--thinking", type=int, default=None, help="Thinking budget token cap override (e.g. 8192, 0 to disable)")
+    p_chat.add_argument("--tools", default=None, help="Comma-separated tools to run: search, url (e.g. --tools search)")
+    p_chat.add_argument("--max-steps", type=int, default=None, help="Maximum tool iterations (default: 3)")
     p_chat.add_argument("--simulate", action="store_true", help="Force simulated response")
     p_chat.add_argument("-p", "--port", type=int, default=9000, help="Gateway port (default: 9000)")
+
+    # bench (SillyTavern preset test suite)
+    p_bench = subparsers.add_parser("bench", help="Run the test bench against a preset through the running gateway")
+    p_bench.add_argument("--preset", help="Name of the preset to test (or use --list)")
+    p_bench.add_argument("-m", "--model", help="Model to run the tests with")
+    p_bench.add_argument("--only", help="Run only these scenario ids, comma-separated")
+    p_bench.add_argument("--list", action="store_true", help="List scenarios and exit")
+    p_bench.add_argument("-p", "--port", type=int, default=9000, help="Gateway port (default: 9000)")
 
     # thinking (model settings & budget cap)
     p_th = subparsers.add_parser("thinking", help="Inspect or set persistent thinking budget caps for models")
@@ -851,6 +954,8 @@ def main():
         cmd_host(args)
     elif args.subcommand == "chat":
         cmd_chat(args)
+    elif args.subcommand == "bench":
+        cmd_bench(args)
     elif args.subcommand == "thinking":
         cmd_thinking(args)
     elif args.subcommand == "service":
@@ -867,3 +972,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

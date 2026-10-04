@@ -20,6 +20,7 @@ from .chatgpt import stream_chatgpt_chat
 from .claude import stream_claude_chat
 from .deepseek import stream_deepseek_chat, generate_deepseek_chat
 from .qwen import stream_qwen_chat, generate_qwen_chat
+from .openai_compat import stream_openai_compat_chat
 
 
 async def stream_chat(
@@ -35,6 +36,12 @@ async def stream_chat(
     Yields OpenAI-compatible chunk dictionaries.
     """
     pid = provider_id.lower().strip()
+ 
+    # 0. External provider connections (OpenAI-compatible APIs with the person's own key)
+    if pid == "external":
+        async for chunk in stream_openai_compat_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
+            yield chunk
+        return
 
     # 1. ChatGPT / OpenAI
     if pid in ("chatgpt", "openai"):
@@ -154,6 +161,9 @@ async def generate_chat(
     async for chunk in stream_chat(provider_id, model, messages, accounts=accounts, stream=False, **kwargs):
         choices = chunk.get("choices", [])
         if choices:
+            if choices[0].get("finish_reason") == "error":
+                # An engine reports its failures as an error chunk; a complete reply must not contain one.
+                raise RuntimeError(str((choices[0].get("delta") or {}).get("content") or "error"))
             delta = choices[0].get("delta", {})
             c = delta.get("content")
             r = delta.get("reasoning_content")

@@ -216,7 +216,7 @@ kill_port_listeners() {
 
 # Route CLI commands vs server launch
 case "$1" in
-    status|limits|accounts|import|export|simulate|host|chat|thinking|service|tunnel|key|update|upgrade|-h|--help)
+    status|limits|accounts|import|export|simulate|host|chat|thinking|service|tunnel|key|bench|update|upgrade|-h|--help)
         exec "$PYTHON_BIN" cli.py "$@"
         ;;
     restart|server|"")

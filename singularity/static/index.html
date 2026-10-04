@@ -19,7 +19,13 @@
     rel="stylesheet" />
 
   <link rel="stylesheet" href="/static/tokens.css?v=60" />
+  <link rel="stylesheet" href="/static/vendor/katex/katex.min.css?v=1" />
   <link rel="stylesheet" href="/static/style.css?v=65" />
+  <link rel="stylesheet" href="/static/tool-steps.css?v=5" />
+  <link rel="stylesheet" href="/static/message-controls.css?v=3" />
+  <link rel="stylesheet" href="/static/chat-management.css?v=1" />
+  <link rel="stylesheet" href="/static/chat-modes.css?v=6" />
+  <link rel="stylesheet" href="/static/presets.css?v=9" />
   <link rel="stylesheet" href="/static/glass-dock.css?v=60" />
   <link rel="stylesheet" href="/static/preloader.css?v=1" />
 </head>
@@ -179,6 +185,7 @@
               <button class="filter-btn" data-filter="grok">Grok</button>
               <button class="filter-btn" data-filter="deepseek">DeepSeek</button>
               <button class="filter-btn" data-filter="qwen">Qwen</button>
+              <button class="filter-btn" data-filter="external">API connections</button>
             </div>
             <input type="text" class="model-search-input" id="model-search"
               placeholder="Search model or capability..." />
@@ -252,6 +259,18 @@
               <div class="account-stack-container" id="stacked-accounts-list">
                 <!-- Rendered dynamically by app.js -->
               </div>
+            </div>
+
+            <!-- API connections: external OpenAI-compatible providers with your own key (static/connections-panel.js) -->
+            <div class="add-cookie-card" id="connections-card">
+              <div>
+                <h3 style="font-size: 15px; font-weight: 700;">API connections</h3>
+                <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                  Use a real API instead of a web account: OpenRouter, OpenAI, DeepSeek, Groq, Ollama, LM Studio and anything
+                  else that speaks the OpenAI format. Your key stays on this computer, encrypted.
+                </p>
+              </div>
+              <div id="connections-body"></div>
             </div>
           </div>
         </div>
@@ -366,6 +385,23 @@
                         </div>
                       </div>
 
+                      <!-- Web search (chat tools) -->
+                      <div class="param-group" id="search-settings">
+                        <div class="param-label-row">
+                          <label for="search-backend-select">Web search</label>
+                        </div>
+                        <select class="param-select" id="search-backend-select">
+                          <option value="auto">No key (DuckDuckGo, Brave, Bing)</option>
+                          <option value="brave">Brave Search API</option>
+                          <option value="tavily">Tavily</option>
+                          <option value="serper">Serper</option>
+                        </select>
+                        <input type="password" class="param-input" id="search-api-key-input" autocomplete="off"
+                          spellcheck="false" placeholder="API key (optional)" />
+                        <span class="param-hint" id="search-settings-hint">Searching without a key reads public result pages, which can be blocked after a few searches. A key makes it reliable.</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-save-search-settings">Save search settings</button>
+                      </div>
+
                       <!-- Footer Action Controls -->
                       <div class="settings-dropdown-footer">
                         <button type="button" class="btn btn-primary btn-sm" id="btn-save-model-settings">
@@ -439,6 +475,26 @@
                           </svg>
                         </button>
                         <input type="file" id="claude-file-input" style="display: none;" multiple />
+
+                        <!-- Tools: a circle that opens a tray of toggle pills (Search today, room for more) -->
+                        <button class="claude-attach-btn claude-tools-btn" id="btn-tools-menu" type="button"
+                          aria-expanded="false" aria-controls="composer-tools-tray" title="Tools" aria-label="Tools">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4 7h3M11.4 7H20M4 17h8.6M17 17h3"></path>
+                            <circle cx="9.2" cy="7" r="2.2"></circle><circle cx="14.8" cy="17" r="2.2"></circle>
+                          </svg>
+                        </button>
+                        <div class="composer-tools-tray" id="composer-tools-tray" inert aria-hidden="true">
+                          <!-- Search toggle: lets the model search the web and read pages (chat tools) -->
+                          <button class="claude-tool-pill" id="btn-search-toggle" type="button" aria-pressed="false" disabled
+                            title="Search the web">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <circle cx="12" cy="12" r="9"></circle><line x1="3" y1="12" x2="21" y2="12"></line>
+                              <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"></path>
+                            </svg>
+                            <span class="claude-tool-pill-label">Search</span>
+                          </button>
+                        </div>
 
                         <!-- Model Selector placed on bottom left with extra padding, clean name -->
                         <div class="custom-select-wrapper claude-model-selector" id="playground-model-select">
@@ -635,6 +691,51 @@
                 </div>
               </aside>
             </div>
+          </div>
+        </div>
+
+        <!-- 7. PRESETS TAB (presets and lorebooks) -->
+        <div class="tab-pane" id="pane-presets">
+          <div class="presets-layout">
+            <aside class="presets-sidebar">
+              <div class="presets-modes" role="group" aria-label="Presets or lorebooks">
+                <button type="button" class="presets-mode active" data-mode="presets">Presets</button>
+                <button type="button" class="presets-mode" data-mode="lorebooks">Lorebooks</button>
+                <button type="button" class="presets-mode" data-mode="logs">Request log</button>
+                <button type="button" class="presets-mode" data-mode="bench">Test bench</button>
+              </div>
+              <div id="presets-section" class="presets-section">
+                <button type="button" class="btn btn-primary btn-sm" id="presets-new">New preset</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="presets-import">Import SillyTavern preset</button>
+                <input type="file" id="presets-import-file" accept=".json,application/json" hidden />
+                <div id="presets-list"></div>
+                <div class="presets-userscript">
+                  <a id="presets-userscript" class="btn btn-secondary btn-sm" href="/userscripts/singularity-regex.user.js">Install the JanitorAI userscript</a>
+                  <p class="preset-field-hint">Needs Tampermonkey or Violentmonkey. It shows your preset's display regex scripts (panels, bubbles, status boxes) on JanitorAI.</p>
+                </div>
+              </div>
+              <div id="lorebooks-section" class="presets-section" hidden>
+                <button type="button" class="btn btn-primary btn-sm" id="lorebooks-new">New lorebook</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="lorebooks-import">Import World Info</button>
+                <input type="file" id="lorebooks-import-file" accept=".json,application/json" hidden />
+                <div id="lorebooks-list"></div>
+              </div>
+              <div id="log-section" class="presets-section" hidden>
+                <div id="log-settings" class="log-settings"></div>
+                <button type="button" class="btn btn-secondary btn-sm" id="log-refresh">Refresh</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="log-clear">Clear the log</button>
+                <div id="log-list"></div>
+              </div>
+              <div id="bench-section" class="presets-section" hidden>
+                <div id="bench-controls"></div>
+                <div id="bench-tests"></div>
+                <div id="bench-past"></div>
+              </div>
+            </aside>
+            <section id="presets-editor"></section>
+            <section id="lorebooks-editor" hidden></section>
+            <section id="log-editor" hidden></section>
+            <section id="bench-editor" hidden></section>
           </div>
         </div>
 
@@ -1447,6 +1548,22 @@
   <script src="/static/vendor/react.min.js"></script>
   <script src="/static/vendor/react-dom.min.js"></script>
   <script src="/static/vendor/babel.min.js" defer></script>
+  <script src="/static/vendor/marked.umd.js?v=1"></script>
+  <script src="/static/vendor/purify.min.js?v=1"></script>
+  <script src="/static/vendor/katex/katex.min.js?v=1"></script>
+  <script src="/static/markdown.js?v=2"></script>
+  <script src="/static/tool-steps.js?v=3"></script>
+  <script src="/static/message-controls.js?v=1"></script>
+  <script src="/static/chat-titles.js?v=1"></script>
+  <script src="/static/reply-stats.js?v=1"></script>
+  <script src="/static/composer-extras.js?v=1"></script>
+  <script src="/static/reading-tools.js?v=1"></script>
+  <script src="/static/follow-ups.js?v=1"></script>
+  <script src="/static/presets-panel.js?v=8"></script>
+  <script src="/static/connections-panel.js?v=1"></script>
+  <script src="/static/lorebooks-panel.js?v=1"></script>
+  <script src="/static/logs-panel.js?v=2"></script>
+  <script src="/static/bench-panel.js?v=1"></script>
   <script src="/static/preloader.js?v=1"></script>
   <script src="/static/app.js?v=65"></script>
   <script src="/static/glass-dock.js?v=60"></script>

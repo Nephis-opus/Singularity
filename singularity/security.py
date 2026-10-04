@@ -362,6 +362,7 @@ class SecurityMiddleware:
             cors = [
                 (b"access-control-allow-origin", allow_origin.encode("latin-1")),
                 (b"access-control-allow-credentials", b"true"),
+                (b"access-control-allow-private-network", b"true"),
                 (b"vary", b"Origin"),
             ]
 
@@ -386,7 +387,7 @@ class SecurityMiddleware:
             req_headers = headers.get("access-control-request-headers", "")
             allow_hdrs = req_headers.encode("latin-1") if req_headers else b"*"
             if allow_hdrs == b"*":
-                allow_hdrs = b"authorization, content-type, x-api-key, api-key, x-gateway-key, ngrok-skip-browser-warning, accept, origin, user-agent, x-requested-with"
+                allow_hdrs = b"authorization, content-type, x-api-key, api-key, x-gateway-key, ngrok-skip-browser-warning, accept, origin, user-agent, x-requested-with, access-control-request-private-network"
             await send({
                 "type": "http.response.start",
                 "status": 204,

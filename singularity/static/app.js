@@ -22,6 +22,8 @@ const state = {
   activeArtifactId: null,
   activeArtifactView: 'preview',
   artifactWorkbenchOpen: false,
+  toolsEnabled: false,
+  toolsInfo: null,
 };
 
 // ===================================================================
@@ -1340,6 +1342,10 @@ function switchTab(tabId) {
       h: 'Playground',
       sub: '',
     },
+    presets: {
+      h: 'Presets & Lorebooks',
+      sub: '',
+    },
     tunnel: {
       h: 'Singularity-Access',
       sub: '',
@@ -1355,7 +1361,13 @@ function switchTab(tabId) {
   try {
     if (tabId === 'limits') renderLimits();
     if (tabId === 'models') renderModels();
-    if (tabId === 'cookies') loadCookiesTab();
+    if (tabId === 'cookies') {
+      loadCookiesTab();
+      if (window.SingularityConnections?.show) window.SingularityConnections.show();
+    }
+    if (tabId === 'presets') {
+      if (window.SingularityPresets?.show) window.SingularityPresets.show();
+    }
     if (tabId === 'tunnel') loadTunnelTab();
   } catch (err) {
     console.error('Error rendering tab content:', err);
@@ -2007,6 +2019,7 @@ const PROVIDER_METAS = {
   grok: { name: 'Grok', icon: '/static/icons/grok.svg' },
   deepseek: { name: 'DeepSeek', icon: '/static/icons/deepseek.svg' },
   qwen: { name: 'Qwen', icon: '/static/icons/qwen.svg' },
+  external: { name: 'API Connections', icon: '/static/icons/chatgpt.svg' },
 };
 
 let isScrollSpyLocked = false;
@@ -2021,7 +2034,7 @@ function initModelFilters() {
       pills.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      if (['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen'].includes(filter)) {
+      if (['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'external'].includes(filter)) {
         const sec = document.getElementById(`models-section-${filter}`);
         const viewport = document.querySelector('.panel-viewport');
         if (sec && viewport) {
@@ -2165,6 +2178,7 @@ function renderModels() {
   const filtered = state.models.filter(m => {
     if (filter === 'unlocked' && m.locked) return false;
     if (filter === 'locked' && !m.locked) return false;
+    if (filter === 'external' && (m.provider || '').toLowerCase() !== 'external') return false;
 
     if (query) {
       const matchName = m.name.toLowerCase().includes(query);
@@ -2177,7 +2191,7 @@ function renderModels() {
     return true;
   });
 
-  const providerOrder = ['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen'];
+  const providerOrder = ['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'external'];
   const grouped = {};
   providerOrder.forEach(p => grouped[p] = []);
 
@@ -2540,6 +2554,7 @@ async function loadCookiesTab() {
   if (syncBadge) {
     syncBadge.textContent = `${totalAccounts} Stacked`;
   }
+  if (window.SingularityConnections?.show) window.SingularityConnections.show();
 
   const p = state.activeCookieProvider;
   const pData = state.cookiesData[p] || { accounts: [] };
@@ -6333,6 +6348,16 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
   const thinkingBudget = parseInt(document.getElementById('thinking-budget-range')?.value || 0, 10);
   const maxTokens = parseInt(document.getElementById('max-tokens-range')?.value || 4096, 10);
 
+  const requestTools = state.toolsEnabled && !!window.SingularityToolSteps;
+  let toolGroup = null;
+  const ensureToolGroup = () => {
+    if (!toolGroup) {
+      toolGroup = window.SingularityToolSteps.createGroup();
+      assistantMsgEl.insertBefore(toolGroup.root, bubbleEl);
+    }
+    return toolGroup;
+  };
+
   let fullContent = '';
   let fullReasoning = '';
   let reasoningBox = null;
@@ -6354,6 +6379,7 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
         thinking_budget: thinkingBudget,
         artifacts: state.enableArtifacts,
         stream: true,
+        ...(requestTools ? { singularity_tools: window.SingularityToolSteps.TOOL_NAMES } : {}),
       }),
     });
 
@@ -6391,22 +6417,32 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
           const parsed = JSON.parse(rawJson);
           const delta = parsed.choices?.[0]?.delta || {};
 
+          // Tool loop progress: a step began, a tool started or finished
+          if (delta.singularity_event && requestTools) {
+            ensureToolGroup().handleEvent(delta.singularity_event);
+            history.scrollTop = history.scrollHeight;
+          }
+
           // Reasoning Content Delta
           if (delta.reasoning_content) {
             fullReasoning += delta.reasoning_content;
-            if (!reasoningBox) {
-              reasoningBox = document.createElement('div');
-              reasoningBox.className = 'reasoning-box';
-              reasoningBox.innerHTML = `
-                <div class="reasoning-summary">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                  Thinking Process Trace
-                </div>
-                <div class="reasoning-content"></div>
-              `;
-              assistantMsgEl.insertBefore(reasoningBox, bubbleEl);
+            if (requestTools) {
+              ensureToolGroup().addReasoning(delta.reasoning_content);
+            } else {
+              if (!reasoningBox) {
+                reasoningBox = document.createElement('div');
+                reasoningBox.className = 'reasoning-box';
+                reasoningBox.innerHTML = `
+                  <div class="reasoning-summary">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+                    Thinking Process Trace
+                  </div>
+                  <div class="reasoning-content"></div>
+                `;
+                assistantMsgEl.insertBefore(reasoningBox, bubbleEl);
+              }
+              reasoningBox.querySelector('.reasoning-content').textContent = fullReasoning;
             }
-            reasoningBox.querySelector('.reasoning-content').textContent = fullReasoning;
           }
 
           // Main Content Delta
@@ -6418,6 +6454,7 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
               .replace(/[\uE200-\uE20F]message_reaction[\uE200-\uE20F][^\uE200-\uE20F]*[\uE200-\uE20F]/g, '')
               .replace(/[\uE200-\uE20F]/g, '');
             fullContent += cleanDelta;
+            if (toolGroup && cleanDelta.trim()) toolGroup.noteAnswerStarted();
 
             // Stream thinking trace if tag is present (e.g. from models outputting <antThinking>)
             const thinkingMatch = fullContent.match(/<antThinking>([\s\S]*?)(?:<\/antThinking>|$)/i);
@@ -6484,6 +6521,16 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
 
     if (loaderObj.finish) loaderObj.finish();
     bubbleEl.classList.remove('playground-loader-bubble');
+
+    // Finalize tools work group & display sources row if present
+    if (toolGroup) {
+      toolGroup.finish();
+      const sources = toolGroup.sources ? toolGroup.sources() : [];
+      if (sources && sources.length && window.SingularityToolSteps) {
+        const sourcesRow = window.SingularityToolSteps.renderSourcesRow(sources);
+        if (sourcesRow) assistantMsgEl.insertBefore(sourcesRow, bubbleEl.nextSibling);
+      }
+    }
 
     const elapsed = Math.round(performance.now() - startTime);
     state.chatMessages.push({ role: 'assistant', content: finalDisplayContent });
@@ -7185,6 +7232,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initCopyAction();
   initTunnelControls();
   initSmoothInputs();
+  initSearchToggle();
+  initToolsTray();
+  window.SingularityToolSteps?.initCitationCards?.();
 
   // Fleet controls (Desktop & Mobile)
   const handleRefresh = () => {
@@ -7620,6 +7670,157 @@ function initSmoothInputs() {
       new SkiperSmoothCaret(el);
     }
   });
+}
+
+// ===================================================================
+// Chat tools: the Search toggle and web search settings
+// ===================================================================
+function setToolsEnabled(on) {
+  state.toolsEnabled = !!on && !!state.toolsInfo;
+  const btn = document.getElementById('btn-search-toggle');
+  if (btn) btn.setAttribute('aria-pressed', state.toolsEnabled ? 'true' : 'false');
+  syncToolsMenuButton();
+}
+
+function syncToolsMenuButton() {
+  const circle = document.getElementById('btn-tools-menu');
+  const tray = document.getElementById('composer-tools-tray');
+  if (!circle || !tray) return;
+  circle.classList.toggle('has-active', !!tray.querySelector('.claude-tool-pill[aria-pressed="true"]'));
+}
+
+function setToolsTrayOpen(open) {
+  const circle = document.getElementById('btn-tools-menu');
+  const tray = document.getElementById('composer-tools-tray');
+  if (!circle || !tray) return;
+  tray.classList.toggle('open', open);
+  tray.inert = !open;
+  tray.setAttribute('aria-hidden', open ? 'false' : 'true');
+  circle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function initToolsTray() {
+  const circle = document.getElementById('btn-tools-menu');
+  if (!circle) return;
+  circle.addEventListener('click', () => {
+    setToolsTrayOpen(circle.getAttribute('aria-expanded') !== 'true');
+  });
+  syncToolsMenuButton();
+}
+
+function saveChatTools(chatId) {
+  if (!chatId) return;
+  const tools = state.toolsEnabled && window.SingularityToolSteps ? window.SingularityToolSteps.TOOL_NAMES : [];
+  fetch(`/api/chats/${chatId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tools }) }).catch((err) => {
+    console.error('Could not save the Search setting for this chat:', err);
+  });
+}
+
+function updateSearchToggleHint() {
+  const btn = document.getElementById('btn-search-toggle');
+  if (!btn || !state.toolsInfo) return;
+  const via = state.toolsInfo.search && state.toolsInfo.search.name;
+  const keySaved = !!(state.toolsInfo.search && state.toolsInfo.search.key_saved);
+  btn.title = `Let the model search the web and read pages${via ? ` (via ${via})` : ''}`
+    + (keySaved ? '' : '. No search key: results can be blocked. Add one in Parameters.');
+  btn.classList.toggle('needs-key', !keySaved);
+  if (window.SingularityToolSteps) window.SingularityToolSteps.setSearchKeySaved(keySaved);
+}
+
+function openSearchSettings() {
+  const dropdown = document.getElementById('playground-settings-dropdown');
+  if (!dropdown) return;
+  if (!dropdown.classList.contains('open')) {
+    dropdown.classList.add('open');
+    if (typeof loadModelSettings === 'function') loadModelSettings(state.selectedModel || 'gpt-5.6-sol');
+  }
+  const group = document.getElementById('search-settings');
+  if (group && group.scrollIntoView) group.scrollIntoView({ block: 'center' });
+  const select = document.getElementById('search-backend-select');
+  const keyInput = document.getElementById('search-api-key-input');
+  const target = select && select.value === 'auto' ? select : keyInput;
+  if (target) target.focus();
+}
+
+async function loadSearchSettings() {
+  try {
+    const res = await fetch('/api/tools');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    state.toolsInfo = await res.json();
+    return true;
+  } catch (err) {
+    state.toolsInfo = null;
+    return false;
+  }
+}
+
+function initSearchToggle() {
+  const btn = document.getElementById('btn-search-toggle');
+  const select = document.getElementById('search-backend-select');
+  const keyInput = document.getElementById('search-api-key-input');
+  const hint = document.getElementById('search-settings-hint');
+  const saveBtn = document.getElementById('btn-save-search-settings');
+  if (!btn) return;
+  const defaultHint = hint ? hint.textContent : '';
+
+  const syncSettingsForm = () => {
+    const search = state.toolsInfo && state.toolsInfo.search;
+    if (select && search) select.value = search.backend_setting || 'auto';
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = search && search.key_saved ? 'Key saved. Type to replace it.' : 'API key (optional)';
+    }
+  };
+
+  const refresh = async () => {
+    const ok = await loadSearchSettings();
+    btn.disabled = !ok;
+    if (ok) {
+      updateSearchToggleHint();
+    } else {
+      btn.title = 'Search needs a newer Singularity server. Restart Singularity.';
+    }
+    setToolsEnabled(state.toolsEnabled);
+    syncSettingsForm();
+  };
+
+  document.addEventListener('singularity:open-search-settings', openSearchSettings);
+
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    setToolsEnabled(!state.toolsEnabled);
+    if (state.chatId) saveChatTools(state.chatId);
+  });
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      const payload = { search_backend: select.value };
+      if (keyInput && keyInput.value.trim()) payload.search_api_key = keyInput.value.trim();
+      else if (select && select.value === 'auto') payload.search_api_key = '';
+      saveBtn.disabled = true;
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try { detail = (await res.json()).detail || detail; } catch (_) {}
+          throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+        }
+        await refresh();
+        if (hint) hint.textContent = 'Saved.';
+        setTimeout(() => { if (hint) hint.textContent = defaultHint; }, 3000);
+      } catch (err) {
+        showToast(`Could not save search settings: ${err.message}`, 'error', 6000);
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+  }
+
+  refresh();
 }
 
 window.initSmoothInputs = initSmoothInputs;

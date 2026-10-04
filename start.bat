@@ -136,6 +136,7 @@ if "%ARG1%"=="thinking" goto :RUN_CLI
 if "%ARG1%"=="service" goto :RUN_CLI
 if "%ARG1%"=="tunnel" goto :RUN_CLI
 if "%ARG1%"=="key" goto :RUN_CLI
+if "%ARG1%"=="bench" goto :RUN_CLI
 if "%ARG1%"=="update" goto :RUN_CLI
 if "%ARG1%"=="upgrade" goto :RUN_CLI
 if "%ARG1%"=="-h" goto :RUN_CLI

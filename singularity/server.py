@@ -80,6 +80,10 @@ except Exception:
                             kwargs[p.name] = request
                         elif p.name in request.path_params:
                             kwargs[p.name] = request.path_params[p.name]
+                        elif p.name in request.query_params:
+                            kwargs[p.name] = request.query_params[p.name]
+                        elif p.default is not inspect.Parameter.empty:
+                            kwargs[p.name] = p.default
                     if inspect.iscoroutinefunction(func):
                         res = await func(**kwargs)
                     else:
@@ -132,6 +136,7 @@ if str(ROOT_DIR) not in sys.path:
 
 import httpx
 import uvicorn
+import logging
 
 import tunnel
 import db
@@ -153,6 +158,32 @@ try:
     from singularity import artifacts
 except ImportError:
     import artifacts
+try:
+    from singularity import presets
+    from singularity import requestlog
+    from singularity import bench
+    from singularity import connections as conn_rules
+    from singularity.engines import openai_compat
+except ImportError:
+    import presets
+    import requestlog
+    import bench
+    import connections as conn_rules
+    from engines import openai_compat
+try:
+    from singularity import userscript
+except ImportError:
+    import userscript
+try:
+    from singularity import tools as chat_tools
+    from singularity.tools import loop as tools_loop
+    from singularity.tools import web_search as tools_web_search
+    from singularity.tools import protocol as tools_protocol
+except ImportError:
+    import tools as chat_tools
+    from tools import loop as tools_loop
+    from tools import web_search as tools_web_search
+    from tools import protocol as tools_protocol
 from providers import (
     MODELS_CATALOG,
     PROVIDERS_CONFIG,
@@ -176,6 +207,14 @@ app.add_middleware(security.SecurityMiddleware)
 def resolve_model_provider(model_name: str) -> str:
     """Route a model name to its respective provider service."""
     m = (model_name or "").lower().strip()
+
+    # 0. `connection/model` for one of the person's external API connections
+    if "/" in m:
+        try:
+            if db.find_connection_for_model(model_name):
+                return "external"
+        except Exception:
+            pass
 
     # 1. Search in catalog first for exact ID match
     for item in MODELS_CATALOG:
@@ -219,7 +258,7 @@ async def list_models():
             "id": m["id"],
             "object": "model",
             "created": now,
-            "owned_by": m["provider"],
+            "owned_by": m.get("connection") or m["provider"],
             "permission": [],
             "root": m["id"],
             "parent": None,
@@ -516,8 +555,37 @@ async def chat_completions(request: Request):
     except Exception:
         body = {}
 
-    model_name = body.get("model", "gpt-5-6-mini")
-    requested_model = model_name
+    requested_model = body.get("model", "gpt-5-6-mini")
+    incoming_messages = list(body.get("messages") or []) if isinstance(body.get("messages"), list) else []
+    pipeline_info: Dict[str, Any] = {}
+    # `kimi-k3@noir`: everything below sees the bare model; the reply keeps the name the client sent.
+    model_name, preset_name = presets.split_model_ref(requested_model)
+    preset = None
+    if preset_name is not None:
+        preset = db.get_preset(preset_name)
+        if not preset:
+            shown = preset_name or "(empty)"
+            return JSONResponse(status_code=400, content={"error": {
+                "message": f"Unknown preset '{shown}'. Create it in the Presets tab, or drop the @{preset_name} from the model name.",
+                "type": "unknown_preset", "code": "unknown_preset", "preset": preset_name}})
+        body["model"] = model_name
+        # Scripts first: they rewrite the chat history; the preset's own blocks are added afterwards.
+        before_regex = body.get("messages", [])
+        body["messages"] = presets.apply_regex(before_regex, preset)
+        # Lorebooks scan the chat as the model will see it (after the regex pass).
+        books = [b for b in (db.get_lorebook(n) for n in preset.get("lorebooks") or []) if b]
+        lore_result = presets.activate_lore(body["messages"], books) if books else None
+        body["messages"] = presets.apply(body.get("messages", []), preset, lore_result)
+        pipeline_info = {
+            "preset": preset["name"],
+            "blocks_on": sum(1 for b in preset.get("blocks", []) if b.get("enabled", True)),
+            "regex_messages_changed": sum(1 for a, b in zip(before_regex, body["messages"]) if a != b) if len(before_regex) == len(body["messages"]) else None,
+            "lorebooks_linked": list(preset.get("lorebooks") or []),
+            "lore_fired": [{k: f.get(k) for k in ("lorebook", "name", "position", "chars", "via")} for f in (lore_result.fired if lore_result else [])][:40],
+            "lore_dropped": len(lore_result.dropped) if lore_result else 0,
+            "lore_warnings": list(lore_result.warnings)[:10] if lore_result else [],
+            "messages_after_preset": len(body["messages"]),
+        }
 
     # Check persona mapping (e.g. GPT-6 Astra, Claude 5.1 Fable, Claude 5 Fable, and thinking variants)
     persona_cfg = personas.get_persona_config(model_name) if personas else None
@@ -546,8 +614,9 @@ async def chat_completions(request: Request):
 
     # 1. Look up persistent model settings in Singularity SQLite DB
     model_cfg = db.get_model_settings(model_name)
+    thinking_override = body.pop("singularity_thinking_override", None) is True
     thinking_cap = model_cfg.get("thinking_budget")
-    if thinking_cap is None and "thinking_budget" in body:
+    if "thinking_budget" in body and (thinking_cap is None or thinking_override):
         thinking_cap = body.get("thinking_budget")
 
     # Enforce Thinking Budget Cap globally across all incoming gateway requests
@@ -618,14 +687,40 @@ async def chat_completions(request: Request):
         except Exception:
             pass
 
+    # Chat tools (web search and so on). Opt-in: nothing changes unless the request asks for them.
+    tool_names = body.pop("singularity_tools", None)
+    tool_max_steps = body.pop("singularity_max_steps", None)
+    if tool_names is not None:
+        known = {t.name for t in chat_tools.all_tools()}
+        if not isinstance(tool_names, list) or any(not isinstance(n, str) for n in tool_names):
+            return JSONResponse(status_code=400, content={"error": {
+                "message": "singularity_tools must be a list of tool names.", "type": "invalid_request_error"}})
+        unknown = sorted(set(tool_names) - known)
+        if unknown:
+            return JSONResponse(status_code=400, content={"error": {
+                "message": f"Unknown tool: {', '.join(unknown)}. Available: {', '.join(sorted(known))}.",
+                "type": "invalid_request_error"}})
+    tool_names = list(dict.fromkeys(tool_names or []))
+    tool_guidance = ""
+    preset_tools = bool(preset and preset.get("tools") and not tool_names)
+    if preset_tools:
+        tool_names = list(preset["tools"])
+        tool_max_steps = preset.get("tool_max_steps")
+        if preset.get("tool_guidance_on", True):
+            tool_guidance = (preset.get("tool_guidance") or "").strip() or tools_protocol.DEFAULT_GUIDANCE
+        pipeline_info["search_focus"] = (
+            "off" if not preset.get("tool_guidance_on", True)
+            else "preset text" if (preset.get("tool_guidance") or "").strip() else "built-in text")
+        pipeline_info["tool_max_steps"] = preset.get("tool_max_steps")
+        pipeline_info["tools_from"] = "preset"
+    elif tool_names:
+        pipeline_info["tools_from"] = "request"
+
     # Forward kwargs to direct engines
     forward_kwargs = {
         k: v for k, v in body.items()
         if k not in ("messages", "model", "stream")
     }
-
-    # If simulation mode is requested or active, we can skip target resolution
-    target_url = f"http://127.0.0.1:{target_port}/v1/chat/completions"
 
     headers = {
         "Content-Type": "application/json",
@@ -635,15 +730,19 @@ async def chat_completions(request: Request):
     # Pass through incoming authorization header or look up default account token
     incoming_auth = request.headers.get("Authorization")
     meta = providers.PROVIDERS_CONFIG.get(provider_id, {})
+    external = None
+    if provider_id == "external":
+        external = db.find_connection_for_model(model_name)
+        meta = {"name": external[0]["name"] if external else "external"}
     if incoming_auth:
         headers["Authorization"] = incoming_auth
     elif meta.get("auth_env"):
         env_token = os.getenv(meta["auth_env"])
         if env_token:
             headers["Authorization"] = f"Bearer {env_token}"
-        elif meta["auth_header"]:
+        elif meta.get("auth_header"):
             headers["Authorization"] = meta["auth_header"]
-    elif meta["auth_header"]:
+    elif meta.get("auth_header"):
         headers["Authorization"] = meta["auth_header"]
 
     is_stream = body.get("stream", False)
@@ -707,92 +806,229 @@ async def chat_completions(request: Request):
                 },
             )
 
-    # 1. Direct in-process execution for all native engines (bypasses loopback socket entirely)
-    # This prevents loopback socket disconnects, avoids BaseHTTP keepalive issues, and is 10x faster.
-    if True:
-        if is_stream:
-            async def direct_stream_generator() -> AsyncIterator[bytes]:
-                rewriter = personas.PersonaStreamRewriter(persona_cfg) if persona_cfg else None
+    if external is not None and external[0]["requires_key"] and not external[0].get("api_key"):
+        return JSONResponse(status_code=424, content={"error": {
+            "message": f"{external[0]['name']} needs an API key. Add one under API connections in Cookie Stacker & Accounts.",
+            "type": "missing_credentials", "code": "missing_credentials", "provider": "external"}})
+    if providers.missing_credentials(provider_id):
+        p_name = meta.get("name", provider_id)
+        return JSONResponse(
+            status_code=424,
+            content={
+                "error": {
+                    "message": f"No {p_name} account is set up. Add one in Cookie Stacker & Accounts.",
+                    "type": "missing_credentials",
+                    "code": "missing_credentials",
+                    "provider": provider_id,
+                }
+            },
+        )
+
+    # The request log keeps a full account of requests that use a preset or tools
+    trace = None
+    if (preset or tool_names) and db.request_log_settings()["enabled"]:
+        pipeline_info["search_backend"] = (db.get_setting("search_backend", "auto") or "auto") if tool_names else None
+        trace = requestlog.Trace(
+            requested_model=str(requested_model), model=str(backend_model), preset=preset["name"] if preset else None,
+            provider=provider_id, origin=request.headers.get("origin", ""), stream=bool(body.get("stream", False)),
+            incoming=incoming_messages, tool_names=tool_names,
+            tag=re.sub(r"[^A-Za-z0-9_.:-]", "", request.headers.get("x-singularity-tag", ""))[:80])
+        trace.pipeline(**pipeline_info)
+
+    def _save_trace():
+        if trace is None or trace.finished:
+            return
+        trace.finished = True
+        try:
+            db.add_request_log(trace.record())
+        except Exception:
+            logging.getLogger("singularity.requestlog").exception("could not save the request log")
+
+    async def _traced(stream, step):
+        text, thoughts, failed = [], [], ""
+        try:
+            async for chunk in stream:
+                choice = (chunk.get("choices") or [{}])[0]
+                delta = choice.get("delta") or {}
+                if isinstance(delta.get("content"), str):
+                    if choice.get("finish_reason") == "error":
+                        failed = delta["content"]
+                    else:
+                        text.append(delta["content"])
+                if isinstance(delta.get("reasoning_content"), str):
+                    thoughts.append(delta["reasoning_content"])
+                if chunk.get("error"):
+                    failed = str(chunk["error"])
+                yield chunk
+        finally:
+            trace.output(step, "".join(text), "".join(thoughts), failed)
+            aclose = getattr(stream, "aclose", None)
+            if aclose:
                 try:
-                    async for chunk in engines.stream_chat(provider_id, backend_model, body.get("messages", []), stream=True, **forward_kwargs):
-                        chunk["model"] = requested_model
+                    await aclose()
+                except Exception:
+                    pass
+
+    def _engine_stream(msgs):
+        stream = engines.stream_chat(provider_id, backend_model, msgs, stream=True, **forward_kwargs)
+        return _traced(stream, trace.sent(msgs)) if trace is not None else stream
+
+    def _chat_source():
+        if not tool_names:
+            return _engine_stream(body.get("messages", []))
+        return tools_loop.run(
+            _engine_stream, body.get("messages", []), tool_names,
+            model=requested_model, max_steps=tool_max_steps, get_setting=db.get_setting,
+            cite=not preset_tools, guidance=tool_guidance,
+        )
+
+    # Direct in-process execution for all native engines
+    if is_stream:
+        async def direct_stream_generator() -> AsyncIterator[bytes]:
+            rewriter = personas.PersonaStreamRewriter(persona_cfg) if persona_cfg else None
+            source = _chat_source()
+            try:
+                async for chunk in source:
+                    if trace is not None:
+                        trace.feed(chunk)
+                    chunk["model"] = requested_model
+                    choices = chunk.get("choices", [])
+                    if choices:
+                        delta = choices[0].get("delta", {})
+                        if preset_tools and delta.pop("singularity_event", None) is not None and not delta:
+                            continue
+                        if "content" in delta and isinstance(delta["content"], str):
+                            delta["content"] = re.sub(r"※[^\s]*", "", delta["content"])
+                            delta["content"] = re.sub(r"\bcite[a-zA-Z0-9_]*turn[a-zA-Z0-9_]*\b", "", delta["content"])
+                            delta["content"] = re.sub(r"\bturn\d+[a-zA-Z0-9_]*\b", "", delta["content"])
+                            delta["content"] = re.sub(r"[\ue200-\ue20f]message_reaction[\ue200-\ue20f][^\ue200-\ue20f]*[\ue200-\ue20f]", "", delta["content"])
+                            delta["content"] = re.sub(r"[\ue200-\ue20f]", "", delta["content"])
+                    if rewriter:
                         choices = chunk.get("choices", [])
                         if choices:
                             delta = choices[0].get("delta", {})
-                            if "content" in delta and isinstance(delta["content"], str):
-                                delta["content"] = re.sub(r"※[^\s]*", "", delta["content"])
-                                delta["content"] = re.sub(r"\bcite[a-zA-Z0-9_]*turn[a-zA-Z0-9_]*\b", "", delta["content"])
-                                delta["content"] = re.sub(r"\bturn\d+[a-zA-Z0-9_]*\b", "", delta["content"])
-                                delta["content"] = re.sub(r"[\ue200-\ue20f]message_reaction[\ue200-\ue20f][^\ue200-\ue20f]*[\ue200-\ue20f]", "", delta["content"])
-                                delta["content"] = re.sub(r"[\ue200-\ue20f]", "", delta["content"])
-                        if rewriter:
-                            choices = chunk.get("choices", [])
-                            if choices:
-                                delta = choices[0].get("delta", {})
-                                finish_reason = choices[0].get("finish_reason")
-                                if "content" in delta:
-                                    new_c = rewriter.process(delta["content"])
-                                    if finish_reason:
-                                        new_c += rewriter.finish()
-                                    if new_c or finish_reason:
-                                        delta["content"] = new_c
-                                        yield f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
-                                    continue
+                            finish_reason = choices[0].get("finish_reason")
+                            if "content" in delta:
+                                new_c = rewriter.process(delta["content"])
                                 if finish_reason:
-                                    rem = rewriter.finish()
-                                    if rem:
-                                        flush_chunk = {
-                                            "id": chunk.get("id", f"chatcmpl-{uuid.uuid4().hex[:8]}"),
-                                            "object": "chat.completion.chunk",
-                                            "created": chunk.get("created", int(time.time())),
-                                            "model": requested_model,
-                                            "choices": [{"index": 0, "delta": {"content": rem}, "finish_reason": None}],
-                                        }
-                                        yield f"data: {json.dumps(flush_chunk)}\n\n".encode("utf-8")
-                        yield f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
-                    if rewriter:
-                        rem = rewriter.finish()
-                        if rem:
-                            flush_chunk = {
-                                "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
-                                "object": "chat.completion.chunk",
-                                "created": int(time.time()),
-                                "model": requested_model,
-                                "choices": [{"index": 0, "delta": {"content": rem}, "finish_reason": None}],
-                            }
-                            yield f"data: {json.dumps(flush_chunk)}\n\n".encode("utf-8")
-                    yield b"data: [DONE]\n\n"
-                except Exception as inner_e:
-                    p_name = meta.get("name", provider_id)
-                    err_msg = f"Provider {p_name} error: {str(inner_e)}"
-                    yield f"data: {json.dumps({'error': err_msg})}\n\n".encode("utf-8")
-                    yield b"data: [DONE]\n\n"
-
-            return StreamingResponse(
-                direct_stream_generator(),
-                media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",
-                    "X-Singularity-Provider": provider_id,
-                },
-            )
-        else:
-            try:
-                data = await engines.generate_chat(provider_id, backend_model, body.get("messages", []), **forward_kwargs)
-                if persona_cfg:
-                    data["model"] = requested_model
-                    for c in data.get("choices", []):
-                        if "message" in c and "content" in c["message"]:
-                            c["message"]["content"] = personas.sanitize_text(c["message"]["content"], persona_cfg)
-                return JSONResponse(status_code=200, content=data)
+                                    new_c += rewriter.finish()
+                                if new_c or finish_reason:
+                                    delta["content"] = new_c
+                                    yield f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                                continue
+                            if finish_reason:
+                                rem = rewriter.finish()
+                                if rem:
+                                    flush_chunk = {
+                                        "id": chunk.get("id", f"chatcmpl-{uuid.uuid4().hex[:8]}"),
+                                        "object": "chat.completion.chunk",
+                                        "created": chunk.get("created", int(time.time())),
+                                        "model": requested_model,
+                                        "choices": [{"index": 0, "delta": {"content": rem}, "finish_reason": None}],
+                                    }
+                                    yield f"data: {json.dumps(flush_chunk)}\n\n".encode("utf-8")
+                    yield f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                if rewriter:
+                    rem = rewriter.finish()
+                    if rem:
+                        flush_chunk = {
+                            "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": requested_model,
+                            "choices": [{"index": 0, "delta": {"content": rem}, "finish_reason": None}],
+                        }
+                        yield f"data: {json.dumps(flush_chunk)}\n\n".encode("utf-8")
+                yield b"data: [DONE]\n\n"
             except Exception as inner_e:
                 p_name = meta.get("name", provider_id)
-                raise HTTPException(
-                    status_code=502,
-                    detail=f"Provider {p_name} error: {str(inner_e)}",
-                )
+                err_msg = f"Provider {p_name} error: {str(inner_e)}"
+                if trace is not None:
+                    trace.error = trace.error or err_msg
+                yield f"data: {json.dumps({'error': err_msg})}\n\n".encode("utf-8")
+                yield b"data: [DONE]\n\n"
+            finally:
+                aclose = getattr(source, "aclose", None)
+                if aclose:
+                    try:
+                        await aclose()
+                    except Exception:
+                        pass
+                _save_trace()
+
+        return StreamingResponse(
+            direct_stream_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+                "X-Singularity-Provider": provider_id,
+            },
+        )
+    elif tool_names:
+        recorder = tools_loop.StepRecorder()
+        try:
+            source = _chat_source()
+            try:
+                async for chunk in source:
+                    recorder.feed(chunk)
+                    if trace is not None:
+                        trace.feed(chunk)
+            finally:
+                await source.aclose()
+        except Exception as inner_e:
+            recorder.error = recorder.error or str(inner_e)
+        if trace is not None:
+            trace.error = trace.error or recorder.error
+        _save_trace()
+        if recorder.error:
+            raise HTTPException(status_code=502, detail=f"Provider {meta.get('name', provider_id)} error: {recorder.error}")
+        content = recorder.content
+        if persona_cfg:
+            content = personas.sanitize_text(content, persona_cfg)
+        message = {"role": "assistant", "content": content}
+        if not preset_tools:
+            message["singularity_steps"] = recorder.steps
+        if recorder.reasoning:
+            message["reasoning_content"] = recorder.reasoning
+        return JSONResponse(status_code=200, content={
+            "id": f"chatcmpl-tools-{uuid.uuid4().hex[:12]}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": requested_model,
+            "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+        })
+    else:
+        try:
+            step = trace.sent(body.get("messages", [])) if trace is not None else 0
+            data = await engines.generate_chat(provider_id, backend_model, body.get("messages", []), **forward_kwargs)
+            if trace is not None:
+                reply = ((data.get("choices") or [{}])[0].get("message") or {})
+                trace.set_reply(reply.get("content") or "", reply.get("reasoning_content") or "")
+                trace.output(step, trace.visible, trace.visible_reasoning)
+                _save_trace()
+            if preset:
+                data["model"] = requested_model
+            if persona_cfg:
+                data["model"] = requested_model
+                for c in data.get("choices", []):
+                    if "message" in c and "content" in c["message"]:
+                        c["message"]["content"] = personas.sanitize_text(c["message"]["content"], persona_cfg)
+            return JSONResponse(status_code=200, content={
+                **data,
+                "model": requested_model,
+            })
+        except Exception as inner_e:
+            if trace is not None:
+                trace.error = str(inner_e)
+                _save_trace()
+            p_name = meta.get("name", provider_id)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Provider {p_name} error: {str(inner_e)}",
+            )
+
 
     if is_stream:
         async def stream_generator() -> AsyncIterator[bytes]:
@@ -1804,6 +2040,587 @@ async def api_remove_cookie(provider_id: str, request: Request):
     account_id = body.get("id")
     res = remove_stacked_cookie(provider_id, identifier=identifier, index=account_id if account_id is not None else index)
     return res
+
+
+# -------------------------------------------------------------------
+# Request Logs, API Connections, Test Bench, Tools Endpoints
+# -------------------------------------------------------------------
+
+async def _json_object(request: Request) -> Dict[str, Any]:
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="JSON body must be an object")
+    return body
+
+
+def _log_id(raw) -> Optional[int]:
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+@app.get("/api/request-logs")
+async def api_list_request_logs(request: Request):
+    q = request.query_params
+    try:
+        limit = int(q.get("limit", "50"))
+    except ValueError:
+        limit = 50
+    outcome = q.get("outcome", "")
+    if outcome and outcome not in requestlog.OUTCOMES:
+        return JSONResponse(status_code=400, content={"error": {"message": f"outcome must be one of {', '.join(requestlog.OUTCOMES)}", "type": "invalid_request_error"}})
+    only_tools = q.get("tools", "") in ("1", "true")
+    return {"logs": db.list_request_logs(limit, only_tools, outcome), "settings": db.request_log_settings()}
+
+
+@app.get("/api/request-logs/settings")
+async def api_request_log_settings():
+    return db.request_log_settings()
+
+
+@app.put("/api/request-logs/settings")
+async def api_set_request_log_settings(request: Request):
+    body = await _json_object(request)
+    try:
+        return db.set_request_log_settings(body.get("enabled"), body.get("keep"))
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": {"message": str(e), "type": "invalid_request_error"}})
+
+
+@app.get("/api/request-logs/{log_id}")
+async def api_get_request_log(log_id: str):
+    entry = db.get_request_log(_log_id(log_id) or 0)
+    if not entry:
+        return JSONResponse(status_code=404, content={"error": {"message": "No such log entry.", "type": "not_found"}})
+    return entry
+
+
+@app.delete("/api/request-logs/{log_id}")
+async def api_delete_request_log(log_id: str):
+    if not db.delete_request_log(_log_id(log_id) or 0):
+        return JSONResponse(status_code=404, content={"error": {"message": "No such log entry.", "type": "not_found"}})
+    return {"ok": True}
+
+
+@app.delete("/api/request-logs")
+async def api_clear_request_logs():
+    return {"ok": True, "deleted": db.clear_request_logs()}
+
+
+# External provider connections (OpenAI-compatible APIs)
+@app.get("/api/connections")
+async def api_list_connections():
+    return {"connections": db.list_connections()}
+
+
+@app.post("/api/connections")
+async def api_create_connection(request: Request):
+    body = await _json_object(request)
+    try:
+        return JSONResponse(db.create_connection(body), status_code=201)
+    except conn_rules.ConnectionConfigError as e:
+        return JSONResponse(status_code=409 if "already exists" in str(e) else 400, content={"error": {"message": str(e), "type": "invalid_request_error"}})
+
+
+@app.put("/api/connections/{name}")
+async def api_update_connection(name: str, request: Request):
+    body = await _json_object(request)
+    try:
+        updated = db.update_connection(name, body)
+    except conn_rules.ConnectionConfigError as e:
+        return JSONResponse(status_code=409 if "already exists" in str(e) else 400, content={"error": {"message": str(e), "type": "invalid_request_error"}})
+    return updated or JSONResponse(status_code=404, content={"error": {"message": "No such connection.", "type": "not_found"}})
+
+
+@app.delete("/api/connections/{name}")
+async def api_delete_connection(name: str):
+    if not db.delete_connection(name):
+        return JSONResponse(status_code=404, content={"error": {"message": "No such connection.", "type": "not_found"}})
+    return {"ok": True}
+
+
+@app.post("/api/connections/{name}/models")
+async def api_refresh_connection_models(name: str):
+    conn = db.get_connection(name, with_key=True)
+    if not conn:
+        return JSONResponse(status_code=404, content={"error": {"message": "No such connection.", "type": "not_found"}})
+    try:
+        ids = await openai_compat.fetch_models(conn)
+    except conn_rules.ConnectionConfigError as e:
+        return JSONResponse(status_code=502, content={"error": {"message": str(e), "type": "provider_error"}})
+    db.set_connection_models(conn["name"], ids)
+    return {"connection": db.get_connection(conn["name"]), "count": len(ids)}
+
+
+# Test bench
+_BENCH: Dict[str, Any] = {"task": None, "run_id": None, "cancel": False}
+_bench_sender = None
+
+
+def _bench_error(message: str, status: int = 400):
+    return JSONResponse(status_code=status, content={"error": {"message": message, "type": "invalid_request_error"}})
+
+
+@app.get("/api/bench/scenarios")
+async def api_bench_scenarios():
+    return {"builtin": bench.builtin_scenarios(), "custom": db.list_bench_scenarios(), "default_card": bench.DEFAULT_CARD}
+
+
+@app.post("/api/bench/scenarios")
+async def api_create_bench_scenario(request: Request):
+    body = await _json_object(request)
+    try:
+        return JSONResponse(db.create_bench_scenario(body), status_code=201)
+    except bench.BenchError as e:
+        return _bench_error(str(e))
+
+
+@app.put("/api/bench/scenarios/{scenario_id}")
+async def api_update_bench_scenario(scenario_id: str, request: Request):
+    body = await _json_object(request)
+    try:
+        updated = db.update_bench_scenario(_log_id(scenario_id) or 0, body)
+    except bench.BenchError as e:
+        return _bench_error(str(e))
+    return updated or _bench_error("No such test.", 404)
+
+
+@app.delete("/api/bench/scenarios/{scenario_id}")
+async def api_delete_bench_scenario(scenario_id: str):
+    return {"ok": True} if db.delete_bench_scenario(_log_id(scenario_id) or 0) else _bench_error("No such test.", 404)
+
+
+@app.get("/api/bench/runs")
+async def api_list_bench_runs():
+    return {"runs": db.list_bench_runs(), "running": _BENCH["run_id"]}
+
+
+@app.get("/api/bench/runs/{run_id}")
+async def api_get_bench_run(run_id: str):
+    run = db.get_bench_run(_log_id(run_id) or 0)
+    return run or _bench_error("No such run.", 404)
+
+
+@app.delete("/api/bench/runs/{run_id}")
+async def api_delete_bench_run(run_id: str):
+    return {"ok": True} if db.delete_bench_run(_log_id(run_id) or 0) else _bench_error("No such run, or it is still running.", 404)
+
+
+@app.post("/api/bench/runs/{run_id}/cancel")
+async def api_cancel_bench_run(run_id: str):
+    if _BENCH["run_id"] is None or _BENCH["run_id"] != _log_id(run_id):
+        return _bench_error("That run is not running.", 404)
+    _BENCH["cancel"] = True
+    return {"ok": True}
+
+
+async def _bench_job(run_id: int, scenarios, model: str, preset: Dict[str, Any], card: str, sender):
+    results: List[Dict[str, Any]] = []
+
+    def on_result(result):
+        results.append(result)
+        db.save_bench_run(run_id, results)
+
+    def find_log(tag):
+        rows = db.list_request_logs(1, tag=tag)
+        return db.get_request_log(rows[0]["id"]) if rows else None
+
+    status = "done"
+    try:
+        await bench.run_scenarios(
+            scenarios=scenarios, model=model, preset=preset, card=card, run_tag=f"bench-{run_id}", send=sender,
+            find_log=find_log, on_result=on_result, cancelled=lambda: _BENCH["cancel"])
+        if _BENCH["cancel"]:
+            status = "cancelled"
+    except Exception:
+        logging.getLogger("singularity.bench").exception("bench run %s crashed", run_id)
+        status = "error"
+    finally:
+        db.save_bench_run(run_id, results, status)
+        _BENCH.update(task=None, run_id=None, cancel=False)
+
+
+@app.post("/api/bench/runs")
+async def api_start_bench_run(request: Request):
+    body = await _json_object(request)
+    if _BENCH["run_id"] is not None:
+        return _bench_error("A test run is already going. Wait for it or cancel it.", 409)
+    preset = db.get_preset(body.get("preset")) if isinstance(body.get("preset"), str) else None
+    if not preset:
+        return _bench_error("Pick a preset that exists.")
+    model = body.get("model")
+    if not isinstance(model, str) or not model.strip() or "@" in model or len(model) > 80:
+        return _bench_error("model must be a model name without an @ (the preset is added for you).")
+    model = model.strip()
+    if not db.request_log_settings()["enabled"]:
+        return _bench_error("Switch the request log on first: the test checks each chat against it.")
+    card = body.get("card", "")
+    if not isinstance(card, str) or len(card) > 20_000:
+        return _bench_error("card must be text of at most 20,000 characters.")
+    pool = bench.builtin_scenarios() + db.list_bench_scenarios()
+    wanted = body.get("scenarios")
+    if wanted is not None:
+        if not isinstance(wanted, list) or not all(isinstance(w, str) for w in wanted):
+            return _bench_error("scenarios must be a list of test ids.")
+        unknown = sorted(set(wanted) - {s["id"] for s in pool})
+        if unknown:
+            return _bench_error(f"Unknown test: {', '.join(unknown)}")
+        pool = [s for s in pool if s["id"] in set(wanted)]
+    if not pool:
+        return _bench_error("Pick at least one test.")
+    settings = {"tools": preset.get("tools", []), "tool_max_steps": preset.get("tool_max_steps"),
+                "focus": "off" if not preset.get("tool_guidance_on", True) else "preset text" if (preset.get("tool_guidance") or "").strip() else "built-in text",
+                "card": "custom" if card.strip() else "default"}
+    run_id = db.create_bench_run(preset["name"], model, len(pool), settings)
+    port = (request.scope.get("server") or (None, 9000))[1] or 9000
+    sender = _bench_sender or (lambda model_ref, messages, tag: bench.http_sender(f"http://127.0.0.1:{port}", model_ref, messages, tag, 150.0))
+    _BENCH.update(run_id=run_id, cancel=False, task=asyncio.create_task(_bench_job(run_id, pool, model, preset, card, sender)))
+    return JSONResponse(db.get_bench_run(run_id), status_code=202)
+
+
+@app.get("/api/tools")
+async def api_get_tools():
+    """Tools the chat can use, and which search backend would answer. Never includes the key."""
+    search = tools_web_search.active_backend(db.get_setting)
+    search["key_saved"] = bool((db.get_setting("search_api_key", "") or "").strip())
+    search["backend_setting"] = (db.get_setting("search_backend", "auto") or "auto").lower()
+    return {"tools": chat_tools.describe(), "search": search, "default_guidance": tools_protocol.DEFAULT_GUIDANCE}
+
+
+# -------------------------------------------------------------------
+# Presets, Lorebooks, Userscripts, and Chat History Endpoints
+# -------------------------------------------------------------------
+
+def _with_script_status(preset):
+    """A preset for the dashboard: each regex script also says whether the gateway can run it on the prompt."""
+    return {**preset, "regex_scripts": presets.regex_scripts.annotate(preset.get("regex_scripts") or [])}
+
+
+@app.get("/v1/presets/{name}/display-scripts")
+async def v1_preset_display_scripts(name: str):
+    preset = db.get_preset(name)
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return presets.display_payload(preset)
+
+
+@app.get("/userscripts/singularity-regex.user.js")
+async def userscript_file(request: Request):
+    host = request.headers.get("host") or "localhost:9000"
+    scheme = "https" if request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https" else "http"
+    base_url = f"{scheme}://{host}"
+    try:
+        t_stat = tunnel.get_tunnel_status()
+        ngrok_url = (t_stat.get("public_url") or "") if t_stat.get("status") == "online" else ""
+    except Exception:
+        ngrok_url = ""
+    return Response(content=userscript.build(base_url, ngrok_url=ngrok_url), media_type="text/javascript",
+                    headers={"Cache-Control": "no-store"})
+
+
+def _lore_status(error: Exception) -> int:
+    return 409 if "already exists" in str(error) else 400
+
+
+@app.get("/api/lorebooks")
+async def api_list_lorebooks():
+    return {"lorebooks": db.list_lorebooks()}
+
+
+@app.post("/api/lorebooks")
+async def api_create_lorebook(request: Request):
+    body = await _json_object(request)
+    try:
+        return JSONResponse(db.create_lorebook(body), status_code=201)
+    except presets.LoreError as e:
+        raise HTTPException(status_code=_lore_status(e), detail=str(e))
+
+
+@app.post("/api/lorebooks/import")
+async def api_import_lorebook(request: Request):
+    body = await _json_object(request)
+    name = body.get("name")
+    if name is not None and not isinstance(name, str):
+        raise HTTPException(status_code=400, detail="name must be text")
+    name = (name or "").strip().lower()
+    if not presets.lorebook.NAME_RE.match(name):
+        name = presets.lorebook.lorebook_name_from(name)
+    try:
+        converted, report = presets.lorebook.from_st(body.get("st"), name)
+        created = db.create_lorebook(converted)
+    except presets.LoreError as e:
+        raise HTTPException(status_code=_lore_status(e), detail=str(e))
+    created.pop("entries", None)
+    return JSONResponse({"lorebook": created, "report": report}, status_code=201)
+
+
+@app.get("/api/lorebooks/{name}")
+async def api_get_lorebook(name: str):
+    book = db.get_lorebook(name)
+    if not book:
+        raise HTTPException(status_code=404, detail="Lorebook not found")
+    return book
+
+
+@app.put("/api/lorebooks/{name}")
+async def api_update_lorebook(name: str, request: Request):
+    body = await _json_object(request)
+    try:
+        book = db.update_lorebook(name, body)
+    except presets.LoreError as e:
+        raise HTTPException(status_code=_lore_status(e), detail=str(e))
+    if not book:
+        raise HTTPException(status_code=404, detail="Lorebook not found")
+    return book
+
+
+@app.delete("/api/lorebooks/{name}")
+async def api_delete_lorebook(name: str):
+    if not db.delete_lorebook(name):
+        raise HTTPException(status_code=404, detail="Lorebook not found")
+    return {"deleted": True}
+
+
+@app.post("/api/lorebooks/{name}/entries")
+async def api_add_lorebook_entry(name: str, request: Request):
+    body = await _json_object(request)
+    try:
+        entry = db.add_lorebook_entry(name, body)
+    except presets.LoreError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Lorebook not found")
+    return JSONResponse(entry, status_code=201)
+
+
+@app.put("/api/lorebooks/{name}/entries/{entry_id}")
+async def api_update_lorebook_entry(name: str, entry_id: str, request: Request):
+    body = await _json_object(request)
+    try:
+        entry = db.update_lorebook_entry(name, entry_id, body)
+    except presets.LoreError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return entry
+
+
+@app.delete("/api/lorebooks/{name}/entries/{entry_id}")
+async def api_delete_lorebook_entry(name: str, entry_id: str):
+    if not db.delete_lorebook_entry(name, entry_id):
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return {"deleted": True}
+
+
+@app.post("/api/lorebooks/{name}/test")
+async def api_test_lorebook(name: str, request: Request):
+    body = await _json_object(request)
+    book = db.get_lorebook(name)
+    if not book:
+        raise HTTPException(status_code=404, detail="Lorebook not found")
+    messages = body.get("messages")
+    if messages is None and isinstance(body.get("text"), str):
+        messages = [{"role": "user", "content": body["text"]}]
+    if not isinstance(messages, list):
+        raise HTTPException(status_code=400, detail="Send messages (a list) or text")
+    certain = {**book, "entries": [{**e, "probability": 100} for e in book["entries"]]}
+    result = presets.activate_lore(messages, [certain])
+    return {"fired": result.fired, "dropped": result.dropped, "warnings": result.warnings,
+            "texts": result.texts, "depth": result.depth}
+
+
+@app.get("/api/presets")
+async def api_list_presets():
+    return {"presets": [_with_script_status(p) for p in db.list_presets()]}
+
+
+@app.post("/api/presets")
+async def api_create_preset(request: Request):
+    body = await _json_object(request)
+    try:
+        return JSONResponse(db.create_preset(body), status_code=201)
+    except presets.PresetError as e:
+        raise HTTPException(status_code=409 if "already exists" in str(e) else 400, detail=str(e))
+
+
+@app.post("/api/presets/import")
+async def api_import_preset(request: Request):
+    body = await _json_object(request)
+    name = body.get("name")
+    if name is not None and not isinstance(name, str):
+        raise HTTPException(status_code=400, detail="name must be text")
+    name = (name or "").strip().lower()
+    if not presets.schema.NAME_RE.match(name):
+        name = presets.preset_name_from(name)
+    try:
+        converted, report = presets.convert_st(body.get("st"), name)
+        return JSONResponse({"preset": db.create_preset(converted), "report": report}, status_code=201)
+    except presets.PresetError as e:
+        raise HTTPException(status_code=409 if "already exists" in str(e) else 400, detail=str(e))
+
+
+@app.get("/api/presets/{name}")
+async def api_get_preset(name: str):
+    preset = db.get_preset(name)
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return _with_script_status(preset)
+
+
+@app.put("/api/presets/{name}")
+async def api_update_preset(name: str, request: Request):
+    body = await _json_object(request)
+    try:
+        preset = db.update_preset(name, body)
+    except presets.PresetError as e:
+        raise HTTPException(status_code=409 if "already exists" in str(e) else 400, detail=str(e))
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return preset
+
+
+@app.delete("/api/presets/{name}")
+async def api_delete_preset(name: str):
+    if not db.delete_preset(name):
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return {"deleted": True}
+
+
+@app.get("/api/chats")
+async def api_list_chats(request: Request):
+    archived = (request.query_params.get("archived") or "exclude").lower()
+    archived = {"1": "include", "true": "include", "0": "exclude", "false": "exclude"}.get(archived, archived)
+    try:
+        return {"chats": db.list_chats(query=request.query_params.get("q"), archived=archived)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/chats")
+async def api_create_chat(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    title = body.get("title") if isinstance(body, dict) else None
+    return JSONResponse(db.create_chat(title if isinstance(title, str) else None), status_code=201)
+
+
+@app.get("/api/chats/{chat_id}")
+async def api_get_chat(chat_id: str):
+    chat = db.get_chat(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return chat
+
+
+@app.put("/api/chats/{chat_id}")
+async def api_update_chat(chat_id: str, request: Request):
+    body = await _json_object(request)
+    known = ("title", "generated_title", "tools", "settings", "pinned", "archived")
+    if not any(k in body for k in known):
+        raise HTTPException(status_code=400, detail="Send a title, generated_title, tools, settings, pinned or archived")
+    if "title" in body:
+        title = body.get("title")
+        if not isinstance(title, str) or not title.strip():
+            raise HTTPException(status_code=400, detail="title must be a non-empty string")
+        if not db.rename_chat(chat_id, title):
+            raise HTTPException(status_code=404, detail="Chat not found")
+    if "tools" in body:
+        try:
+            found = db.set_chat_tools(chat_id, body["tools"])
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if not found:
+            raise HTTPException(status_code=404, detail="Chat not found")
+    if "settings" in body:
+        try:
+            found = db.set_chat_settings(chat_id, body["settings"])
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if not found:
+            raise HTTPException(status_code=404, detail="Chat not found")
+    if "pinned" in body or "archived" in body:
+        try:
+            found = db.set_chat_flags(chat_id, body.get("pinned"), body.get("archived"))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if not found:
+            raise HTTPException(status_code=404, detail="Chat not found")
+    result = {"status": "ok"}
+    if "generated_title" in body:
+        generated = body.get("generated_title")
+        if not isinstance(generated, str):
+            raise HTTPException(status_code=400, detail="generated_title must be a string")
+        applied = db.apply_generated_title(chat_id, generated)
+        if applied is None:
+            raise HTTPException(status_code=404, detail="Chat not found")
+        result["applied"] = applied
+    return result
+
+
+@app.delete("/api/chats/{chat_id}")
+async def api_delete_chat(chat_id: str, request: Request):
+    now = (request.query_params.get("now") or "").lower() in ("1", "true")
+    if not db.delete_chat(chat_id, now=now):
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return {"status": "ok", "restorable_seconds": 0 if now else db.DELETED_CHAT_KEEP_SECONDS}
+
+
+@app.post("/api/chats/{chat_id}/restore")
+async def api_restore_chat(chat_id: str):
+    if not db.restore_chat(chat_id):
+        raise HTTPException(status_code=404, detail="Chat not found or already removed")
+    return {"status": "ok"}
+
+
+@app.put("/api/chats/{chat_id}/messages")
+async def api_save_chat_messages(chat_id: str, request: Request):
+    body = await _json_object(request)
+    try:
+        saved = db.save_chat_nodes(chat_id, body.get("from_index", 0), body.get("messages", []))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if saved is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return {"status": "ok", **saved}
+
+
+@app.patch("/api/chats/{chat_id}/messages/{node_id}")
+async def api_extend_chat_message(chat_id: str, node_id: str, request: Request):
+    body = await _json_object(request)
+    if not node_id.isdigit():
+        raise HTTPException(status_code=404, detail="Message not found")
+    try:
+        saved = db.extend_chat_message(
+            chat_id, int(node_id), body.get("content"), body.get("elapsed_ms"), body.get("thought_ms"),
+            body.get("reasoning"), body.get("cut_off"),
+        )
+    except db.ChatConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if saved is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return {"status": "ok", **saved}
+
+
+@app.put("/api/chats/{chat_id}/active")
+async def api_set_active_message(chat_id: str, request: Request):
+    body = await _json_object(request)
+    try:
+        found = db.set_active_node(chat_id, body.get("node_id"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not found:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return db.get_chat(chat_id)
+
 
 
 
