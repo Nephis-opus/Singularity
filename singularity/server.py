@@ -6,6 +6,7 @@ Port 9000
 
 import asyncio
 import base64
+import copy
 import json
 import os
 import time
@@ -547,6 +548,180 @@ async def generate_simulated_stream(
     yield b"data: [DONE]\n\n"
 
 
+async def smooth_chat_stream(
+    source: AsyncIterator[Dict[str, Any]],
+    target_interval: float = 0.035,
+    max_chars: int = 40,
+) -> AsyncIterator[Dict[str, Any]]:
+    """Cadence smoother for LLM SSE token streams using a decoupled producer-consumer queue.
+
+    Batches micro-chunks (1-character or sub-token deltas) into natural ~35ms / 28 FPS packets.
+    Prevents high-frequency chunk storms (e.g. 100+ chunks/sec from Kimi / TensorRT-LLM)
+    from freezing web browser clients (like Janitor AI) that execute heavy React DOM
+    re-renders, markdown parsing, and regex passes on every incoming packet.
+    """
+    queue: asyncio.Queue = asyncio.Queue(maxsize=120)
+    _SENTINEL = object()
+    producer_exc: Optional[Exception] = None
+
+    async def _producer():
+        nonlocal producer_exc
+        try:
+            async for item in source:
+                await queue.put(item)
+        except Exception as e:
+            producer_exc = e
+        finally:
+            await queue.put(_SENTINEL)
+
+    producer_task = asyncio.create_task(_producer())
+
+    last_flush = 0.0
+    pending_chunk: Optional[Dict[str, Any]] = None
+    pending_content: List[str] = []
+    pending_reasoning: List[str] = []
+    first_token_sent = False
+
+    def _build_flush_chunk() -> Optional[Dict[str, Any]]:
+        nonlocal pending_chunk, pending_content, pending_reasoning
+        if not pending_chunk:
+            return None
+        c_text = "".join(pending_content)
+        r_text = "".join(pending_reasoning)
+        if not c_text and not r_text:
+            out = pending_chunk
+            pending_chunk = None
+            return out
+
+        out = copy.deepcopy(pending_chunk)
+        choices = out.get("choices", [])
+        if choices:
+            delta = choices[0].get("delta", {})
+            if c_text:
+                delta["content"] = c_text
+            elif "content" in delta:
+                delta.pop("content", None)
+            if r_text:
+                delta["reasoning_content"] = r_text
+            elif "reasoning_content" in delta:
+                delta.pop("reasoning_content", None)
+        pending_chunk = None
+        pending_content = []
+        pending_reasoning = []
+        return out
+
+    try:
+        while True:
+            if pending_content or pending_reasoning:
+                now = time.monotonic()
+                rem_time = max(0.005, target_interval - (now - last_flush))
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=rem_time)
+                except asyncio.TimeoutError:
+                    flush_chunk = _build_flush_chunk()
+                    if flush_chunk:
+                        last_flush = time.monotonic()
+                        yield flush_chunk
+                    continue
+            else:
+                item = await queue.get()
+
+            if item is _SENTINEL:
+                break
+
+            chunk = item
+            choices = chunk.get("choices", [])
+            if not choices:
+                flush_chunk = _build_flush_chunk()
+                if flush_chunk:
+                    last_flush = time.monotonic()
+                    yield flush_chunk
+                yield chunk
+                continue
+
+            choice = choices[0]
+            delta = choice.get("delta", {})
+            finish_reason = choice.get("finish_reason")
+
+            is_role_only = "role" in delta and not delta.get("content") and not delta.get("reasoning_content")
+            has_special = finish_reason is not None or delta.get("singularity_event") is not None or is_role_only
+
+            if has_special:
+                flush_chunk = _build_flush_chunk()
+                if flush_chunk:
+                    last_flush = time.monotonic()
+                    yield flush_chunk
+                yield chunk
+                continue
+
+            c_delta = delta.get("content")
+            r_delta = delta.get("reasoning_content")
+
+            if c_delta is None and r_delta is None:
+                flush_chunk = _build_flush_chunk()
+                if flush_chunk:
+                    last_flush = time.monotonic()
+                    yield flush_chunk
+                yield chunk
+                continue
+
+            if c_delta and pending_reasoning:
+                flush_chunk = _build_flush_chunk()
+                if flush_chunk:
+                    last_flush = time.monotonic()
+                    yield flush_chunk
+
+            if r_delta and pending_content:
+                flush_chunk = _build_flush_chunk()
+                if flush_chunk:
+                    last_flush = time.monotonic()
+                    yield flush_chunk
+
+            if not pending_chunk:
+                pending_chunk = chunk
+
+            if c_delta:
+                pending_content.append(c_delta)
+            if r_delta:
+                pending_reasoning.append(r_delta)
+
+            if not first_token_sent:
+                first_token_sent = True
+                flush_chunk = _build_flush_chunk()
+                if flush_chunk:
+                    last_flush = time.monotonic()
+                    yield flush_chunk
+                continue
+
+            now = time.monotonic()
+            tot_chars = sum(len(x) for x in pending_content) + sum(len(x) for x in pending_reasoning)
+            time_elapsed = (now - last_flush) >= target_interval
+            size_reached = tot_chars >= max_chars
+
+            if time_elapsed or size_reached:
+                flush_chunk = _build_flush_chunk()
+                if flush_chunk:
+                    last_flush = time.monotonic()
+                    yield flush_chunk
+
+        flush_chunk = _build_flush_chunk()
+        if flush_chunk:
+            yield flush_chunk
+    finally:
+        if not producer_task.done():
+            producer_task.cancel()
+            try:
+                await producer_task
+            except (asyncio.CancelledError, Exception):
+                pass
+        aclose = getattr(source, "aclose", None)
+        if aclose:
+            try:
+                await aclose()
+            except Exception:
+                pass
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     """Universal router for chat completions across all 7 providers."""
@@ -890,7 +1065,9 @@ async def chat_completions(request: Request):
     if is_stream:
         async def direct_stream_generator() -> AsyncIterator[bytes]:
             rewriter = personas.PersonaStreamRewriter(persona_cfg) if persona_cfg else None
-            source = _chat_source()
+            smoothing_enabled = body.get("smooth", True) is not False and body.get("cadence_smoothing", True) is not False
+            raw_source = _chat_source()
+            source = smooth_chat_stream(raw_source, target_interval=0.035, max_chars=40) if smoothing_enabled else raw_source
             try:
                 async for chunk in source:
                     if trace is not None:
@@ -958,6 +1135,13 @@ async def chat_completions(request: Request):
                         await aclose()
                     except Exception:
                         pass
+                if smoothing_enabled and raw_source != source:
+                    raw_aclose = getattr(raw_source, "aclose", None)
+                    if raw_aclose:
+                        try:
+                            await raw_aclose()
+                        except Exception:
+                            pass
                 _save_trace()
 
         return StreamingResponse(
@@ -1113,7 +1297,10 @@ async def chat_completions(request: Request):
 
             # Direct in-process native engine fallback (when upstream daemon is down or returned >= 400)
             try:
-                async for chunk in engines.stream_chat(provider_id, backend_model, body.get("messages", []), stream=True, **forward_kwargs):
+                smoothing_enabled = body.get("smooth", True) is not False and body.get("cadence_smoothing", True) is not False
+                raw_fallback = engines.stream_chat(provider_id, backend_model, body.get("messages", []), stream=True, **forward_kwargs)
+                fallback_source = smooth_chat_stream(raw_fallback, target_interval=0.035, max_chars=40) if smoothing_enabled else raw_fallback
+                async for chunk in fallback_source:
                     chunk["model"] = requested_model
                     if rewriter:
                         choices = chunk.get("choices", [])
@@ -1156,6 +1343,20 @@ async def chat_completions(request: Request):
                 err_msg = f"Provider {p_name} error: {str(inner_e)}"
                 yield f"data: {json.dumps({'error': err_msg})}\n\n".encode("utf-8")
                 yield b"data: [DONE]\n\n"
+            finally:
+                aclose = getattr(fallback_source, "aclose", None) if "fallback_source" in locals() else None
+                if aclose:
+                    try:
+                        await aclose()
+                    except Exception:
+                        pass
+                if "smoothing_enabled" in locals() and smoothing_enabled and "raw_fallback" in locals() and raw_fallback != fallback_source:
+                    raw_aclose = getattr(raw_fallback, "aclose", None)
+                    if raw_aclose:
+                        try:
+                            await raw_aclose()
+                        except Exception:
+                            pass
 
         return StreamingResponse(
             stream_generator(),
