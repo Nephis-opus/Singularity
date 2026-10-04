@@ -1030,6 +1030,143 @@ body[data-active-tab="playground"] .panel-viewport {
   font-weight: 600;
 }
 
+/* Authtoken Row Integrated into Gateway Hero Card */
+.tunnel-authtoken-row {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tunnel-authtoken-input-wrap {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tunnel-authtoken-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+#input-ngrok-authtoken {
+  flex: 1;
+  height: 36px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* ThreeUI TextPathStudies: Globe Type Study */
+.tunnel-globe-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 16px auto 20px auto;
+  width: 100%;
+  max-width: 560px;
+  position: relative;
+}
+
+.shader-frame {
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 1;
+  position: relative;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-2xl, 24px);
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.02) 0%, transparent 72%);
+  transition: all 0.35s ease;
+}
+
+.tunnel-globe-wrapper.is-online .shader-frame {
+  background: radial-gradient(circle at 50% 50%, rgba(217, 119, 87, 0.12) 0%, transparent 72%);
+  box-shadow: 0 0 60px rgba(217, 119, 87, 0.08);
+}
+
+.text-path-study {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  background: transparent;
+}
+
+.text-path-study--light {
+  background: transparent;
+}
+
+.text-path-study-frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  transform-origin: 50% 50%;
+}
+
+.tunnel-globe-caption {
+  margin-top: 14px;
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  transition: color 0.25s ease;
+}
+
+.tunnel-globe-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  display: inline-block;
+  transition: all 0.25s ease;
+}
+
+.tunnel-globe-wrapper.is-online .tunnel-globe-dot {
+  background: var(--brand-primary, #d97757);
+  box-shadow: 0 0 10px rgba(217, 119, 87, 0.8);
+  animation: pulseGlobeDot 2s infinite ease-in-out;
+}
+
+.tunnel-globe-wrapper.is-online .tunnel-globe-caption {
+  color: var(--brand-primary, #d97757);
+}
+
+@keyframes pulseGlobeDot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
+    box-shadow: 0 0 14px rgba(217, 119, 87, 0.95);
+  }
+}
+
+
 /* ===================================================================
    Limits Section
    =================================================================== */

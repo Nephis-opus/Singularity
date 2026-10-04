@@ -801,96 +801,32 @@
                 </div>
                 <div class="client-chip">API Key: <code>sk-singularity-local</code> (or any)</div>
               </div>
-            </div>
 
-            <!-- Remote Device Access & Client Integrations Panel -->
-            <div class="tunnel-integrations-card">
-              <div class="tunnel-integrations-header">
-                <div class="tunnel-integrations-title">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="2" y1="12" x2="22" y2="12"></line>
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                  </svg>
-                  <span>Remote Client Integrations</span>
-                </div>
-                <span class="tunnel-integrations-sub">Connect your devices and apps using the public tunnel endpoint</span>
-              </div>
-
-              <div class="tunnel-integrations-list">
-                <!-- 1. Mobile Web UI -->
-                <div class="tunnel-integration-item">
-                  <div class="tunnel-item-icon-box">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                      <line x1="12" y1="18" x2="12.01" y2="18"></line>
-                    </svg>
-                  </div>
-                  <div class="tunnel-item-body">
-                    <div class="tunnel-item-header">
-                      <h4 class="tunnel-item-name">Phone & Tablet Access</h4>
-                      <span class="tunnel-item-tag">Web Dashboard</span>
-                    </div>
-                    <p class="tunnel-item-desc">
-                      Open your mobile browser (Chrome/Safari) and navigate to the <strong>Remote Public URL</strong> to manage provider services, stack cookies, and run playground tests directly from your phone.
-                    </p>
-                  </div>
-                </div>
-
-                <!-- 2. SillyTavern Mobile / Remote -->
-                <div class="tunnel-integration-item">
-                  <div class="tunnel-item-icon-box">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                  </div>
-                  <div class="tunnel-item-body">
-                    <div class="tunnel-item-header">
-                      <h4 class="tunnel-item-name">SillyTavern Remote Connection</h4>
-                      <span class="tunnel-item-tag font-mono">/v1/chat/completions</span>
-                    </div>
-                    <p class="tunnel-item-desc">
-                      Set API to <strong>Chat Completion (OpenAI)</strong>, paste your <strong>Public Universal URL</strong> as Server Base URL, and set API Key to <code>sk-singularity-local</code> (or any dummy key).
-                    </p>
-                  </div>
-                </div>
-
-                <!-- 3. Desktop Apps / Secondary PC -->
-                <div class="tunnel-integration-item">
-                  <div class="tunnel-item-icon-box">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                      <line x1="8" y1="21" x2="16" y2="21"></line>
-                      <line x1="12" y1="17" x2="12" y2="21"></line>
-                    </svg>
-                  </div>
-                  <div class="tunnel-item-body">
-                    <div class="tunnel-item-header">
-                      <h4 class="tunnel-item-name">Secondary Laptop & Remote Apps</h4>
-                      <span class="tunnel-item-tag font-mono">OpenAI-Compatible</span>
-                    </div>
-                    <p class="tunnel-item-desc">
-                      Connect desktop clients like NextChat, Chatbox, LibreChat, or custom automated scripts anywhere in the world directly to your home AI cluster.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Authtoken Management Card -->
-            <div class="tunnel-config-card">
-              <div style="display: flex; align-items: flex-start; justify-content: space-between;">
-                <div>
-                  <h4 style="font-size: 14px; font-weight: 700;">ngrok Authtoken Settings</h4>
-                  <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-                    Configure or update your token to unlock unlimited persistent sessions.
-                  </p>
+              <!-- Authtoken Management Section (Moved to top tab so it is together) -->
+              <div class="tunnel-authtoken-row">
+                <div class="tunnel-authtoken-input-wrap">
+                  <span class="tunnel-authtoken-label">ngrok Authtoken</span>
+                  <input type="password" class="model-search-input" id="input-ngrok-authtoken" placeholder="Paste ngrok authtoken here..." />
                 </div>
                 <button class="btn btn-secondary btn-sm" id="btn-save-authtoken">Save Token</button>
               </div>
+            </div>
 
-              <div style="display: flex; gap: 10px; margin-top: 10px;">
-                <input type="password" class="model-search-input" id="input-ngrok-authtoken" style="flex: 1;" placeholder="Paste ngrok authtoken here..." />
+            <!-- Typographic World Sphere (TextPathStudies: Globe Type Study) -->
+            <div class="tunnel-globe-wrapper">
+              <div class="shader-frame">
+                <div class="text-path-study" id="tunnel-globe-study" data-mode="dark">
+                  <iframe
+                    class="text-path-study-frame"
+                    id="tunnel-globe-iframe"
+                    title="Globe interactive canvas study"
+                    sandbox="allow-scripts"
+                  ></iframe>
+                </div>
+              </div>
+              <div class="tunnel-globe-caption">
+                <span class="tunnel-globe-dot" id="tunnel-globe-status-dot"></span>
+                <span id="tunnel-globe-caption-text">Typographic World Sphere · Drag to Rotate · Scroll to Zoom</span>
               </div>
             </div>
           </div>

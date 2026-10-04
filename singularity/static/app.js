@@ -6744,7 +6744,63 @@ function updateTunnelUI() {
   if (tokenInput && t.has_authtoken && !tokenInput.value) {
     tokenInput.placeholder = '✓ Authtoken configured (paste new token to update)';
   }
+
+  // Sync ThreeUI rotating typographic globe sphere theme
+  syncGlobeTheme(isOnline);
 }
+
+let globeLoaded = false;
+
+async function initTunnelGlobe() {
+  const iframe = document.getElementById('tunnel-globe-iframe');
+  if (!iframe || globeLoaded) return;
+
+  try {
+    const res = await fetch('/static/shaders/globe.html');
+    if (!res.ok) return;
+    const html = await res.text();
+    iframe.srcdoc = html;
+    globeLoaded = true;
+
+    iframe.onload = () => {
+      const isOnline = state.tunnel && state.tunnel.status === 'online';
+      syncGlobeTheme(isOnline);
+    };
+  } catch (err) {
+    console.error('Failed to load ThreeUI globe study:', err);
+  }
+}
+
+function syncGlobeTheme(isOnline) {
+  const iframe = document.getElementById('tunnel-globe-iframe');
+  const wrapper = document.querySelector('.tunnel-globe-wrapper');
+  const caption = document.getElementById('tunnel-globe-caption-text');
+
+  if (wrapper) {
+    wrapper.classList.toggle('is-online', !!isOnline);
+  }
+  if (caption) {
+    caption.textContent = isOnline
+      ? 'Global Tunnel Active · Public Endpoint Connected'
+      : 'Typographic World Sphere · Drag to Rotate · Scroll to Zoom';
+  }
+
+  // Terracotta #d97757 = '217,119,87'
+  // Offline subtle light slate = '226,228,233'
+  const ink = isOnline ? '217,119,87' : '226,228,233';
+  if (iframe && iframe.contentWindow) {
+    try {
+      iframe.contentWindow.postMessage({ type: 'SET_INK', ink }, '*');
+    } catch (_) {}
+  }
+}
+
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'GLOBE_READY') {
+    const isOnline = state.tunnel && state.tunnel.status === 'online';
+    syncGlobeTheme(isOnline);
+  }
+});
 
 async function installNativeNgrok() {
   const btn = document.getElementById('btn-install-tunnel');
@@ -6898,10 +6954,13 @@ function initTunnelControls() {
   if (btnSaveToken) {
     btnSaveToken.addEventListener('click', saveNgrokAuthtoken);
   }
+
+  initTunnelGlobe();
 }
 
 function loadTunnelTab() {
   fetchTunnelStatus();
+  initTunnelGlobe();
 }
 
 // ===================================================================
