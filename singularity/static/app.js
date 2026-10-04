@@ -6749,40 +6749,50 @@ function updateTunnelUI() {
   syncGlobeTheme(isOnline);
 }
 
-let globeLoaded = false;
+let cachedGlobeHtml = null;
+
+async function prefetchGlobeHtml() {
+  if (cachedGlobeHtml) return cachedGlobeHtml;
+  try {
+    const res = await fetch('/static/shaders/globe.html');
+    if (res.ok) {
+      cachedGlobeHtml = await res.text();
+      return cachedGlobeHtml;
+    }
+  } catch (err) {
+    console.warn('Failed to prefetch globe HTML:', err);
+  }
+  return null;
+}
+
+// Prefetch immediately on script load so it is instantly available
+prefetchGlobeHtml();
 
 async function initTunnelGlobe() {
   const iframe = document.getElementById('tunnel-globe-iframe');
-  if (!iframe || globeLoaded) return;
+  if (!iframe) return;
 
-  try {
-    const res = await fetch('/static/shaders/globe.html');
-    if (!res.ok) return;
-    const html = await res.text();
-    iframe.srcdoc = html;
-    globeLoaded = true;
+  const isOnline = state.tunnel && state.tunnel.status === 'online';
 
-    iframe.onload = () => {
-      const isOnline = state.tunnel && state.tunnel.status === 'online';
-      syncGlobeTheme(isOnline);
-    };
-  } catch (err) {
-    console.error('Failed to load ThreeUI globe study:', err);
+  if (!iframe.srcdoc) {
+    const html = cachedGlobeHtml || await prefetchGlobeHtml();
+    if (html && !iframe.srcdoc) {
+      iframe.srcdoc = html;
+      iframe.onload = () => {
+        syncGlobeTheme(isOnline);
+      };
+    }
+  } else {
+    syncGlobeTheme(isOnline);
   }
 }
 
 function syncGlobeTheme(isOnline) {
   const iframe = document.getElementById('tunnel-globe-iframe');
   const wrapper = document.querySelector('.tunnel-globe-wrapper');
-  const caption = document.getElementById('tunnel-globe-caption-text');
 
   if (wrapper) {
     wrapper.classList.toggle('is-online', !!isOnline);
-  }
-  if (caption) {
-    caption.textContent = isOnline
-      ? 'Global Tunnel Active · Public Endpoint Connected'
-      : 'Typographic World Sphere · Drag to Rotate · Scroll to Zoom';
   }
 
   // Terracotta #d97757 = '217,119,87'
