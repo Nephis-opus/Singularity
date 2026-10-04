@@ -403,14 +403,17 @@
                       </div>
 
                       <!-- Footer Action Controls -->
-                      <div class="settings-dropdown-footer">
-                        <button type="button" class="btn btn-primary btn-sm" id="btn-save-model-settings">
+                      <div class="settings-dropdown-footer" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <button type="button" class="btn btn-primary btn-sm" id="btn-save-model-settings" title="Save settings for this model & all its family aliases">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                             <polyline points="17 21 17 13 7 13 7 21"></polyline>
                             <polyline points="7 3 7 8 15 8"></polyline>
                           </svg>
-                          <span>Save Model Defaults</span>
+                          <span>Save Model</span>
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-save-global-settings" title="Apply this thinking budget & parameters globally across ALL models">
+                          <span>Apply Globally</span>
                         </button>
                         <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-model-settings" title="Reset settings for this model to factory defaults">
                           <span>Reset</span>

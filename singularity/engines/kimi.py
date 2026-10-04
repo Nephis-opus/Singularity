@@ -136,8 +136,27 @@ def _encode_connect_request(payload: Dict[str, Any]) -> bytes:
     return bytes(header) + body
 
 
-def _format_messages_to_prompt(messages: List[Dict[str, Any]]) -> str:
+def _estimate_tokens(text: str) -> int:
+    """Lightweight token estimator accounting for CJK ideographs, Latin words, and punctuation."""
+    if not text:
+        return 0
+    cjk = len(re.findall(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]", text))
+    non_cjk = re.sub(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]", " ", text)
+    words = len(non_cjk.split())
+    chars = len(non_cjk.strip())
+    return max(1, cjk + max(int(words * 1.3), int(chars / 3.8)))
+
+
+def _format_messages_to_prompt(messages: List[Dict[str, Any]], thinking_budget: Optional[int] = None) -> str:
     parts = []
+    has_system = False
+    steering = ""
+    if thinking_budget and thinking_budget > 0:
+        steering = (
+            f"\n\n[Reasoning Budget Cap: Allocate no more than approximately {thinking_budget:,} tokens for internal thought. "
+            f"Think thoroughly but concisely within this span, conclude your internal thoughts, and proceed directly to deliver your final response.]"
+        )
+
     for m in messages:
         role = m.get("role", "user")
         content = m.get("content", "")
@@ -153,11 +172,19 @@ def _format_messages_to_prompt(messages: List[Dict[str, Any]]) -> str:
         if not content_str:
             continue
         if role == "system":
+            has_system = True
+            if steering:
+                content_str += steering
+                steering = ""
             parts.append(f"system:{content_str}")
         elif role == "assistant":
             parts.append(f"assistant:{content_str}")
         else:
             parts.append(f"user:{content_str}")
+
+    if steering:
+        parts.insert(0, f"system:{steering.strip()}")
+
     return "\n".join(parts) if parts else "Hello"
 
 
@@ -357,20 +384,25 @@ async def stream_kimi_chat(
             _ACCOUNT_ROTATION_INDEX += 1
         sorted_candidates = sorted_candidates[idx:] + sorted_candidates[:idx]
 
-    enable_thinking = "thinking" in model.lower() or "k3" in model.lower()
+    thinking_budget: Optional[int] = None
     if kwargs.get("thinking_budget") is not None:
         try:
-            enable_thinking = int(kwargs["thinking_budget"]) > 0
+            thinking_budget = max(0, int(kwargs["thinking_budget"]))
         except Exception:
             pass
+
+    enable_thinking = ("thinking" in model.lower() or "k3" in model.lower())
+    if thinking_budget is not None:
+        enable_thinking = thinking_budget > 0
     elif kwargs.get("thinking") is not None:
         th = kwargs.get("thinking")
         if isinstance(th, dict):
             enable_thinking = th.get("type") == "enabled"
         elif isinstance(th, bool):
             enable_thinking = th
+
     enable_search = "search" in model.lower()
-    prompt_text = _format_messages_to_prompt(messages)
+    prompt_text = _format_messages_to_prompt(messages, thinking_budget=thinking_budget if enable_thinking else None)
 
     scenarios = resolve_kimi_scenarios(model, enable_search=enable_search)
 
@@ -461,6 +493,8 @@ async def stream_kimi_chat(
                             buffer = bytearray()
                             total_reasoning = ""
                             total_content = ""
+                            reasoning_tokens_streamed = 0
+                            reasoning_cap_reached = False
 
                             async for chunk in resp.aiter_bytes():
                                 buffer.extend(chunk)
@@ -555,7 +589,13 @@ async def stream_kimi_chat(
                                     if "block.text" in mask or (isinstance(text_obj, dict) and text_obj.get("content")):
                                         delta_content = text_obj.get("content") if isinstance(text_obj, dict) else None
 
-                                    if delta_reasoning or delta_content:
+                                    should_yield_reasoning = bool(
+                                        delta_reasoning
+                                        and enable_thinking
+                                        and (thinking_budget is None or thinking_budget <= 0 or not reasoning_cap_reached)
+                                    )
+
+                                    if should_yield_reasoning or delta_content:
                                         if not role_yielded:
                                             yield {
                                                 "id": chat_id,
@@ -567,15 +607,46 @@ async def stream_kimi_chat(
                                             role_yielded = True
 
                                     if delta_reasoning:
-                                        has_yielded_tokens = True
                                         total_reasoning += delta_reasoning
-                                        yield {
-                                            "id": chat_id,
-                                            "object": "chat.completion.chunk",
-                                            "created": created_ts,
-                                            "model": model,
-                                            "choices": [{"index": 0, "delta": {"reasoning_content": delta_reasoning}, "finish_reason": None}],
-                                        }
+                                        if enable_thinking:
+                                            if thinking_budget is not None and thinking_budget > 0:
+                                                if not reasoning_cap_reached:
+                                                    toks = _estimate_tokens(delta_reasoning)
+                                                    if reasoning_tokens_streamed + toks <= thinking_budget:
+                                                        reasoning_tokens_streamed += toks
+                                                        has_yielded_tokens = True
+                                                        yield {
+                                                            "id": chat_id,
+                                                            "object": "chat.completion.chunk",
+                                                            "created": created_ts,
+                                                            "model": model,
+                                                            "choices": [{"index": 0, "delta": {"reasoning_content": delta_reasoning}, "finish_reason": None}],
+                                                        }
+                                                    else:
+                                                        rem = max(0, thinking_budget - reasoning_tokens_streamed)
+                                                        if rem > 0:
+                                                            char_cut = max(1, int(rem * 3.5))
+                                                            partial = delta_reasoning[:char_cut]
+                                                            if partial:
+                                                                has_yielded_tokens = True
+                                                                reasoning_tokens_streamed += rem
+                                                                yield {
+                                                                    "id": chat_id,
+                                                                    "object": "chat.completion.chunk",
+                                                                    "created": created_ts,
+                                                                    "model": model,
+                                                                    "choices": [{"index": 0, "delta": {"reasoning_content": partial}, "finish_reason": None}],
+                                                                }
+                                                        reasoning_cap_reached = True
+                                            else:
+                                                has_yielded_tokens = True
+                                                yield {
+                                                    "id": chat_id,
+                                                    "object": "chat.completion.chunk",
+                                                    "created": created_ts,
+                                                    "model": model,
+                                                    "choices": [{"index": 0, "delta": {"reasoning_content": delta_reasoning}, "finish_reason": None}],
+                                                }
 
                                     if delta_content:
                                         has_yielded_tokens = True

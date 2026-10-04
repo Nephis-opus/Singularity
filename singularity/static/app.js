@@ -4169,7 +4169,7 @@ async function loadModelSettings(model) {
 }
 
 let _saveSettingsDebounceTimer = null;
-async function saveCurrentModelSettings(showNotice = true) {
+async function saveCurrentModelSettings(showNotice = true, applyGlobally = false) {
   const model = state.selectedModel || 'gpt-5.6-sol';
   const thinkingRange = document.getElementById('thinking-budget-range');
   const maxTokensRange = document.getElementById('max-tokens-range');
@@ -4179,6 +4179,7 @@ async function saveCurrentModelSettings(showNotice = true) {
 
   const payload = {
     model: model,
+    apply_globally: applyGlobally,
     thinking_budget: parseInt(thinkingRange?.value || 0, 10),
     max_tokens: parseInt(maxTokensRange?.value || 4096, 10),
     temperature: parseFloat(tempRange?.value || 0.7),
@@ -4192,15 +4193,15 @@ async function saveCurrentModelSettings(showNotice = true) {
       body: JSON.stringify(payload),
     });
     if (res.ok) {
+      const data = await res.json();
+      const msg = data.message || 'Settings saved successfully';
       if (statusEl) {
-        const budgetStr = payload.thinking_budget > 0 ? `${payload.thinking_budget.toLocaleString()} tokens` : 'Off';
-        statusEl.textContent = `Enforced globally (${budgetStr})`;
+        statusEl.textContent = msg;
         clearTimeout(_saveSettingsDebounceTimer);
-        _saveSettingsDebounceTimer = setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3500);
+        _saveSettingsDebounceTimer = setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 4000);
       }
       if (showNotice) {
-        const budgetStr = payload.thinking_budget > 0 ? `${payload.thinking_budget.toLocaleString()} tokens` : 'Disabled (0 tokens)';
-        showToast(`Thinking cap for '${model}' set to ${budgetStr}. Enforced across all Gateway requests.`, 'success');
+        showToast(msg, 'success');
       }
     }
   } catch (e) {
@@ -5635,9 +5636,16 @@ function initPlayground() {
     });
   }
 
+  const btnSaveGlobal = document.getElementById('btn-save-global-settings');
   if (btnSaveSettings) {
     btnSaveSettings.addEventListener('click', () => {
-      saveCurrentModelSettings(true);
+      saveCurrentModelSettings(true, false);
+    });
+  }
+
+  if (btnSaveGlobal) {
+    btnSaveGlobal.addEventListener('click', () => {
+      saveCurrentModelSettings(true, true);
     });
   }
 

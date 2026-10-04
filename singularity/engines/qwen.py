@@ -544,6 +544,17 @@ def _build_chat_payload(
 # Universal Qwen Stream Handler
 # -------------------------------------------------------------------
 
+def _estimate_tokens(text: str) -> int:
+    """Lightweight token estimator accounting for CJK ideographs, Latin words, and punctuation."""
+    if not text:
+        return 0
+    cjk = len(re.findall(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]", text))
+    non_cjk = re.sub(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]", " ", text)
+    words = len(non_cjk.split())
+    chars = len(non_cjk.strip())
+    return max(1, cjk + max(int(words * 1.3), int(chars / 3.8)))
+
+
 async def stream_qwen_chat(
     model: str,
     messages: List[Dict[str, Any]],
@@ -561,9 +572,12 @@ async def stream_qwen_chat(
     created = int(time.time())
     final_prompt = messages_prepare(messages)
     base_model, chat_type, thinking_enabled, search_enabled = _resolve_qwen_model_and_features(model, final_prompt)
+
+    thinking_budget: Optional[int] = None
     if kwargs.get("thinking_budget") is not None:
         try:
-            thinking_enabled = int(kwargs["thinking_budget"]) > 0
+            thinking_budget = max(0, int(kwargs["thinking_budget"]))
+            thinking_enabled = thinking_budget > 0
         except Exception:
             pass
     elif kwargs.get("thinking") is not None:
@@ -572,6 +586,12 @@ async def stream_qwen_chat(
             thinking_enabled = th.get("type") == "enabled"
         elif isinstance(th, bool):
             thinking_enabled = th
+
+    if thinking_enabled and thinking_budget and thinking_budget > 0:
+        final_prompt += (
+            f"\n\n[Reasoning Budget Cap: Allocate no more than approximately {thinking_budget:,} tokens for internal thought. "
+            f"Think thoroughly but concisely within this span, conclude your internal thoughts, and proceed directly to deliver your final response.]"
+        )
 
     # 1. Device Simulation Mode
     if simulate or os.getenv("SINGULARITY_SIMULATE", "0") in ("1", "true", "yes", "on"):
@@ -859,6 +879,8 @@ async def stream_qwen_chat(
             async with cffi_requests.AsyncSession(impersonate="chrome124", timeout=120.0) as session:
                 resp = await session.post(stream_url, headers=stream_headers, json=payload, stream=True)
                 first_chunk = True
+                reasoning_tokens_streamed = 0
+                reasoning_cap_reached = False
                 async for raw_line in resp.aiter_lines():
                     if not raw_line:
                         continue
@@ -925,14 +947,33 @@ async def stream_qwen_chat(
                         reasoning = item.get("reasoning_content") or item.get("reasoning") or item.get("thinking") or ""
 
                     delta_dict: Dict[str, Any] = {}
+                    if reasoning and thinking_enabled:
+                        if thinking_budget is not None and thinking_budget > 0:
+                            if not reasoning_cap_reached:
+                                toks = _estimate_tokens(reasoning)
+                                if reasoning_tokens_streamed + toks <= thinking_budget:
+                                    reasoning_tokens_streamed += toks
+                                    delta_dict["reasoning_content"] = reasoning
+                                else:
+                                    rem = max(0, thinking_budget - reasoning_tokens_streamed)
+                                    if rem > 0:
+                                        char_cut = max(1, int(rem * 3.5))
+                                        partial = reasoning[:char_cut]
+                                        if partial:
+                                            delta_dict["reasoning_content"] = partial
+                                            reasoning_tokens_streamed += rem
+                                    reasoning_cap_reached = True
+                        else:
+                            delta_dict["reasoning_content"] = reasoning
+                    elif content:
+                        delta_dict["content"] = content
+
+                    if not delta_dict:
+                        continue
+
                     if first_chunk:
                         delta_dict["role"] = "assistant"
                         first_chunk = False
-
-                    if reasoning:
-                        delta_dict["reasoning_content"] = reasoning
-                    elif content:
-                        delta_dict["content"] = content
 
                     if delta_dict:
                         yield {
@@ -950,6 +991,8 @@ async def stream_qwen_chat(
             async with httpx.AsyncClient(timeout=120.0) as client:
                 async with client.stream("POST", stream_url, headers=stream_headers, json=payload, timeout=120.0) as resp:
                     first_chunk = True
+                    reasoning_tokens_streamed = 0
+                    reasoning_cap_reached = False
                     async for line in resp.aiter_lines():
                         if not line:
                             continue
@@ -1014,27 +1057,45 @@ async def stream_qwen_chat(
                             reasoning = item.get("reasoning_content") or item.get("reasoning") or item.get("thinking") or ""
 
                         delta_dict = {}
+                        if reasoning and thinking_enabled:
+                            if thinking_budget is not None and thinking_budget > 0:
+                                if not reasoning_cap_reached:
+                                    toks = _estimate_tokens(reasoning)
+                                    if reasoning_tokens_streamed + toks <= thinking_budget:
+                                        reasoning_tokens_streamed += toks
+                                        delta_dict["reasoning_content"] = reasoning
+                                    else:
+                                        rem = max(0, thinking_budget - reasoning_tokens_streamed)
+                                        if rem > 0:
+                                            char_cut = max(1, int(rem * 3.5))
+                                            partial = reasoning[:char_cut]
+                                            if partial:
+                                                delta_dict["reasoning_content"] = partial
+                                                reasoning_tokens_streamed += rem
+                                        reasoning_cap_reached = True
+                            else:
+                                delta_dict["reasoning_content"] = reasoning
+                        elif content:
+                            delta_dict["content"] = content
+
+                        if not delta_dict:
+                            continue
+
                         if first_chunk:
                             delta_dict["role"] = "assistant"
                             first_chunk = False
 
-                        if reasoning:
-                            delta_dict["reasoning_content"] = reasoning
-                        elif content:
-                            delta_dict["content"] = content
-
-                        if delta_dict:
-                            yield {
-                                "id": req_id,
-                                "object": "chat.completion.chunk",
-                                "created": created,
-                                "model": model,
-                                "choices": [{
-                                    "index": 0,
-                                    "delta": delta_dict,
-                                    "finish_reason": None,
-                                }],
-                            }
+                        yield {
+                            "id": req_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": delta_dict,
+                                "finish_reason": None,
+                            }],
+                        }
 
         # Final stop chunk
         yield {

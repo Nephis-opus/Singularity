@@ -662,16 +662,20 @@ async def chat_completions(request: Request):
             elif provider_id in ("deepseek", "deepseek-ai"):
                 body["thinking_enabled"] = thinking_cap_int > 0
                 body["thinking"] = thinking_cap_int > 0
+                body["thinking_budget"] = thinking_cap_int
 
             elif provider_id in ("kimi", "moonshot"):
                 body["thinking"] = thinking_cap_int > 0
+                body["thinking_budget"] = thinking_cap_int
 
             elif provider_id in ("qwen", "qwen-ai", "tongyi"):
                 body["thinking_enabled"] = thinking_cap_int > 0
                 body["thinking_mode"] = "Auto" if thinking_cap_int > 0 else "Disabled"
+                body["thinking_budget"] = thinking_cap_int
 
             elif provider_id in ("glm", "zhipu"):
                 body["reasoning_effort"] = "low" if thinking_cap_int <= 4096 else "high" if thinking_cap_int > 16384 else "medium"
+                body["thinking_budget"] = thinking_cap_int
         except Exception:
             pass
 
@@ -1810,10 +1814,21 @@ async def api_save_model_settings(request: Request):
     if "system_prompt" in data:
         cfg["system_prompt"] = str(data["system_prompt"]).strip()
 
-    db.set_model_settings(model, cfg)
+    apply_globally = data.get("apply_globally") is True or model.lower() in ("global", "default", "*")
+    if apply_globally:
+        db.set_global_settings(cfg)
+    db.set_model_settings(model, cfg, sync_family=True)
+
+    budget_val = cfg.get("thinking_budget")
+    budget_label = f"{budget_val:,} tokens" if budget_val is not None and budget_val > 0 else "Off"
+    if apply_globally:
+        msg = f"Enforced globally across ALL models (Thinking cap: {budget_label})."
+    else:
+        msg = f"Enforced for '{model}' and all family aliases (Thinking cap: {budget_label})."
+
     return {
         "status": "ok",
-        "message": f"Global settings for '{model}' saved successfully.",
+        "message": msg,
         "settings": cfg,
     }
 

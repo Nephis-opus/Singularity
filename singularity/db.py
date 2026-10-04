@@ -1027,51 +1027,196 @@ def get_all_settings() -> Dict[str, str]:
         return {r["key"]: r["value"] for r in rows if r["key"] not in SECRET_SETTINGS}
 
 
+def _clean_model_key(m: str) -> str:
+    """Normalize model string: strip @preset, path prefixes, whitespace and lowercase."""
+    if not m:
+        return ""
+    m = m.lower().strip()
+    if "@" in m:
+        m = m.split("@")[0].strip()
+    if "/" in m:
+        m = m.split("/")[-1].strip()
+    return m
+
+
+def _get_family_candidates(model: str) -> List[str]:
+    """Generate family alias candidates to resolve settings across model naming variations."""
+    m = _clean_model_key(model)
+    if not m:
+        return []
+    candidates = [m]
+
+    # Strip common descriptive suffixes
+    base = m
+    for suffix in ("-thinking-search", "-thinking", "-search", "-preview", "-chat", "-direct", "-flash", "-pro"):
+        if base.endswith(suffix):
+            base = base[:-len(suffix)]
+            candidates.append(base)
+            break
+
+    # Provider family alias clusters
+    if "kimi" in m:
+        candidates.extend([
+            "kimi-k3-thinking-search",
+            "kimi-k3-thinking",
+            "kimi-k3",
+            "kimi-k3-search",
+            "kimi-k2.5",
+            "kimi",
+        ])
+    elif "deepseek" in m:
+        candidates.extend([
+            "deepseek-v3-thinking",
+            "deepseek-v3",
+            "deepseek-r1",
+            "deepseek-chat",
+            "deepseek-reasoner",
+            "deepseek",
+        ])
+    elif "qwen" in m or "qwq" in m:
+        candidates.extend([
+            "qwen-max-thinking",
+            "qwen-plus-thinking",
+            "qwq-32b",
+            "qwen-max",
+            "qwen-plus",
+            "qwen",
+        ])
+    elif "claude" in m:
+        candidates.extend([
+            "claude-3-7-sonnet-thinking",
+            "claude-3-7-sonnet",
+            "claude-3-5-sonnet",
+            "claude",
+        ])
+    elif "gemini" in m:
+        candidates.extend([
+            "gemini-2.5-flash-thinking",
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini",
+        ])
+    elif any(k in m for k in ("gpt", "o1", "o3", "chatgpt")):
+        candidates.extend([
+            "gpt-5.6-sol",
+            "gpt-5-6-mini",
+            "o3-mini",
+            "o1",
+            "chatgpt",
+        ])
+
+    return list(dict.fromkeys(candidates))
+
+
+def get_global_settings() -> Dict[str, Any]:
+    """Retrieve gateway-wide global default settings across all models."""
+    for key in ("model_cfg:global", "model_cfg:default"):
+        raw = get_setting(key)
+        if raw:
+            try:
+                cfg = json.loads(raw)
+                if isinstance(cfg, dict) and cfg:
+                    return cfg
+            except Exception:
+                pass
+    global_cfg = {}
+    tb = get_setting("global_thinking_budget")
+    if tb is not None:
+        try:
+            global_cfg["thinking_budget"] = int(tb)
+        except Exception:
+            pass
+    return global_cfg
+
+
+def set_global_settings(cfg: Dict[str, Any]) -> None:
+    """Set gateway-wide global default settings applied when no specific model override exists."""
+    clean_cfg = dict(cfg)
+    clean_cfg["model"] = "global"
+    clean_cfg["updated_at"] = time.time()
+    raw = json.dumps(clean_cfg)
+    set_setting("model_cfg:global", raw)
+    set_setting("model_cfg:default", raw)
+    if "thinking_budget" in clean_cfg:
+        set_setting("global_thinking_budget", str(clean_cfg["thinking_budget"]))
+
+
 def get_model_settings(model: str) -> Dict[str, Any]:
-    """Retrieve customized settings (thinking_budget, max_tokens, etc.) for a model."""
-    if not model:
-        return {}
-    m = model.lower().strip()
+    """Retrieve customized settings (thinking_budget, max_tokens, etc.) for a model,
+    checking exact key, family aliases, provider fallback, and global defaults."""
+    if not model or model.lower().strip() in ("global", "default", "*"):
+        return get_global_settings()
+
+    m = _clean_model_key(model)
+
+    # 1. Exact match
     raw = get_setting(f"model_cfg:{m}")
     if raw:
         try:
             return json.loads(raw)
         except Exception:
             pass
-    # If model has provider prefix or path (e.g. claude/claude-3-7-sonnet or models/gemini-...)
-    if "/" in m:
-        base = m.split("/")[-1]
-        raw = get_setting(f"model_cfg:{base}")
+
+    # 2. Check family alias candidates (e.g. kimi-k3-thinking-search <-> kimi-k3)
+    for cand in _get_family_candidates(m):
+        if cand != m:
+            raw = get_setting(f"model_cfg:{cand}")
+            if raw:
+                try:
+                    return json.loads(raw)
+                except Exception:
+                    pass
+
+    # 3. Check base provider prefix (e.g. "kimi", "deepseek")
+    if "-" in m:
+        prefix = m.split("-")[0]
+        raw = get_setting(f"model_cfg:{prefix}")
         if raw:
             try:
                 return json.loads(raw)
             except Exception:
                 pass
-    return {}
+
+    # 4. Fallback to global defaults if configured
+    return get_global_settings()
 
 
-def set_model_settings(model: str, cfg: Dict[str, Any]) -> None:
-    """Persist customized settings (thinking_budget, max_tokens, etc.) for a model."""
+def set_model_settings(model: str, cfg: Dict[str, Any], sync_family: bool = True) -> None:
+    """Persist customized settings (thinking_budget, max_tokens, etc.) for a model,
+    optionally syncing family variants and supporting global scope."""
     if not model:
         return
-    m = model.lower().strip()
+    m = _clean_model_key(model)
+
+    if m in ("global", "default", "*"):
+        set_global_settings(cfg)
+        return
+
     clean_cfg = dict(cfg)
     clean_cfg["model"] = m
     clean_cfg["updated_at"] = time.time()
-    set_setting(f"model_cfg:{m}", json.dumps(clean_cfg))
+    raw = json.dumps(clean_cfg)
+    set_setting(f"model_cfg:{m}", raw)
+
+    # Also keep base family variants synchronized so Janitor AI / client variants inherit settings
+    if sync_family:
+        candidates = _get_family_candidates(m)
+        for cand in candidates:
+            if cand != m:
+                cand_cfg = dict(clean_cfg)
+                cand_cfg["model"] = cand
+                set_setting(f"model_cfg:{cand}", json.dumps(cand_cfg))
 
 
 def delete_model_settings(model: str) -> None:
     """Delete customized model settings for a model, reverting to defaults."""
     if not model:
         return
-    m = model.lower().strip()
+    m = _clean_model_key(model)
     init_db()
     with get_db_connection() as conn:
-        conn.execute("DELETE FROM settings WHERE key = ?", (f"model_cfg:{m}",))
-        if "/" in m:
-            base = m.split("/")[-1]
-            conn.execute("DELETE FROM settings WHERE key = ?", (f"model_cfg:{base}",))
+        for cand in _get_family_candidates(m):
+            conn.execute("DELETE FROM settings WHERE key = ?", (f"model_cfg:{cand}",))
         conn.commit()
 
 

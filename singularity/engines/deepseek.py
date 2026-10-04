@@ -392,6 +392,17 @@ async def _delete_session(client: httpx.AsyncClient, auth_headers: Dict[str, str
         pass
 
 
+def _estimate_tokens(text: str) -> int:
+    """Lightweight token estimator accounting for CJK ideographs, Latin words, and punctuation."""
+    if not text:
+        return 0
+    cjk = len(re.findall(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]", text))
+    non_cjk = re.sub(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]", " ", text)
+    words = len(non_cjk.split())
+    chars = len(non_cjk.strip())
+    return max(1, cjk + max(int(words * 1.3), int(chars / 3.8)))
+
+
 # -------------------------------------------------------------------
 # Universal DeepSeek Stream Handler
 # -------------------------------------------------------------------
@@ -411,9 +422,12 @@ async def stream_deepseek_chat(
     req_id = f"chatcmpl-deepseek-{uuid.uuid4().hex[:12]}"
     created = int(time.time())
     thinking_enabled, search_enabled = _resolve_deepseek_features(model)
+
+    thinking_budget: Optional[int] = None
     if kwargs.get("thinking_budget") is not None:
         try:
-            thinking_enabled = int(kwargs["thinking_budget"]) > 0
+            thinking_budget = max(0, int(kwargs["thinking_budget"]))
+            thinking_enabled = thinking_budget > 0
         except Exception:
             pass
     elif kwargs.get("thinking") is not None:
@@ -520,6 +534,12 @@ async def stream_deepseek_chat(
             completion_headers["x-ds-pow-response"] = pow_response
 
         final_prompt = messages_prepare(messages)
+        if thinking_enabled and thinking_budget and thinking_budget > 0:
+            final_prompt += (
+                f"\n\n[Reasoning Budget Cap: Allocate no more than approximately {thinking_budget:,} tokens for internal thought. "
+                f"Think thoroughly but concisely within this span, conclude your internal thoughts, and proceed directly to deliver your final response.]"
+            )
+
         payload = {
             "chat_session_id": session_id,
             "parent_message_id": None,
@@ -554,6 +574,8 @@ async def stream_deepseek_chat(
 
                 first_chunk = True
                 current_field = "thinking_content" if thinking_enabled else "content"
+                reasoning_tokens_streamed = 0
+                reasoning_cap_reached = False
 
                 async for line in resp.aiter_lines():
                     if not line or not line.startswith("data:"):
@@ -584,14 +606,36 @@ async def stream_deepseek_chat(
 
                     if isinstance(v, str):
                         delta: Dict[str, Any] = {}
+                        if current_field == "thinking_content":
+                            if not thinking_enabled:
+                                continue
+                            if thinking_budget is not None and thinking_budget > 0:
+                                if reasoning_cap_reached:
+                                    continue
+                                delta_toks = _estimate_tokens(v)
+                                if reasoning_tokens_streamed + delta_toks <= thinking_budget:
+                                    reasoning_tokens_streamed += delta_toks
+                                    delta["reasoning_content"] = v
+                                else:
+                                    rem = max(0, thinking_budget - reasoning_tokens_streamed)
+                                    if rem > 0:
+                                        char_cut = max(1, int(rem * 3.5))
+                                        partial = v[:char_cut]
+                                        if partial:
+                                            delta["reasoning_content"] = partial
+                                            reasoning_tokens_streamed += rem
+                                    reasoning_cap_reached = True
+                            else:
+                                delta["reasoning_content"] = v
+                        else:
+                            delta["content"] = v
+
+                        if not delta:
+                            continue
+
                         if first_chunk:
                             delta["role"] = "assistant"
                             first_chunk = False
-
-                        if current_field == "thinking_content":
-                            delta["reasoning_content"] = v
-                        else:
-                            delta["content"] = v
 
                         yield {
                             "id": req_id,
