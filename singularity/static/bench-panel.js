@@ -112,15 +112,155 @@
 
   function allScenarios() { return state.scenarios.builtin.concat(state.scenarios.custom); }
 
+  function select(options, value, onChange, extra) {
+    const wrap = el('div', { class: 'claude-custom-select-wrap', ...(extra && extra.id ? { id: `${extra.id}-wrap` } : {}) });
+    const norm = options.map((opt) => (Array.isArray(opt) ? opt : [opt, opt]));
+    let current = value != null ? String(value) : (norm[0] ? String(norm[0][0]) : '');
+
+    const getLabel = (v) => {
+      const found = norm.find(([val]) => String(val) === String(v));
+      return found ? (found[1] != null ? String(found[1]) : String(found[0])) : (norm[0] ? String(norm[0][1]) : '');
+    };
+
+    const labelSpan = el('span', { class: 'claude-custom-select-text', text: getLabel(current) });
+
+    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chevron.setAttribute('width', '12');
+    chevron.setAttribute('height', '12');
+    chevron.setAttribute('viewBox', '0 0 24 24');
+    chevron.setAttribute('fill', 'none');
+    chevron.setAttribute('stroke', 'currentColor');
+    chevron.setAttribute('stroke-width', '2.5');
+    chevron.setAttribute('stroke-linecap', 'round');
+    chevron.setAttribute('stroke-linejoin', 'round');
+    chevron.setAttribute('class', 'claude-select-chevron');
+    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    poly.setAttribute('points', '6 9 12 15 18 9');
+    chevron.appendChild(poly);
+
+    const btn = el('button', {
+      type: 'button',
+      class: 'claude-custom-select-btn',
+      'aria-haspopup': 'listbox',
+      'aria-expanded': 'false',
+      ...(extra && extra.id ? { id: extra.id } : {}),
+    }, [labelSpan, chevron]);
+
+    const menu = el('div', { class: 'claude-custom-select-menu', role: 'listbox' });
+
+    function makeCheck() {
+      const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      s.setAttribute('class', 'option-check');
+      s.setAttribute('width', '14');
+      s.setAttribute('height', '14');
+      s.setAttribute('viewBox', '0 0 24 24');
+      s.setAttribute('fill', 'none');
+      s.setAttribute('stroke', 'currentColor');
+      s.setAttribute('stroke-width', '2.5');
+      s.setAttribute('stroke-linecap', 'round');
+      s.setAttribute('stroke-linejoin', 'round');
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      p.setAttribute('points', '20 6 9 17 4 12');
+      s.appendChild(p);
+      return s;
+    }
+
+    const items = [];
+
+    norm.forEach(([val, lbl]) => {
+      const isSel = String(val) === String(current);
+      const optBtn = el('button', {
+        type: 'button',
+        class: `claude-select-option${isSel ? ' active' : ''}`,
+        'data-value': String(val),
+        onclick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setVal(val, true);
+          closeMenu();
+        },
+      }, [
+        el('span', { text: lbl != null ? String(lbl) : String(val) }),
+        makeCheck(),
+      ]);
+      items.push(optBtn);
+      menu.appendChild(optBtn);
+    });
+
+    function setVal(v, notify) {
+      current = String(v);
+      labelSpan.textContent = getLabel(current);
+      items.forEach((b) => {
+        b.classList.toggle('active', b.getAttribute('data-value') === current);
+      });
+      if (notify) {
+        if (typeof onChange === 'function') onChange(current);
+        wrap.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+
+    function closeMenu() {
+      menu.classList.remove('open');
+      wrap.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+      wrap.closest('.preset-field')?.classList.remove('has-open-select');
+    }
+
+    function openMenu() {
+      document.querySelectorAll('.claude-custom-select-menu.open').forEach((m) => {
+        if (m !== menu) {
+          m.classList.remove('open');
+          m.closest('.claude-custom-select-wrap')?.classList.remove('open');
+          m.closest('.preset-field')?.classList.remove('has-open-select');
+        }
+      });
+      menu.classList.add('open');
+      wrap.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      wrap.closest('.preset-field')?.classList.add('has-open-select');
+    }
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (menu.classList.contains('open')) closeMenu();
+      else openMenu();
+    });
+
+    const onDocClick = (e) => {
+      if (!wrap.isConnected) {
+        document.removeEventListener('click', onDocClick);
+        return;
+      }
+      if (!wrap.contains(e.target)) closeMenu();
+    };
+    document.addEventListener('click', onDocClick);
+
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+
+    Object.defineProperty(wrap, 'value', {
+      get() { return current; },
+      set(v) { setVal(v, false); },
+      configurable: true,
+      enumerable: true,
+    });
+
+    return wrap;
+  }
+
   // ---- sidebar ----
 
   function renderSidebar(root) {
     const box = root.querySelector('#bench-controls');
     box.textContent = '';
-    const preset = el('select', { id: 'bench-preset' }, state.presets.map((p) => el('option', { value: p.name, text: p.name })));
-    const wanted = store('singularity_bench_preset');
-    if (wanted && state.presets.some((p) => p.name === wanted)) preset.value = wanted;
-    preset.addEventListener('change', () => store('singularity_bench_preset', preset.value));
+    const wanted = store('singularity_bench_preset') || (state.presets[0] ? state.presets[0].name : '');
+    const preset = select(
+      state.presets.map((p) => [p.name, p.name]),
+      wanted,
+      (v) => store('singularity_bench_preset', v),
+      { id: 'bench-preset' }
+    );
     const model = el('input', { type: 'text', id: 'bench-model', placeholder: 'Model, e.g. kimi-k3', value: store(MODEL_KEY) });
     model.addEventListener('input', () => store(MODEL_KEY, model.value.trim()));
     const card = el('textarea', { id: 'bench-card', rows: '4', placeholder: 'Optional. Leave empty to use a small made-up café character.' });
@@ -228,9 +368,7 @@
       input.addEventListener('input', () => { f[key] = input.value; });
       return el('label', { class: 'preset-field' }, [el('span', { class: 'preset-field-label', text: label }), input, hint ? el('span', { class: 'preset-field-hint', text: hint }) : null]);
     };
-    const searchSel = el('select', {}, SEARCH_CHOICES.map(([v, l]) => el('option', { value: v, text: l })));
-    searchSel.value = f.search;
-    searchSel.addEventListener('change', () => { f.search = searchSel.value; });
+    const searchSel = select(SEARCH_CHOICES, f.search, (v) => { f.search = v; });
     host.appendChild(el('div', { class: 'presets-editor-head' }, [
       el('h3', { text: state.formId == null ? 'New test' : 'Edit test' }),
       el('div', { class: 'presets-editor-actions' }, [
