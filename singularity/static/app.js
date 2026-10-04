@@ -6756,22 +6756,22 @@ function updateTunnelUI() {
 // ===================================================================
 // Direct Typographic World Sphere Canvas Engine (In-Site, No Iframe)
 // ===================================================================
-let globeAnimationId = null;
-let globeRunning = false;
-let globeCanvas = null;
-let globeCtx = null;
-let globeWidth = 0;
-let globeHeight = 0;
-let globeDpr = 1;
-let globeInk = '226,228,233';
-let globeInk64 = [];
-const GLOBE_SOFT = 0.88;
+var globeAnimationId = null;
+var globeRunning = false;
+var globeCanvas = null;
+var globeCtx = null;
+var globeWidth = 0;
+var globeHeight = 0;
+var globeDpr = 1;
+var globeInk = '226,228,233';
+var globeInk64 = [];
+var GLOBE_SOFT = 0.88;
 
 function updateGlobeInk(inkRgb) {
   globeInk = inkRgb || '226,228,233';
   globeInk64 = [];
-  for (let q = 0; q < 64; q++) {
-    globeInk64.push(`rgba(${globeInk},${(q / 63 * GLOBE_SOFT).toFixed(4)})`);
+  for (var q = 0; q < 64; q++) {
+    globeInk64.push('rgba(' + globeInk + ',' + ((q / 63) * GLOBE_SOFT).toFixed(4) + ')');
   }
 }
 updateGlobeInk('226,228,233');
@@ -6780,39 +6780,39 @@ function getGlobeInk(a) {
   return globeInk64[a <= 0 ? 0 : a >= 1 ? 63 : (a * 63) | 0];
 }
 
-const GLOBE_QA = (Math.PI * 2) / 64;
+var GLOBE_QA = (Math.PI * 2) / 64;
 function globeQang(a) {
   return Math.round(a / GLOBE_QA) * GLOBE_QA;
 }
 
-const GLOBE_LAND_B64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPcBAOD/HwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACA//+P//f/LwgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4/v/4/////wcAAAAEAPABAAAAfAAAAAAAAAAAAAAAAAAAAADg9w/4/////wEAAP4AAAAAAAAA+AAAAAAAAAAAAAAAAAAAAIAG+Of//////wAAAHwGAAAAAAAAAAMAAAAAAAAAAAAAAACABwAc/4P//////wAAADAAAAAAQAAAAD4AAAAAAAAAAAAAAAAAfMbDcQAA/v///wAAAAAAAADABwAA//8HAMAPAAAAAAAAAABgAAAAAAAA/P///wAAAAAAAABwAADg//8AAAAAAAAAAAAAAADwG457dwcA8P//HwAAAAAAAAAYAAD///9/eAAAAAAAAAAAAAD4/g0H/w8A8P//PwAAAAAAAAAOgOv/////fwD/AAAAAAA/AAAA/B84/v8A8P//LwAAAAD4AAAA4PP//////////wAAAOD///H/+D/3cPgDoP//DwAAAID/BwAAx/v/////////P4AA/P///////////////////////w8AAOcBAAgAAAAAAAAAAAAAgP///////////////////////wcAACYAAAQAAAAAAAAAAAAAgf///////////////////////wMM8AAAAAAAAAAAAAAAAAAAIID/////////e+wPwH8AgA8AAP/5z/////////////////8/ANH///////9/AIALgD8AAAAAwH/+//////////////////9/APj///////8fADwAAD8AAAAA8D/+//////////////////sPAPC/+f////8fAPwAADgAAAAA8D/+////////////////D/wBAMCfAP////8PAPwYAAAAAAAA8H/4//////////////9/DgcAAAAcAOD///8/APw/AAAAAAAQAB7w//////////////8BgAMAAAACAMD/////Afh/AAAAAAA4gBz+/////////////38A4AMAAMAAAMD/////B/z/AAAAAABwwAb+/////////////x8A8AEAAAAAAAD/////P///AwAAAADmgOH//////////////z8A4AAAAAAAAAD+////P/7/BwAAAAD28P////////////////8D4AAAAAAAAAD8////f/7/BwAAAADz+f////////////////8HIAAAAAAAAAD6////////BAAAAABw/v////////////////8EAAAAAAAAAADo//////8jHgAAAACA//////////////////8MAAAAAAAAAADQ//////8OPgAAAADw//////////////////8AAAAAAAAAAADg//////+PIAAAAADA////v////////////38EAAAAAAAAAADg////////AAAAAACA//v/zD/8/////////z8AAAAAAAAAAADg//////8bAAAAAACA//N/gD///////////x8GAAAAAAAAAADw//////8AAAAAAAD+B8c/AD/+/////////wcPAAAAAAAAAADg//////8AAAAAAAD+gx4/DH74/////////wABAAAAAAAAAADg/////x8AAAAAAAD+gbCn///8////////fQABAAAAAAAAAADg/////w8AAAAAAAD/gCDn///4//////9/MgADAAAAAAAAAADA/////w8AAAAAAAD+AADm/3/4//////8/cIABAAAAAAAAAADA/////wcAAAAAAAA44AHC///5////////4+ABAAAAAAAAAACA/////wcAAAAAAACI/wEA4P//////////4OgAAAAAAAAAAAAA/////wMAAAAAAAD4/wAA4P//////////ADYAAAAAAAAAAAAA/P///wEAAAAAAAD+/wEA8P//////////AQcAAAAAAAAAAAAA+P//fwAAAAAAAAD//w8P8P//////////AQEAAAAAAAAAAAAAyP//fwAAAAAAAAD//3//////////////AQAAAAAAAAAAAAAA0P+PYQAAAAAAAAD//////z//////////AwAAAAAAAAAAAAAAoP8HwAAAAAAAAMD/////83/+////////AQAAAAAAAAAAAAAAIP8DwAAAAAAAAOD/////5//I////////AAAAAAAAAAAAAAAAQP4DgAAAAAAAAPD/////z/+A////////AAAAAAAAAAAAAAAAAPwDAAIAAAAAAPD/////z/8ZwP////9/AQAAAAAAAAAAAAAAAPgDQAAAAAAAAPj/////j/9/gP////8fAQAAAAAAAAAAAAAAAPADEAMAAAAAAPz/////v///AP9//P8DAAAAAAAAAAAAAAAAAPADAwwAAAAAAPj/////P/9/APw//B8AAAAAAAAAAAAIAAAAAPCHA8AAAAAAAPj/////P/4/APwP+J8BAAAAAAAAAAAAAAAAAMD/A0YEAAAAAPj/////f/4fAPwH+B8AAwAAAAAAAAAAAAAAAAD/AQAAAAAAAPj/////f/wHAPgD8D8AAwAAAAAAAAAAAAAAAADgHwAAAAAAAPj///////wDAPgAwH8AAQAAAAAAAAAAAAAAAADAHwAAAAAAAPz//////30AAPAAwH8AAAAAAAAAAAAAAAAAAAAAHAAAAAAAAPj//////wsAAPAAgH4AAQAAAAAAAAAAAAAAAAAAGEAAAAAAAPj//////wMBAPAAgHwAAAAAAAAAAAAAAAAAAAAAGPAhAAAAAPD///////cBAOAAgDiABAAAAAAAAAAAAAAAAAAAIPl/AAAAAOD///////8AAGABABBAFAAAAAAAAAAAAAAAAAAAgP7/AQAAAMD///////8AAAABgAAAHAAAAAAAAAAAAAAAAAAAAPz/AQAAAID///////8AAAABAAEgCAAAAAAAAAAAAAAAAAAAAPz/HwAAAAD/8P///38AAAAAAANgAAAAAAAAAAAAAAAAAAAAAPz/fwAAAAAAoP///z8AAAAAYAd4AAAAAAAAAAAAAAAAAAAAAPz/fwAAAAAAAP///x8AAAAAwAY8AAAAAAAAAAAAAAAAAAAAAP7//wAAAAAAAP///w8AAAAAgAc+AAAAAAAAAAAAAAAAAAAAAP///wAAAAAAAP///wcAAAAAgIM/TwAAAAAAAAAAAAAAAAAAAP///wEAAAAAgP///wMAAAAAAIc/QAQAAAAAAAAAAAAAAAAAgP///w8AAAAAgP///wEAAAAAAA6fAUQAAAAAAAAAAAAAAAAAAP////8AAAAAAP///wAAAAAAAB6ewuwDAgAAAAAAAAAAAAAAgP////8DAAAAAP7//wAAAAAAABwAAvAPAgAAAAAAAAAAAAAAgP////8PAAAAAPz/fwAAAAAAABAAAMCfAQAAAAAAAAAAAAAAAP////8PAAAAAPz//wAAAAAAAOADAIA/MAAAAAAAAAAAAAAAAP7///8PAAAAAPz/fwAAAAAAAAAPAMBngAAAAAAAAAAAAAAAAP7///8PAAAAAPz//wAAAAAAAAAACABAAAAAAAAAAAAAAAAAAPz///8HAAAAAPj//wAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAPz///8DAAAAAPj//wAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAPj///8BAAAAAPz//4AAAAAAAAAAAB8GAAAAAAAAAAAAAAAAAPj///8BAAAAAPz//8EAAAAAAAAAIB8OAAAAAAAAAAAAAAAAAPD///8BAAAAAP7//+AAAAAAAAAA+B8OACAAAAAAAAAAAAAAAMD///8BAAAAAP7/f/gAAAAAAAAA/H8eAAAAAAAAAAAAAAAAAID///8AAAAAAP7/H/gAAAAAAAAA/P8fAABAAAAAAAAAAAAAAAD///8AAAAAAPz/D3AAAAAAAAAA/v8/AAAAAAAAAAAAAAAAAAD///8AAAAAAPj/D3gAAAAAAADA//9/AAgAAAAAAAAAAAAAAAD//38AAAAAAPj/DzgAAAAAAADw////AAAAAAAAAAAAAAAAAAD//x8AAAAAAPD/DzgAAAAAAAD4////AQAAAAAAAAAAAAAAAAD//wMAAAAAAPD/DzgAAAAAAAD4////AwAAAAAAAAAAAAAAAID//wEAAAAAAPD/AwAAAAAAAAD4////AwAAAAAAAAAAAAAAAID//wEAAAAAAPD/AwAAAAAAAAD4////BwAAAAAAAAAAAAAAAID//wEAAAAAAOD/AwAAAAAAAAD4////BwAAAAAAAAAAAAAAAID//wAAAAAAAOD/AQAAAAAAAADw////BwAAAAAAAAAAAAAAAID//wAAAAAAAMD/AAAAAAAAAADw////AwAAAAAAAAAAAAAAAID/fwAAAAAAAIB/AAAAAAAAAADgf/z/AwAAAAAAAAAAAAAAAID/PwAAAAAAAIA/AAAAAAAAAADgB/D/AQAAAAAAAAAAAAAAAMD/HQAAAAAAAIABAAAAAAAAAADwAND/AQAAAAAAAAAAAAAAAMD/AwAAAAAAAAAAAAAAAAAAAAAAAID/AAAIAAAAAAAAAAAAAMD/BwAAAAAAAAAAAAAAAAAAAAAAAAD/AAAQAAAAAAAAAAAAAOD/AwAAAAAAAAAAAAAAAAAAAAAAAAA+AABwAAAAAAAAAAAAAOA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAOA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAOAPAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAGAAAAAAAAAAAAAMAPAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAADAAAAAAAAAAAAAPAPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMABAAAAAAAAAAAAAPADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOABAAAAAAAAAAAAAPAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPADAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAPABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPCBAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAA+AABAAJ8//j8PAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAPD/fwD///////8/AAAAAAAAAAAAAAAAAIA+AAAAAAAAAAAAPP///8D/////////HwAAAAAAAAAAAAAAAIA9AAAAAAAA8Pz/////P/j//////////wMAAAAAAAAAAMAAAPB9AAAAAID/////////P/7///////////8BAAAAAAAAAOABAwB/AAAAAPD///////////////////////8AAAAAAFACPoD///9/AAAAAPD//////////////////////x8AAAAA+P////////8HAAAAAP///////////////////////wcAAAAA/v///////wMAAAAA/v///////////////////////wcAAAD8/////////w8AAA7w/////////////////////////w8AAMAB/////////wMAgB84/////////////////////////wEAAAAA/P///////3/w4AcA/////////////////////////wAAAADg//////////8/gM///////////////////////////wMAAADg/////////////f///////////////////////////z8A7wMA/v////////////////////////////////////////8/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+var GLOBE_LAND_B64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPcBAOD/HwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACA//+P//f/LwgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4/v/4/////wcAAAAEAPABAAAAfAAAAAAAAAAAAAAAAAAAAADg9w/4/////wEAAP4AAAAAAAAA+AAAAAAAAAAAAAAAAAAAAIAG+Of//////wAAAHwGAAAAAAAAAAMAAAAAAAAAAAAAAACABwAc/4P//////wAAADAAAAAAQAAAAD4AAAAAAAAAAAAAAAAAfMbDcQAA/v///wAAAAAAAADABwAA//8HAMAPAAAAAAAAAABgAAAAAAAA/P///wAAAAAAAABwAADg//8AAAAAAAAAAAAAAADwG457dwcA8P//HwAAAAAAAAAYAAD///9/eAAAAAAAAAAAAAD4/g0H/w8A8P//PwAAAAAAAAAOgOv/////fwD/AAAAAAA/AAAA/B84/v8A8P//LwAAAAD4AAAA4PP//////////wAAAOD///H/+D/3cPgDoP//DwAAAID/BwAAx/v/////////P4AA/P///////////////////////w8AAOcBAAgAAAAAAAAAAAAAgP///////////////////////wcAACYAAAQAAAAAAAAAAAAAgf///////////////////////wMM8AAAAAAAAAAAAAAAAAAAIID/////////e+wPwH8AgA8AAP/5z/////////////////8/ANH///////9/AIALgD8AAAAAwH/+//////////////////9/APj///////8fADwAAD8AAAAA8D/+//////////////////sPAPC/+f////8fAPwAADgAAAAA8D/+////////////////D/wBAMCfAP////8PAPwYAAAAAAAA8H/4//////////////9/DgcAAAAcAOD///8/APw/AAAAAAAQAB7w//////////////8BgAMAAAACAMD/////Afh/AAAAAAA4gBz+/////////////38A4AMAAMAAAMD/////B/z/AAAAAABwwAb+/////////////x8A8AEAAAAAAAD/////P///AwAAAADmgOH//////////////z8A4AAAAAAAAAD+////P/7/BwAAAAD28P////////////////8D4AAAAAAAAAD8////f/7/BwAAAADz+f////////////////8HIAAAAAAAAAD6////////BAAAAABw/v////////////////8EAAAAAAAAAADo//////8jHgAAAACA//////////////////8MAAAAAAAAAADQ//////8OPgAAAADw//////////////////8AAAAAAAAAAADg//////+PIAAAAADA////v////////////38EAAAAAAAAAADg////////AAAAAACA//v/zD/8/////////z8AAAAAAAAAAADg//////8bAAAAAACA//N/gD///////////x8GAAAAAAAAAADw//////8AAAAAAAD+B8c/AD/+/////////wcPAAAAAAAAAADg//////8AAAAAAAD+gx4/DH74/////////wABAAAAAAAAAADg/////x8AAAAAAAD+gbCn///8////////fQABAAAAAAAAAADg/////w8AAAAAAAD/gCDn///4//////9/MgADAAAAAAAAAADA/////w8AAAAAAAD+AADm/3/4//////8/cIABAAAAAAAAAADA/////wcAAAAAAAA44AHC///5////////4+ABAAAAAAAAAACA/////wcAAAAAAACI/wEA4P//////////4OgAAAAAAAAAAAAA/////wMAAAAAAAD4/wAA4P//////////ADYAAAAAAAAAAAAA/P///wEAAAAAAAD+/wEA8P//////////AQcAAAAAAAAAAAAA+P//fwAAAAAAAAD//w8P8P//////////AQEAAAAAAAAAAAAAyP//fwAAAAAAAAD//3//////////////AQAAAAAAAAAAAAAA0P+PYQAAAAAAAAD//////z//////////AwAAAAAAAAAAAAAAoP8HwAAAAAAAAMD/////83/+////////AQAAAAAAAAAAAAAAIP8DwAAAAAAAAOD/////5//I////////AAAAAAAAAAAAAAAAQP4DgAAAAAAAAPD/////z/+A////////AAAAAAAAAAAAAAAAAPwDAAIAAAAAAPD/////z/8ZwP////9/AQAAAAAAAAAAAAAAAPgDQAAAAAAAAPj/////j/9/gP////8fAQAAAAAAAAAAAAAAAPADEAMAAAAAAPz/////v///AP9//P8DAAAAAAAAAAAAAAAAAPADAwwAAAAAAPj/////P/9/APw//B8AAAAAAAAAAAAIAAAAAPCHA8AAAAAAAPj/////P/4/APwP+J8BAAAAAAAAAAAAAAAAAMD/A0YEAAAAAPj/////f/4fAPwH+B8AAwAAAAAAAAAAAAAAAAD/AQAAAAAAAPj/////f/wHAPgD8D8AAwAAAAAAAAAAAAAAAADgHwAAAAAAAPj///////wDAPgAwH8AAQAAAAAAAAAAAAAAAADAHwAAAAAAAPz//////30AAPAAwH8AAAAAAAAAAAAAAAAAAAAAHAAAAAAAAPj//////wsAAPAAgH4AAQAAAAAAAAAAAAAAAAAAGEAAAAAAAPj//////wMBAPAAgHwAAAAAAAAAAAAAAAAAAAAAGPAhAAAAAPD///////cBAOAAgDiABAAAAAAAAAAAAAAAAAAAIPl/AAAAAOD///////8AAGABABBAFAAAAAAAAAAAAAAAAAAAgP7/AQAAAMD///////8AAAABgAAAHAAAAAAAAAAAAAAAAAAAAPz/AQAAAID///////8AAAABAAEgCAAAAAAAAAAAAAAAAAAAAPz/HwAAAAD/8P///38AAAAAAANgAAAAAAAAAAAAAAAAAAAAAPz/fwAAAAAAoP///z8AAAAAYAd4AAAAAAAAAAAAAAAAAAAAAPz/fwAAAAAAAP///x8AAAAAwAY8AAAAAAAAAAAAAAAAAAAAAP7//wAAAAAAAP///w8AAAAAgAc+AAAAAAAAAAAAAAAAAAAAAP///wAAAAAAAP///wcAAAAAgIM/TwAAAAAAAAAAAAAAAAAAAP///wEAAAAAgP///wMAAAAAAIc/QAQAAAAAAAAAAAAAAAAAgP///w8AAAAAgP///wEAAAAAAA6fAUQAAAAAAAAAAAAAAAAAAP////8AAAAAAP///wAAAAAAAB6ewuwDAgAAAAAAAAAAAAAAgP////8DAAAAAP7//wAAAAAAABwAAvAPAgAAAAAAAAAAAAAAgP////8PAAAAAPz/fwAAAAAAABAAAMCfAQAAAAAAAAAAAAAAAP////8PAAAAAPz//wAAAAAAAOADAIA/MAAAAAAAAAAAAAAAAP7///8PAAAAAPz/fwAAAAAAAAAPAMBngAAAAAAAAAAAAAAAAP7///8PAAAAAPz//wAAAAAAAAAACABAAAAAAAAAAAAAAAAAAPz///8HAAAAAPj//wAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAPz///8DAAAAAPj//wAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAPj///8BAAAAAPz//4AAAAAAAAAAAB8GAAAAAAAAAAAAAAAAAPj///8BAAAAAPz//8EAAAAAAAAAIB8OAAAAAAAAAAAAAAAAAPD///8BAAAAAP7//+AAAAAAAAAA+B8OACAAAAAAAAAAAAAAAMD///8BAAAAAP7/f/gAAAAAAAAA/H8eAAAAAAAAAAAAAAAAAID///8AAAAAAP7/H/gAAAAAAAAA/P8fAABAAAAAAAAAAAAAAAD///8AAAAAAPz/D3AAAAAAAAAA/v8/AAAAAAAAAAAAAAAAAAD///8AAAAAAPj/D3gAAAAAAADA//9/AAgAAAAAAAAAAAAAAAD//38AAAAAAPj/DzgAAAAAAADw////AAAAAAAAAAAAAAAAAAD//x8AAAAAAPD/DzgAAAAAAAD4////AQAAAAAAAAAAAAAAAAD//wMAAAAAAPD/DzgAAAAAAAD4////AwAAAAAAAAAAAAAAAID//wEAAAAAAPD/AwAAAAAAAAD4////AwAAAAAAAAAAAAAAAID//wEAAAAAAPD/AwAAAAAAAAD4////BwAAAAAAAAAAAAAAAID//wEAAAAAAOD/AwAAAAAAAAD4////BwAAAAAAAAAAAAAAAID//wAAAAAAAOD/AQAAAAAAAADw////BwAAAAAAAAAAAAAAAID//wAAAAAAAMD/AAAAAAAAAADw////AwAAAAAAAAAAAAAAAID/fwAAAAAAAIB/AAAAAAAAAADgf/z/AwAAAAAAAAAAAAAAAID/PwAAAAAAAIA/AAAAAAAAAADgB/D/AQAAAAAAAAAAAAAAAMD/HQAAAAAAAIABAAAAAAAAAADwAND/AQAAAAAAAAAAAAAAAMD/AwAAAAAAAAAAAAAAAAAAAAAAAID/AAAIAAAAAAAAAAAAAMD/BwAAAAAAAAAAAAAAAAAAAAAAAAD/AAAQAAAAAAAAAAAAAOD/AwAAAAAAAAAAAAAAAAAAAAAAAAA+AABwAAAAAAAAAAAAAOA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAOA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAOAPAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAGAAAAAAAAAAAAAMAPAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAADAAAAAAAAAAAAAPAPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMABAAAAAAAAAAAAAPADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOABAAAAAAAAAAAAAPAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPADAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAPABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPCBAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAA+AABAAJ8//j8PAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAPD/fwD///////8/AAAAAAAAAAAAAAAAAIA+AAAAAAAAAAAAPP///8D/////////HwAAAAAAAAAAAAAAAIA9AAAAAAAA8Pz/////P/j//////////wMAAAAAAAAAAMAAAPB9AAAAAID/////////P/7///////////8BAAAAAAAAAOABAwB/AAAAAPD///////////////////////8AAAAAAFACPoD///9/AAAAAPD//////////////////////x8AAAAA+P////////8HAAAAAP///////////////////////wcAAAAA/v///////wMAAAAA/v///////////////////////wcAAAD8/////////w8AAA7w/////////////////////////w8AAMAB/////////wMAgB84/////////////////////////wEAAAAA/P///////3/w4AcA/////////////////////////wAAAADg//////////8/gM///////////////////////////wMAAADg/////////////f///////////////////////////z8A7wMA/v////////////////////////////////////////8/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
-let globeNodes = [];
+var globeNodes = [];
 (function initGlobeNodes() {
-  const MW = 288, MH = 144;
-  const bin = atob(GLOBE_LAND_B64);
-  const land = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) land[i] = bin.charCodeAt(i);
+  var MW = 288, MH = 144;
+  var bin = atob(GLOBE_LAND_B64);
+  var land = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) land[i] = bin.charCodeAt(i);
 
   function isLand(lon, lat) {
-    const gx = Math.floor(((lon + 180) / 360) * MW);
-    const gy = Math.floor(((90 - lat) / 180) * MH);
+    var gx = Math.floor(((lon + 180) / 360) * MW);
+    var gy = Math.floor(((90 - lat) / 180) * MH);
     if (gx < 0 || gx >= MW || gy < 0 || gy >= MH) return false;
-    const b = gy * MW + gx;
+    var b = gy * MW + gx;
     return (land[b >> 3] >> (b & 7)) & 1;
   }
 
-  const PHRASE = "everypointonthisballisapathbacktoanotherone";
-  const LAT_STEP = 3.05;
-  let k = 0, run = 0, sea3 = 0;
-  for (let lat = -86; lat <= 86; lat += LAT_STEP) {
-    const rl = Math.cos((lat * Math.PI) / 180);
-    const n = Math.max(1, Math.round(98 * rl));
-    for (let i = 0; i < n; i++) {
-      const lon = -180 + (360 * i) / n;
-      const l = isLand(lon, lat);
+  var PHRASE = "everypointonthisballisapathbacktoanotherone";
+  var LAT_STEP = 3.05;
+  var k = 0, run = 0, sea3 = 0;
+  for (var lat = -86; lat <= 86; lat += LAT_STEP) {
+    var rl = Math.cos((lat * Math.PI) / 180);
+    var n = Math.max(1, Math.round(98 * rl));
+    for (var i = 0; i < n; i++) {
+      var lon = -180 + (360 * i) / n;
+      var l = isLand(lon, lat);
       if (!l && sea3++ % 2) continue;
-      let letter = 0;
+      var letter = 0;
       if (l && run++ % 2 === 0) letter = PHRASE.charAt(k++ % PHRASE.length);
       globeNodes.push({
         lat: (lat * Math.PI) / 180,
@@ -6824,30 +6824,58 @@ let globeNodes = [];
   }
 })();
 
-let globeSpin = 2.1;
-const globeVel = 0.20;
-const globeTilt = -0.26;
-const globeLand8 = [];
-const globeSea = [];
-const globeSoil = [];
-let globePrevTime = performance.now();
+var globeSpin = 2.1;
+var globeVel = 0.20;
+var globeTilt = -0.26;
+var globeLand8 = [];
+var globeSea = [];
+var globeSoil = [];
+var globePrevTime = performance.now();
 
 function resizeGlobeCanvas() {
+  if (!globeCanvas) {
+    globeCanvas = document.getElementById('tunnel-globe-canvas');
+    if (globeCanvas) globeCtx = globeCanvas.getContext('2d');
+  }
   if (!globeCanvas) return;
-  const rect = globeCanvas.parentElement ? globeCanvas.parentElement.getBoundingClientRect() : globeCanvas.getBoundingClientRect();
+  var parent = globeCanvas.parentElement;
+  var rect = parent ? parent.getBoundingClientRect() : globeCanvas.getBoundingClientRect();
   globeDpr = Math.min(2, window.devicePixelRatio || 1);
-  globeWidth = rect.width;
-  globeHeight = rect.height;
-  if (globeWidth > 0 && globeHeight > 0) {
-    globeCanvas.width = Math.round(globeWidth * globeDpr);
-    globeCanvas.height = Math.round(globeHeight * globeDpr);
+  var w = Math.round(rect.width || (parent ? parent.clientWidth : 0) || window.innerWidth || 800);
+  var h = Math.round(rect.height || (parent ? parent.clientHeight : 0) || 500);
+  if (w > 0 && h > 0) {
+    globeWidth = w;
+    globeHeight = h;
+    if (globeCanvas.width !== Math.round(w * globeDpr) || globeCanvas.height !== Math.round(h * globeDpr)) {
+      globeCanvas.width = Math.round(w * globeDpr);
+      globeCanvas.height = Math.round(h * globeDpr);
+    }
   }
 }
 
 function drawGlobeFrame(now) {
-  if (!globeRunning || !globeCtx || globeWidth <= 0 || globeHeight <= 0) return;
+  if (!globeRunning) return;
 
-  const dt = Math.min(64, now - globePrevTime);
+  if (!globeCanvas || !globeCtx) {
+    globeCanvas = document.getElementById('tunnel-globe-canvas');
+    if (globeCanvas) globeCtx = globeCanvas.getContext('2d');
+  }
+
+  if (!globeCtx) {
+    globeAnimationId = requestAnimationFrame(drawGlobeFrame);
+    return;
+  }
+
+  if (globeWidth <= 0 || globeHeight <= 0) {
+    resizeGlobeCanvas();
+  }
+
+  // Keep RAF loop constantly running when globeRunning is true
+  globeAnimationId = requestAnimationFrame(drawGlobeFrame);
+
+  if (globeWidth <= 0 || globeHeight <= 0) return;
+
+  var dt = Math.min(64, now - globePrevTime);
   globePrevTime = now;
 
   globeCtx.setTransform(globeDpr, 0, 0, globeDpr, 0, 0);
@@ -6855,14 +6883,14 @@ function drawGlobeFrame(now) {
 
   globeSpin += (globeVel * dt) / 1000;
 
-  // Massive heroic sphere: top is comfortably visible, bottom extends downwards and cuts off cleanly
-  const R = Math.min(globeWidth * 0.48, Math.max(globeHeight * 0.78, 480));
-  const cx = globeWidth / 2;
-  const cy = R + 14;
-  const fs = R * 0.072;
+  // Heroic globe sphere: massive presence, top crest anchored comfortably below hero card, bottom cut off by overflow
+  var R = Math.min(globeWidth * 0.46, Math.max(globeHeight * 0.72, 380));
+  var cx = globeWidth / 2;
+  var cy = R + 14;
+  var fs = R * 0.072;
 
-  const cs = Math.cos(globeSpin), sn = Math.sin(globeSpin);
-  const ct = Math.cos(globeTilt), st = Math.sin(globeTilt);
+  var cs = Math.cos(globeSpin), sn = Math.sin(globeSpin);
+  var ct = Math.cos(globeTilt), st = Math.sin(globeTilt);
 
   globeCtx.textAlign = 'center';
   globeCtx.textBaseline = 'middle';
@@ -6870,15 +6898,15 @@ function drawGlobeFrame(now) {
   globeSea.length = 0;
   globeSoil.length = 0;
 
-  for (let i = 0; i < globeNodes.length; i++) {
-    const nd = globeNodes[i];
-    const cl = Math.cos(nd.lat);
-    const x0 = cl * Math.cos(nd.lon), y0 = Math.sin(nd.lat), z0 = cl * Math.sin(nd.lon);
-    const x1 = x0 * cs - z0 * sn, z1 = x0 * sn + z0 * cs;
-    const y2 = y0 * ct - z1 * st, z2 = y0 * st + z1 * ct;
+  for (var i = 0; i < globeNodes.length; i++) {
+    var nd = globeNodes[i];
+    var cl = Math.cos(nd.lat);
+    var x0 = cl * Math.cos(nd.lon), y0 = Math.sin(nd.lat), z0 = cl * Math.sin(nd.lon);
+    var x1 = x0 * cs - z0 * sn, z1 = x0 * sn + z0 * cs;
+    var y2 = y0 * ct - z1 * st, z2 = y0 * st + z1 * ct;
     if (z2 <= 0.02) continue;
 
-    const px = cx + x1 * R, py = cy - y2 * R;
+    var px = cx + x1 * R, py = cy - y2 * R;
     if (!nd.land) {
       globeSea.push(px, py, Math.min(0.999, z2));
       continue;
@@ -6888,21 +6916,21 @@ function drawGlobeFrame(now) {
       continue;
     }
 
-    const tx0 = -Math.sin(nd.lon), tz0 = Math.cos(nd.lon);
-    const tx1 = tx0 * cs - tz0 * sn, tz1 = tx0 * sn + tz0 * cs;
-    const ang = globeQang(Math.atan2(tz1 * st, tx1));
-    const b = Math.min(7, Math.max(0, ((Math.min(0.999, z2) * 7.99) | 0)));
+    var tx0 = -Math.sin(nd.lon), tz0 = Math.cos(nd.lon);
+    var tx1 = tx0 * cs - tz0 * sn, tz1 = tx0 * sn + tz0 * cs;
+    var ang = globeQang(Math.atan2(tz1 * st, tx1));
+    var b = Math.min(7, Math.max(0, ((Math.min(0.999, z2) * 7.99) | 0)));
     (globeLand8[b] || (globeLand8[b] = [])).push(px, py, ang, nd.c);
   }
 
-  const dmin = Math.max(0.7, R * 0.0065);
+  var dmin = Math.max(0.7, R * 0.0065);
   function dots(list, base, gain, grow) {
-    for (let lvl = 0; lvl < 6; lvl++) {
-      const z = (lvl + 0.5) / 6, dsz = dmin * grow * (0.55 + 0.75 * z);
+    for (var lvl = 0; lvl < 6; lvl++) {
+      var z = (lvl + 0.5) / 6, dsz = dmin * grow * (0.55 + 0.75 * z);
       globeCtx.fillStyle = getGlobeInk(base + gain * z);
       globeCtx.beginPath();
-      for (let q = 0; q < list.length; q += 3) {
-        const lv = list[q + 2] >= 1 ? 5 : (list[q + 2] * 6) | 0;
+      for (var q = 0; q < list.length; q += 3) {
+        var lv = list[q + 2] >= 1 ? 5 : (list[q + 2] * 6) | 0;
         if (lv !== lvl) continue;
         globeCtx.rect(list[q] - dsz / 2, list[q + 1] - dsz / 2, dsz, dsz);
       }
@@ -6912,14 +6940,14 @@ function drawGlobeFrame(now) {
   dots(globeSea, 0.10, 0.22, 1.0);
   dots(globeSoil, 0.34, 0.46, 1.7);
 
-  const FACE = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif';
-  for (let bi = 0; bi < 8; bi++) {
-    const arr = globeLand8[bi];
+  var FACE = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif';
+  for (var bi = 0; bi < 8; bi++) {
+    var arr = globeLand8[bi];
     if (!arr || !arr.length) continue;
-    const zb = (bi + 0.5) / 8;
-    globeCtx.font = `bold ${(fs * (0.42 + 0.58 * zb)).toFixed(2)}px ${FACE}`;
+    var zb = (bi + 0.5) / 8;
+    globeCtx.font = 'bold ' + (fs * (0.42 + 0.58 * zb)).toFixed(2) + 'px ' + FACE;
     globeCtx.fillStyle = getGlobeInk(0.28 + 0.72 * Math.pow(zb, 0.6));
-    for (let t = 0; t < arr.length; t += 4) {
+    for (var t = 0; t < arr.length; t += 4) {
       globeCtx.save();
       globeCtx.translate(arr[t], arr[t + 1]);
       globeCtx.rotate(arr[t + 2]);
@@ -6928,23 +6956,20 @@ function drawGlobeFrame(now) {
     }
     arr.length = 0;
   }
+}
 
-  if (globeRunning) {
+function startGlobeAnimation() {
+  globeRunning = true;
+  globePrevTime = performance.now();
+  resizeGlobeCanvas();
+  if (!globeAnimationId) {
     globeAnimationId = requestAnimationFrame(drawGlobeFrame);
   }
 }
 
-function startGlobeAnimation() {
-  if (globeRunning) return;
-  globeRunning = true;
-  globePrevTime = performance.now();
-  resizeGlobeCanvas();
-  globeAnimationId = requestAnimationFrame(drawGlobeFrame);
-}
-
 function stopGlobeAnimation() {
   globeRunning = false;
-  if (globeAnimationId) {
+  if (typeof globeAnimationId !== 'undefined' && globeAnimationId) {
     cancelAnimationFrame(globeAnimationId);
     globeAnimationId = null;
   }
@@ -6955,7 +6980,7 @@ function initTunnelGlobe() {
   if (!globeCanvas) return;
   globeCtx = globeCanvas.getContext('2d');
 
-  const isOnline = state.tunnel && state.tunnel.status === 'online';
+  var isOnline = state.tunnel && state.tunnel.status === 'online';
   syncGlobeTheme(isOnline);
 
   resizeGlobeCanvas();
@@ -6963,11 +6988,11 @@ function initTunnelGlobe() {
 }
 
 function syncGlobeTheme(isOnline) {
-  const ink = isOnline ? '217,119,87' : '226,228,233';
+  var ink = isOnline ? '217,119,87' : '226,228,233';
   updateGlobeInk(ink);
 }
 
-window.addEventListener('resize', () => {
+window.addEventListener('resize', function() {
   if (globeRunning) {
     resizeGlobeCanvas();
   }
@@ -7717,6 +7742,9 @@ window.switchArtifactVersion = switchArtifactVersion;
 window.copyActiveArtifactCode = copyActiveArtifactCode;
 window.downloadActiveArtifact = downloadActiveArtifact;
 window.toggleArtifactFullscreen = toggleArtifactFullscreen;
+window.initTunnelGlobe = initTunnelGlobe;
+window.startGlobeAnimation = startGlobeAnimation;
+window.stopGlobeAnimation = stopGlobeAnimation;
 
 // ===================================================================
 // Skiper106 Smooth Caret Input Component (@skiper-ui/skiper106)

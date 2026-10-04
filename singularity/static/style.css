@@ -688,11 +688,12 @@ body[data-active-tab="playground"] .panel-viewport {
   overflow: hidden !important;
 }
 
-body[data-active-tab="tunnel"] .panel-viewport {
+body[data-active-tab="tunnel"] .panel-viewport,
+.panel-viewport:has(#pane-tunnel.active) {
   overflow: hidden !important;
   padding: 22px 28px 0 28px !important;
-  display: flex;
-  flex-direction: column;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 #pane-tunnel {
@@ -704,12 +705,12 @@ body[data-active-tab="tunnel"] .panel-viewport {
 }
 
 #pane-tunnel.active {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
 }
 
 @keyframes fadeIn {
@@ -1096,7 +1097,7 @@ body[data-active-tab="tunnel"] .panel-viewport {
 
 .tunnel-globe-wrapper {
   flex: 1;
-  min-height: 0;
+  min-height: 420px;
   width: 100%;
   position: relative;
   overflow: hidden;
@@ -1110,6 +1111,7 @@ body[data-active-tab="tunnel"] .panel-viewport {
 #tunnel-globe-canvas {
   width: 100%;
   height: 100%;
+  min-height: 420px;
   display: block;
   background: transparent !important;
   pointer-events: none;
