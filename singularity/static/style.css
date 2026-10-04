@@ -688,6 +688,30 @@ body[data-active-tab="playground"] .panel-viewport {
   overflow: hidden !important;
 }
 
+body[data-active-tab="tunnel"] .panel-viewport {
+  overflow: hidden !important;
+  padding: 22px 28px 0 28px !important;
+  display: flex;
+  flex-direction: column;
+}
+
+#pane-tunnel {
+  height: 100%;
+  width: 100%;
+  max-width: 1300px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+#pane-tunnel.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -1064,57 +1088,29 @@ body[data-active-tab="playground"] .panel-viewport {
   font-size: 13px;
 }
 
-/* ThreeUI TextPathStudies: Globe Type Study */
+/* Direct Typographic World Sphere (TextPathStudies: Globe Study) */
+#tunnel-hero {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
 .tunnel-globe-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin: 10px auto 10px auto;
-  width: 100%;
-  max-width: 680px;
-  position: relative;
-  pointer-events: none;
-}
-
-.shader-frame {
-  width: 100%;
-  max-width: 640px;
-  aspect-ratio: 1;
-  position: relative;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  pointer-events: none;
-}
-
-.text-path-study {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
+  flex: 1;
   min-height: 0;
+  width: 100%;
+  position: relative;
   overflow: hidden;
-  isolation: isolate;
-  background: transparent !important;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  margin: 0 auto;
   pointer-events: none;
 }
 
-.text-path-study--light {
-  background: transparent !important;
-}
-
-.text-path-study-frame {
-  position: absolute;
-  inset: 0;
-  display: block;
+#tunnel-globe-canvas {
   width: 100%;
   height: 100%;
-  border: 0;
+  display: block;
   background: transparent !important;
   pointer-events: none;
 }
@@ -4583,7 +4579,12 @@ body:not([data-theme="dark"]) .chat-md-inline-code {
 .tunnel-container {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  gap: 16px;
 }
 
 .tunnel-hero-card {
