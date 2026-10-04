@@ -691,9 +691,44 @@ body[data-active-tab="playground"] .panel-viewport {
 body[data-active-tab="tunnel"] .panel-viewport,
 .panel-viewport:has(#pane-tunnel.active) {
   overflow: hidden !important;
-  padding: 22px 28px 0 28px !important;
+  padding: 22px 28px 16px 28px !important;
   display: flex !important;
   flex-direction: column !important;
+}
+
+/* ===================================================================
+   Singularity-Access Pitch Black Background (#000000 in Dark Mode)
+   =================================================================== */
+[data-theme="dark"] body[data-active-tab="tunnel"],
+body[data-active-tab="tunnel"][data-theme="dark"],
+[data-theme="dark"] html[data-active-tab="tunnel"],
+html[data-active-tab="tunnel"][data-theme="dark"] {
+  --bg-primary: #000000 !important;
+  --bg-secondary: #000000 !important;
+  --bg-sidebar: #000000 !important;
+  --bg-glass: rgba(0, 0, 0, 0.88) !important;
+  background-color: #000000 !important;
+}
+
+[data-theme="dark"] body[data-active-tab="tunnel"] #app,
+[data-theme="dark"] body[data-active-tab="tunnel"] .main-content,
+[data-theme="dark"] body[data-active-tab="tunnel"] .panel-viewport,
+[data-theme="dark"] body[data-active-tab="tunnel"] #pane-tunnel,
+[data-theme="dark"] body[data-active-tab="tunnel"] .tunnel-container,
+[data-theme="dark"] body[data-active-tab="tunnel"] .tunnel-globe-wrapper {
+  background-color: #000000 !important;
+}
+
+[data-theme="dark"] body[data-active-tab="tunnel"] #tunnel-hero {
+  background-color: #080808 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] body[data-active-tab="tunnel"] #tunnel-hero .endpoint-copy-row,
+[data-theme="dark"] body[data-active-tab="tunnel"] #tunnel-hero .client-chip,
+[data-theme="dark"] body[data-active-tab="tunnel"] #tunnel-hero #input-ngrok-authtoken {
+  background-color: #121212 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 #pane-tunnel {
@@ -1097,12 +1132,13 @@ body[data-active-tab="tunnel"] .panel-viewport,
 
 .tunnel-globe-wrapper {
   flex: 1;
-  min-height: 420px;
+  min-height: 0;
+  height: 100%;
   width: 100%;
   position: relative;
   overflow: hidden;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   margin: 0 auto;
   pointer-events: none;
@@ -1111,7 +1147,6 @@ body[data-active-tab="tunnel"] .panel-viewport,
 #tunnel-globe-canvas {
   width: 100%;
   height: 100%;
-  min-height: 420px;
   display: block;
   background: transparent !important;
   pointer-events: none;

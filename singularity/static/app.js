@@ -209,6 +209,11 @@ function applyThemePref(pref, animate = true) {
     else if (validPref === 'light') indicator.style.transform = 'translateX(100%)';
     else if (validPref === 'dark') indicator.style.transform = 'translateX(200%)';
   }
+
+  if (typeof syncGlobeTheme === 'function' && typeof globeRunning !== 'undefined' && globeRunning) {
+    var isOnline = state.tunnel && state.tunnel.status === 'online';
+    syncGlobeTheme(isOnline);
+  }
 }
 
 function setAppTheme(theme) {
@@ -1301,11 +1306,13 @@ function initNavigation() {
   });
 
   document.body.dataset.activeTab = state.currentTab || 'playground';
+  document.documentElement.dataset.activeTab = state.currentTab || 'playground';
 }
 
 function switchTab(tabId) {
   state.currentTab = tabId;
   document.body.dataset.activeTab = tabId;
+  document.documentElement.dataset.activeTab = tabId;
 
   document.querySelectorAll('.nav-item').forEach(item => {
     item.classList.toggle('active', item.dataset.tab === tabId);
@@ -6883,10 +6890,12 @@ function drawGlobeFrame(now) {
 
   globeSpin += (globeVel * dt) / 1000;
 
-  // Heroic globe sphere: massive presence, top crest anchored comfortably below hero card, bottom cut off by overflow
-  var R = Math.min(globeWidth * 0.46, Math.max(globeHeight * 0.72, 380));
+  // Whole, majestic 3D sphere centered vertically and horizontally with NO cut-off lines
+  var availableHalfHeight = Math.max(80, (globeHeight / 2) - 16);
+  var availableHalfWidth = Math.max(80, (globeWidth / 2) - 16);
+  var R = Math.min(availableHalfWidth, availableHalfHeight);
   var cx = globeWidth / 2;
-  var cy = R + 14;
+  var cy = globeHeight / 2;
   var fs = R * 0.072;
 
   var cs = Math.cos(globeSpin), sn = Math.sin(globeSpin);
@@ -6984,11 +6993,30 @@ function initTunnelGlobe() {
   syncGlobeTheme(isOnline);
 
   resizeGlobeCanvas();
+  setTimeout(resizeGlobeCanvas, 60);
+  setTimeout(resizeGlobeCanvas, 200);
+
+  if (window.ResizeObserver && globeCanvas.parentElement && !globeCanvas._ro) {
+    var ro = new ResizeObserver(function() {
+      if (globeRunning) {
+        resizeGlobeCanvas();
+      }
+    });
+    ro.observe(globeCanvas.parentElement);
+    globeCanvas._ro = ro;
+  }
+
   startGlobeAnimation();
 }
 
 function syncGlobeTheme(isOnline) {
-  var ink = isOnline ? '217,119,87' : '226,228,233';
+  var isDark = (document.documentElement.getAttribute('data-theme') || document.body.getAttribute('data-theme')) !== 'light';
+  var ink;
+  if (isOnline) {
+    ink = '217,119,87';
+  } else {
+    ink = isDark ? '226,228,233' : '45,45,45';
+  }
   updateGlobeInk(ink);
 }
 
