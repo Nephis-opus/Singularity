@@ -333,7 +333,6 @@
                           <button type="button" class="preset-btn" data-tokens="32768">32K</button>
                           <button type="button" class="preset-btn" data-tokens="65536">64K</button>
                         </div>
-                        <span class="param-hint">Enforced gateway-wide for this model across all API requests.</span>
                       </div>
 
                       <!-- Max Output Tokens / Context -->
@@ -376,7 +375,6 @@
                         <div class="param-toggle-row">
                           <div class="param-toggle-info">
                             <label for="toggle-artifacts-enable">Singularity Artifacts</label>
-                            <span class="param-hint">Universal side-by-side workbench for React apps, web pages, SVGs & diagrams.</span>
                           </div>
                           <label class="switch">
                             <input type="checkbox" id="toggle-artifacts-enable" checked />
@@ -388,17 +386,36 @@
                       <!-- Web search (chat tools) -->
                       <div class="param-group" id="search-settings">
                         <div class="param-label-row">
-                          <label for="search-backend-select">Web search</label>
+                          <label for="btn-search-backend-select">Web search</label>
                         </div>
-                        <select class="param-select" id="search-backend-select">
-                          <option value="auto">No key (DuckDuckGo, Brave, Bing)</option>
-                          <option value="brave">Brave Search API</option>
-                          <option value="tavily">Tavily</option>
-                          <option value="serper">Serper</option>
-                        </select>
+                        <input type="hidden" id="search-backend-select" value="auto" />
+                        <div class="claude-custom-select-wrap" id="search-backend-select-wrap" style="width: 100%;">
+                          <button type="button" class="claude-custom-select-btn" id="btn-search-backend-select" aria-haspopup="listbox" style="width: 100%; box-sizing: border-box;">
+                            <span id="search-backend-selected-label">No key (DuckDuckGo, Brave, Bing)</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                          </button>
+                          <div class="claude-custom-select-menu" id="search-backend-select-menu" style="width: 100%; left: 0; right: 0; box-sizing: border-box;">
+                            <button type="button" class="claude-select-option active" data-value="auto">
+                              <span>No key (DuckDuckGo, Brave, Bing)</span>
+                              <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            </button>
+                            <button type="button" class="claude-select-option" data-value="brave">
+                              <span>Brave Search API</span>
+                              <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            </button>
+                            <button type="button" class="claude-select-option" data-value="tavily">
+                              <span>Tavily</span>
+                              <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            </button>
+                            <button type="button" class="claude-select-option" data-value="serper">
+                              <span>Serper</span>
+                              <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            </button>
+                          </div>
+                        </div>
                         <input type="password" class="param-input" id="search-api-key-input" autocomplete="off"
                           spellcheck="false" placeholder="API key (optional)" />
-                        <span class="param-hint" id="search-settings-hint">Searching without a key reads public result pages, which can be blocked after a few searches. A key makes it reliable.</span>
+                        <span id="search-settings-hint" style="display: none;"></span>
                         <button type="button" class="btn btn-secondary btn-sm" id="btn-save-search-settings">Save search settings</button>
                       </div>
 

@@ -7745,8 +7745,9 @@ function openSearchSettings() {
   const group = document.getElementById('search-settings');
   if (group && group.scrollIntoView) group.scrollIntoView({ block: 'center' });
   const select = document.getElementById('search-backend-select');
+  const customBtn = document.getElementById('btn-search-backend-select');
   const keyInput = document.getElementById('search-api-key-input');
-  const target = select && select.value === 'auto' ? select : keyInput;
+  const target = (select && select.value === 'auto') ? (customBtn || select) : keyInput;
   if (target) target.focus();
 }
 
@@ -7771,9 +7772,55 @@ function initSearchToggle() {
   if (!btn) return;
   const defaultHint = hint ? hint.textContent : '';
 
+  const updateSearchBackendCustomUI = (val) => {
+    if (select) select.value = val;
+    const label = document.getElementById('search-backend-selected-label');
+    const menu = document.getElementById('search-backend-select-menu');
+    if (menu) {
+      menu.querySelectorAll('.claude-select-option').forEach(opt => {
+        const isMatch = opt.getAttribute('data-value') === val;
+        opt.classList.toggle('active', isMatch);
+        if (isMatch && label) {
+          const spanEl = opt.querySelector('span');
+          label.textContent = spanEl ? spanEl.textContent : opt.textContent.trim();
+        }
+      });
+    }
+  };
+
+  const customWrap = document.getElementById('search-backend-select-wrap');
+  const customBtn = document.getElementById('btn-search-backend-select');
+  const customMenu = document.getElementById('search-backend-select-menu');
+
+  if (customBtn && customMenu) {
+    customBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.claude-custom-select-menu.open').forEach(m => {
+        if (m !== customMenu) m.classList.remove('open');
+      });
+      customMenu.classList.toggle('open');
+    });
+
+    customMenu.querySelectorAll('.claude-select-option').forEach(opt => {
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const val = opt.getAttribute('data-value') || 'auto';
+        updateSearchBackendCustomUI(val);
+        customMenu.classList.remove('open');
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (customWrap && !customWrap.contains(e.target)) {
+        customMenu.classList.remove('open');
+      }
+    });
+  }
+
   const syncSettingsForm = () => {
     const search = state.toolsInfo && state.toolsInfo.search;
-    if (select && search) select.value = search.backend_setting || 'auto';
+    const val = search ? (search.backend_setting || 'auto') : 'auto';
+    updateSearchBackendCustomUI(val);
     if (keyInput) {
       keyInput.value = '';
       keyInput.placeholder = search && search.key_saved ? 'Key saved. Type to replace it.' : 'API key (optional)';
@@ -7802,7 +7849,7 @@ function initSearchToggle() {
 
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
-      const payload = { search_backend: select.value };
+      const payload = { search_backend: select ? select.value : 'auto' };
       if (keyInput && keyInput.value.trim()) payload.search_api_key = keyInput.value.trim();
       else if (select && select.value === 'auto') payload.search_api_key = '';
       saveBtn.disabled = true;
@@ -7818,8 +7865,7 @@ function initSearchToggle() {
           throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
         }
         await refresh();
-        if (hint) hint.textContent = 'Saved.';
-        setTimeout(() => { if (hint) hint.textContent = defaultHint; }, 3000);
+        showToast('Search settings saved', 'success', 2200);
       } catch (err) {
         showToast(`Could not save search settings: ${err.message}`, 'error', 6000);
       } finally {

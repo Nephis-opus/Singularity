@@ -2399,10 +2399,17 @@ body[data-active-tab="playground"] .panel-viewport {
   transform: scale(1.08);
 }
 
+.settings-dropdown-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 4px;
+}
+
 .param-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
 }
 
 .param-label-row {
@@ -2503,6 +2510,46 @@ body[data-active-tab="playground"] .panel-viewport {
 .param-textarea:focus {
   border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.15);
+}
+
+.param-input {
+  width: 100%;
+  height: 38px;
+  background: var(--bg-surface-hover, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-medium, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: 'Anthropic Sans', var(--font-sans);
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  box-sizing: border-box;
+}
+
+[data-theme="light"] .param-input {
+  background: #ffffff;
+  border-color: #dedbd5;
+  color: #1a1918;
+}
+
+.param-input:focus {
+  border-color: var(--brand-primary, #d97757);
+  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.15);
+}
+
+.param-input::placeholder {
+  color: var(--text-muted);
+}
+
+#btn-save-search-settings {
+  width: 100%;
+  height: 34px;
+  justify-content: center;
+  font-weight: 500;
+  border-radius: 8px;
+  margin-top: 2px;
 }
 
 /* Switch & Toggle Row */
