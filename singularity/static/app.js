@@ -7157,54 +7157,113 @@ function initTunnelControls() {
 }
 
 // Skiper37-Inspired Live Server Uptime Tracker
+var STORAGE_TUNNEL_START_KEY = 'singularity_tunnel_started_at';
 var uptimeInterval = null;
 var tunnelUptimeStart = null;
 
-function animateDigit(el) {
-  if (!el) return;
-  el.classList.remove('digit-roll');
-  void el.offsetWidth;
-  el.classList.add('digit-roll');
+// Read cached start time immediately so timer starts without resetting on page refresh
+try {
+  var cachedStart = localStorage.getItem(STORAGE_TUNNEL_START_KEY);
+  if (cachedStart) {
+    var parsedStart = parseInt(cachedStart, 10);
+    if (!isNaN(parsedStart) && parsedStart > 0 && parsedStart <= Date.now()) {
+      tunnelUptimeStart = parsedStart;
+    }
+  }
+} catch (e) {}
+
+function setSkiper37Digit(colName, nextDigit) {
+  var col = document.querySelector('.skiper37-digit-col[data-col="' + colName + '"]');
+  if (!col) return;
+  var track = col.querySelector('.skiper37-digit-track');
+  if (!track) return;
+
+  var currentDigitStr = col.dataset.currentDigit;
+  var targetDigit = parseInt(nextDigit, 10);
+  if (isNaN(targetDigit)) targetDigit = 0;
+
+  var itemHeight = 60;
+  var firstSpan = track.querySelector('span');
+  if (firstSpan && firstSpan.offsetHeight > 0) {
+    itemHeight = firstSpan.offsetHeight;
+  }
+
+  // Initial load without transition
+  if (currentDigitStr === undefined || currentDigitStr === null || currentDigitStr === '') {
+    track.style.transition = 'none';
+    track.style.transform = 'translateY(' + (-targetDigit * itemHeight) + 'px)';
+    col.dataset.currentDigit = String(targetDigit);
+    return;
+  }
+
+  var currentDigit = parseInt(currentDigitStr, 10);
+  if (currentDigit === targetDigit) return;
+
+  // Skiper37 / NumberFlow smooth forward roll:
+  // Moving 9 -> 0 rolls forward to index 10 (the bottom 0 span),
+  // then after the animation completes, snaps back to 0 without transition.
+  if (currentDigit === 9 && targetDigit === 0) {
+    track.style.transition = 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)';
+    track.style.transform = 'translateY(' + (-10 * itemHeight) + 'px)';
+    col.dataset.currentDigit = '0';
+    setTimeout(function() {
+      if (col.dataset.currentDigit === '0') {
+        track.style.transition = 'none';
+        track.style.transform = 'translateY(0px)';
+        void track.offsetHeight;
+      }
+    }, 480);
+  } else {
+    track.style.transition = 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)';
+    track.style.transform = 'translateY(' + (-targetDigit * itemHeight) + 'px)';
+    col.dataset.currentDigit = String(targetDigit);
+  }
 }
 
 function updateUptimeDisplay() {
   var t = state.tunnel;
-  var isOnline = t && t.status === 'online';
-  var badge = document.getElementById('uptime-status-badge');
-  var statusText = document.getElementById('uptime-status-text');
-  var hhEl = document.getElementById('uptime-hh');
-  var mmEl = document.getElementById('uptime-mm');
-  var ssEl = document.getElementById('uptime-ss');
-  var latencyEl = document.getElementById('uptime-latency');
-  var protoEl = document.getElementById('uptime-protocol');
-  var healthEl = document.getElementById('uptime-health');
 
-  if (!isOnline) {
-    if (badge) badge.classList.remove('online');
-    if (statusText) statusText.textContent = 'TUNNEL OFFLINE';
-    if (hhEl) hhEl.textContent = '00';
-    if (mmEl) mmEl.textContent = '00';
-    if (ssEl) ssEl.textContent = '00';
-    if (latencyEl) latencyEl.textContent = '—';
-    if (protoEl) protoEl.textContent = 'TLS / Inactive';
-    if (healthEl) healthEl.textContent = 'Standby';
+  if (t && t.status === 'online') {
+    var accurateStart = null;
+    if (t.started_at) {
+      accurateStart = Math.floor(t.started_at * 1000);
+    } else if (t.uptime_seconds) {
+      accurateStart = Date.now() - (t.uptime_seconds * 1000);
+    }
+
+    if (accurateStart && (!tunnelUptimeStart || Math.abs(tunnelUptimeStart - accurateStart) > 2000)) {
+      tunnelUptimeStart = accurateStart;
+      try {
+        localStorage.setItem(STORAGE_TUNNEL_START_KEY, String(accurateStart));
+      } catch (e) {}
+    } else if (!tunnelUptimeStart) {
+      tunnelUptimeStart = accurateStart || Date.now();
+      try {
+        localStorage.setItem(STORAGE_TUNNEL_START_KEY, String(tunnelUptimeStart));
+      } catch (e) {}
+    }
+  } else if (t && t.status !== 'online') {
     tunnelUptimeStart = null;
+    try {
+      localStorage.removeItem(STORAGE_TUNNEL_START_KEY);
+    } catch (e) {}
+    setSkiper37Digit('h0', 0);
+    setSkiper37Digit('h1', 0);
+    setSkiper37Digit('m0', 0);
+    setSkiper37Digit('m1', 0);
+    setSkiper37Digit('s0', 0);
+    setSkiper37Digit('s1', 0);
     return;
   }
 
-  if (badge) badge.classList.add('online');
-  if (statusText) statusText.textContent = 'TUNNEL ONLINE';
-  if (protoEl) protoEl.textContent = (t.proto || 'https').toUpperCase() + ' / TLS 1.3';
-  if (healthEl) healthEl.textContent = '99.9%';
-
   if (!tunnelUptimeStart) {
-    if (t.uptime_seconds) {
-      tunnelUptimeStart = Date.now() - (t.uptime_seconds * 1000);
-    } else if (t.started_at) {
-      tunnelUptimeStart = t.started_at * 1000;
-    } else {
-      tunnelUptimeStart = Date.now();
-    }
+    setSkiper37Digit('h0', 0);
+    setSkiper37Digit('h1', 0);
+    setSkiper37Digit('m0', 0);
+    setSkiper37Digit('m1', 0);
+    setSkiper37Digit('s0', 0);
+    setSkiper37Digit('s1', 0);
+    return;
   }
 
   var elapsedMs = Math.max(0, Date.now() - tunnelUptimeStart);
@@ -7213,31 +7272,19 @@ function updateUptimeDisplay() {
   var mins = Math.floor((totalSec % 3600) / 60);
   var secs = totalSec % 60;
 
-  var strH = hrs < 10 ? '0' + hrs : '' + hrs;
-  var strM = mins < 10 ? '0' + mins : '' + mins;
-  var strS = secs < 10 ? '0' + secs : '' + secs;
+  var h0 = Math.floor(hrs / 10) % 10;
+  var h1 = hrs % 10;
+  var m0 = Math.floor(mins / 10);
+  var m1 = mins % 10;
+  var s0 = Math.floor(secs / 10);
+  var s1 = secs % 10;
 
-  if (hhEl && hhEl.textContent !== strH) {
-    hhEl.textContent = strH;
-    animateDigit(hhEl);
-  }
-  if (mmEl && mmEl.textContent !== strM) {
-    mmEl.textContent = strM;
-    animateDigit(mmEl);
-  }
-  if (ssEl && ssEl.textContent !== strS) {
-    ssEl.textContent = strS;
-    animateDigit(ssEl);
-  }
-
-  if (latencyEl) {
-    var lastPingTime = Number(latencyEl.dataset.updated || 0);
-    if (!lastPingTime || Date.now() - lastPingTime > 4000) {
-      latencyEl.dataset.updated = Date.now();
-      var ping = Math.floor(24 + Math.random() * 14);
-      latencyEl.textContent = ping + ' ms';
-    }
-  }
+  setSkiper37Digit('h0', h0);
+  setSkiper37Digit('h1', h1);
+  setSkiper37Digit('m0', m0);
+  setSkiper37Digit('m1', m1);
+  setSkiper37Digit('s0', s0);
+  setSkiper37Digit('s1', s1);
 }
 
 function startUptimeTracker() {

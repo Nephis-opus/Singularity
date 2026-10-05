@@ -27,6 +27,31 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 _tunnel_started_at: Optional[float] = None
 
 
+def get_ngrok_process_start_time() -> Optional[float]:
+    """Retrieve the real process start timestamp of the active ngrok process across Linux/Termux/macOS/Windows."""
+    try:
+        if sys.platform != "win32":
+            res = subprocess.run(["pgrep", "-x", "ngrok"], capture_output=True, text=True, timeout=1.5)
+            if res.returncode == 0:
+                pids = [int(p) for p in res.stdout.split() if p.isdigit()]
+                for p in pids:
+                    proc_dir = f"/proc/{p}"
+                    if os.path.exists(proc_dir):
+                        return os.path.getmtime(proc_dir)
+        else:
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", "(Get-Process ngrok -ErrorAction SilentlyContinue).StartTime.ToString('o')"],
+                capture_output=True, text=True, timeout=2
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                from datetime import datetime
+                dt = datetime.fromisoformat(res.stdout.strip())
+                return dt.timestamp()
+    except Exception:
+        pass
+    return None
+
+
 def is_termux() -> bool:
     """Return True if running inside Termux on Android."""
     prefix = os.environ.get("PREFIX", "")
@@ -360,9 +385,12 @@ def get_tunnel_status() -> Dict[str, Any]:
             tunnels = data.get("tunnels", [])
             if tunnels:
                 global _tunnel_started_at
-                if _tunnel_started_at is None:
+                proc_start = get_ngrok_process_start_time()
+                if proc_start:
+                    _tunnel_started_at = proc_start
+                elif _tunnel_started_at is None:
                     _tunnel_started_at = time.time()
-                uptime_seconds = int(time.time() - _tunnel_started_at)
+                uptime_seconds = max(0, int(time.time() - _tunnel_started_at))
                 https_tunnels = [t for t in tunnels if t.get("proto") == "https" or str(t.get("public_url", "")).startswith("https")]
                 t = https_tunnels[0] if https_tunnels else tunnels[0]
                 public_url = (t.get("public_url") or "").rstrip("/")

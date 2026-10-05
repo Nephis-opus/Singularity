@@ -1148,233 +1148,115 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
 }
 
 /* ===================================================================
-   Skiper37 Live Server Uptime Tracker (@skiper-ui/skiper37 inspired)
+   Skiper37 Live Server Uptime Tracker (@skiper-ui/skiper37)
    =================================================================== */
 .tunnel-uptime-card {
   position: absolute;
-  left: 20px;
-  top: 20px;
+  left: 32px;
+  top: 28px;
   z-index: 10;
-  width: 260px;
-  max-width: calc(100% - 40px);
-  background: rgba(14, 14, 14, 0.78);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-xl, 14px);
-  padding: 16px 18px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  padding: 18px 24px;
+  border-radius: 18px;
+  background: rgba(12, 12, 12, 0.65);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
   pointer-events: auto;
   user-select: none;
-  transition: transform var(--duration-smooth) var(--ease-spring), border-color var(--duration-fast);
+  transition: transform 0.25s var(--ease-spring), border-color 0.2s ease, box-shadow 0.25s ease;
 }
 
 [data-theme="light"] .tunnel-uptime-card {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.82);
   border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
 }
 
 .tunnel-uptime-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(219, 125, 37, 0.28);
+  border-color: rgba(219, 125, 37, 0.35);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6), 0 0 20px rgba(219, 125, 37, 0.12);
 }
 
-.uptime-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.uptime-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  border-radius: var(--radius-pill, 9999px);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-[data-theme="light"] .uptime-status-badge {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.06);
-}
-
-.uptime-pulse-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--text-muted, #78716c);
-  position: relative;
-  transition: background-color var(--duration-fast);
-}
-
-.uptime-status-badge.online {
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.28);
-}
-
-.uptime-status-badge.online .uptime-pulse-dot {
-  background-color: #10b981;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
-}
-
-.uptime-status-badge.online .uptime-pulse-dot::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  border-radius: 50%;
-  border: 1.5px solid #10b981;
-  animation: uptimePulse 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
-}
-
-@keyframes uptimePulse {
-  0% {
-    transform: scale(0.9);
-    opacity: 0.9;
-  }
-  100% {
-    transform: scale(2.2);
-    opacity: 0;
-  }
-}
-
-.uptime-status-text {
-  font-size: 10px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
-
-.uptime-status-badge.online .uptime-status-text {
-  color: #10b981;
-}
-
-.uptime-tag {
-  font-size: 10px;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: #db7d25;
-  background: rgba(219, 125, 37, 0.12);
-  border: 1px solid rgba(219, 125, 37, 0.24);
-  padding: 2px 6px;
-  border-radius: var(--radius-xs, 4px);
-}
-
-.uptime-timer-container {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.uptime-label {
-  font-size: 10px;
-  font-family: var(--font-sans);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-
-.uptime-digits-wrap {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.uptime-digit-group {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
-}
-
-.uptime-digit {
-  font-family: var(--font-mono);
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-  display: inline-block;
-  min-width: 32px;
-}
-
-.uptime-unit {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  color: #db7d25;
-  text-transform: lowercase;
-}
-
-.uptime-sep {
-  font-family: var(--font-mono);
-  font-size: 20px;
+.tunnel-uptime-header {
+  font-family: 'Anthropic Serif Display', 'Anthropic Serif', var(--font-serif) !important;
+  font-size: 32px;
   font-weight: 400;
-  color: var(--text-muted);
-  opacity: 0.45;
-  margin: 0 1px;
+  line-height: 1.15;
+  color: var(--text-primary);
+  letter-spacing: -0.022em;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-.uptime-metrics-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 12px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-[data-theme="light"] .uptime-metrics-grid {
-  border-top-color: rgba(0, 0, 0, 0.06);
-}
-
-.uptime-metric-item {
+/* Skiper37 Rolling Digits Viewport */
+.skiper37-timer {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.skiper37-unit-group {
+  display: inline-flex;
+  align-items: flex-end;
   gap: 2px;
 }
 
-.metric-title {
-  font-size: 9px;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+.skiper37-digit-col {
+  width: 36px;
+  height: 60px;
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 16%, black 84%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 16%, black 84%, transparent 100%);
 }
 
-.metric-value {
-  font-size: 12px;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--text-secondary);
+.skiper37-digit-track {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
 }
 
-.metric-value.text-accent {
+.skiper37-digit-track span {
+  display: block;
+  height: 60px;
+  line-height: 60px;
+  font-size: 54px;
+  font-weight: 700;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  text-align: center;
+  user-select: none;
+}
+
+.skiper37-colon {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 38px;
+  font-weight: 300;
   color: #db7d25;
+  opacity: 0.7;
+  align-self: center;
+  margin: 0 4px;
+  padding-bottom: 6px;
+  line-height: 1;
 }
 
-@keyframes digitRoll {
-  0% {
-    transform: translateY(3px);
-    opacity: 0.6;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.digit-roll {
-  animation: digitRoll 240ms cubic-bezier(0.16, 1, 0.3, 1);
+.skiper37-unit-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 14px;
+  font-weight: 600;
+  color: #db7d25;
+  align-self: flex-end;
+  padding-bottom: 8px;
+  margin-left: 2px;
+  margin-right: 2px;
 }
 
 @media (max-width: 768px) {
@@ -1383,7 +1265,28 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
     left: auto;
     top: auto;
     width: 100%;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
+    padding: 14px 18px;
+  }
+  .tunnel-uptime-header {
+    font-size: 24px;
+  }
+  .skiper37-digit-col {
+    width: 26px;
+    height: 44px;
+  }
+  .skiper37-digit-track span {
+    height: 44px;
+    line-height: 44px;
+    font-size: 38px;
+  }
+  .skiper37-colon {
+    font-size: 26px;
+    padding-bottom: 4px;
+  }
+  .skiper37-unit-label {
+    font-size: 11px;
+    padding-bottom: 5px;
   }
 }
 
