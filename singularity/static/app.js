@@ -7308,7 +7308,8 @@ var GUIDE_STEPS = [
   {
     id: 1,
     title: "1. Create Free Account",
-    description: "Sign up at dashboard.ngrok.com to access your private tunnel credentials.",
+    description: "Sign up at <a href=\"https://dashboard.ngrok.com\" target=\"_blank\" rel=\"noopener noreferrer\">dashboard.ngrok.com</a> to access your private tunnel credentials.",
+    url: "https://dashboard.ngrok.com",
     svg: `<svg viewBox="0 0 160 160" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="vg1" x1="0" y1="0" x2="1" y2="1">
@@ -7325,7 +7326,7 @@ var GUIDE_STEPS = [
       <circle cx="80" cy="65" r="30" fill="none" stroke="#db7d25" stroke-width="1.5" stroke-dasharray="3 3"/>
       <path d="M80 46 A11 11 0 1 0 80 68 A11 11 0 1 0 80 46 Z M65 82 C65 72 72 68 80 68 C88 68 95 72 95 82 Z" fill="url(#vog1)"/>
       <rect x="18" y="116" width="124" height="24" rx="6" fill="#18181b" stroke="#27272a" stroke-width="1"/>
-      <text x="80" y="132" fill="#db7d25" font-family="monospace" font-size="9" font-weight="700" text-anchor="middle" letter-spacing="1">DASHBOARD.NGROK.COM</text>
+      <text x="80" y="132" fill="#db7d25" font-family="monospace" font-size="8.5" font-weight="700" text-anchor="middle" letter-spacing="0.8">DASHBOARD.NGROK.COM ↗</text>
     </svg>`,
     image: null
   },
@@ -7415,17 +7416,36 @@ function initGuideCardsDOM() {
       var card = document.createElement('div');
       card.className = 'guide-card-item';
       card.dataset.index = index;
-      if (step.image) {
-        var img = document.createElement('img');
-        img.src = step.image;
-        img.alt = step.title;
-        img.draggable = false;
-        card.appendChild(img);
-      } else if (step.svg) {
-        card.innerHTML = step.svg;
+      if (step.url) {
+        card.dataset.hasUrl = 'true';
+        card.setAttribute('title', 'Click to open ' + step.url.replace(/^https?:\/\//, ''));
       }
-      card.addEventListener('click', function() {
-        if (!guideIsAnimating && index !== guideActiveIndex) {
+
+      var innerHtml = '';
+      if (step.image) {
+        innerHtml = '<img src="' + step.image + '" alt="' + step.title + '" draggable="false">';
+      } else if (step.svg) {
+        innerHtml = step.svg;
+      }
+
+      if (step.url) {
+        card.innerHTML = '<a href="' + step.url + '" target="_blank" rel="noopener noreferrer" class="guide-card-link" aria-label="' + step.title + '">' + innerHtml + '</a>';
+      } else {
+        card.innerHTML = innerHtml;
+      }
+
+      card.addEventListener('click', function(e) {
+        if (guideIsAnimating) {
+          e.preventDefault();
+          return;
+        }
+        if (index === guideActiveIndex) {
+          if (step.url) {
+            window.open(step.url, '_blank', 'noopener,noreferrer');
+            e.preventDefault();
+          }
+        } else {
+          e.preventDefault();
           animateGuideDeck(index, index > guideActiveIndex ? 1 : -1);
         }
       });
@@ -7475,7 +7495,7 @@ function setGuideCardsStatic() {
 
   if (counterEl) counterEl.textContent = (guideActiveIndex + 1) + ' / ' + GUIDE_STEPS.length;
   if (titleEl) titleEl.textContent = currentStep.title;
-  if (descEl) descEl.textContent = currentStep.description;
+  if (descEl) descEl.innerHTML = currentStep.description;
   if (btnPrev) btnPrev.disabled = (guideActiveIndex === 0);
   if (btnNext) btnNext.disabled = (guideActiveIndex === GUIDE_STEPS.length - 1);
 }
@@ -7513,7 +7533,7 @@ function animateGuideDeck(targetIndex, direction) {
       fill: 'forwards'
     }).onfinish = function() {
       titleEl.textContent = currentStep.title;
-      descEl.textContent = currentStep.description;
+      descEl.innerHTML = currentStep.description;
       textWrapper.animate([
         { opacity: 0, transform: 'translateY(' + (dir === 1 ? 25 : -25) + 'px)' },
         { opacity: 1, transform: 'translateY(0px)' }
