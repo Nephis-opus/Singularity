@@ -683,6 +683,21 @@ body:not([data-active-tab="control"]) .top-bar {
   animation: none !important;
 }
 
+#pane-bio {
+  height: 100%;
+  width: 100%;
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+#pane-bio.active {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
 body[data-active-tab="playground"] .panel-viewport {
   padding: 0 !important;
   overflow: hidden !important;
@@ -697,37 +712,183 @@ body[data-active-tab="tunnel"] .panel-viewport,
 }
 
 /* ===================================================================
-   Singularity-Access Pitch Black Background (#000000 in Dark Mode)
+   Universal Pitch Black Background (#000000 in Dark Mode)
+   Across ALL Sections, Panes, Modals, Popovers & Notifications
    =================================================================== */
-[data-theme="dark"] body[data-active-tab="tunnel"],
-body[data-active-tab="tunnel"][data-theme="dark"],
-[data-theme="dark"] html[data-active-tab="tunnel"],
-html[data-active-tab="tunnel"][data-theme="dark"] {
+[data-theme="dark"] body,
+body[data-theme="dark"],
+[data-theme="dark"] html,
+html[data-theme="dark"],
+:root:not([data-theme="light"]) body,
+:root:not([data-theme="light"]) html {
   --bg-primary: #000000 !important;
   --bg-secondary: #000000 !important;
   --bg-sidebar: #000000 !important;
-  --bg-glass: rgba(0, 0, 0, 0.88) !important;
+  --bg-surface: #000000 !important;
+  --bg-glass: rgba(0, 0, 0, 0.92) !important;
   background-color: #000000 !important;
 }
 
-[data-theme="dark"] body[data-active-tab="tunnel"] #app,
-[data-theme="dark"] body[data-active-tab="tunnel"] .main-content,
-[data-theme="dark"] body[data-active-tab="tunnel"] .panel-viewport,
-[data-theme="dark"] body[data-active-tab="tunnel"] #pane-tunnel,
-[data-theme="dark"] body[data-active-tab="tunnel"] .tunnel-container,
-[data-theme="dark"] body[data-active-tab="tunnel"] .tunnel-globe-wrapper {
+/* Master Layout Containers */
+[data-theme="dark"] #app,
+:root:not([data-theme="light"]) #app,
+[data-theme="dark"] .main-content,
+:root:not([data-theme="light"]) .main-content,
+[data-theme="dark"] .panel-viewport,
+:root:not([data-theme="light"]) .panel-viewport,
+[data-theme="dark"] .sidebar,
+:root:not([data-theme="light"]) .sidebar,
+[data-theme="dark"] .tab-pane,
+:root:not([data-theme="light"]) .tab-pane,
+[data-theme="dark"] .view-pane,
+:root:not([data-theme="light"]) .view-pane {
   background-color: #000000 !important;
 }
 
-[data-theme="dark"] body[data-active-tab="tunnel"] #tunnel-hero {
+/* All Panes / Sections */
+[data-theme="dark"] #pane-playground,
+[data-theme="dark"] #pane-providers,
+[data-theme="dark"] #pane-accounts,
+[data-theme="dark"] #pane-limits,
+[data-theme="dark"] #pane-tunnel,
+[data-theme="dark"] #pane-bio,
+[data-theme="dark"] #pane-presets,
+[data-theme="dark"] #pane-connections,
+:root:not([data-theme="light"]) #pane-playground,
+:root:not([data-theme="light"]) #pane-providers,
+:root:not([data-theme="light"]) #pane-accounts,
+:root:not([data-theme="light"]) #pane-limits,
+:root:not([data-theme="light"]) #pane-tunnel,
+:root:not([data-theme="light"]) #pane-bio,
+:root:not([data-theme="light"]) #pane-presets,
+:root:not([data-theme="light"]) #pane-connections,
+[data-theme="dark"] .playground-container,
+[data-theme="dark"] .playground-chat-viewport,
+[data-theme="dark"] .playground-messages,
+[data-theme="dark"] .claude-playground-container,
+[data-theme="dark"] .claude-chat-scroll,
+[data-theme="dark"] .claude-chat-viewport,
+[data-theme="dark"] .claude-flow-wrapper,
+[data-theme="dark"] .tunnel-container,
+[data-theme="dark"] .tunnel-globe-wrapper,
+[data-theme="dark"] .bio-studio-container,
+[data-theme="dark"] .bio-studio-main {
+  background-color: #000000 !important;
+}
+
+/* Modals & Dialogs (Settings, Lightbox, etc.) */
+[data-theme="dark"] .claude-settings-backdrop,
+:root:not([data-theme="light"]) .claude-settings-backdrop {
+  background-color: rgba(0, 0, 0, 0.75) !important;
+}
+
+[data-theme="dark"] .claude-settings-dialog,
+:root:not([data-theme="light"]) .claude-settings-dialog,
+[data-theme="dark"] .claude-settings-sidebar,
+:root:not([data-theme="light"]) .claude-settings-sidebar,
+[data-theme="dark"] .claude-settings-content,
+:root:not([data-theme="light"]) .claude-settings-content,
+[data-theme="dark"] .lightbox-modal,
+:root:not([data-theme="light"]) .lightbox-modal,
+[data-theme="dark"] .lightbox-content,
+:root:not([data-theme="light"]) .lightbox-content {
+  background-color: #000000 !important;
+}
+
+[data-theme="dark"] .claude-settings-dialog,
+:root:not([data-theme="light"]) .claude-settings-dialog {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+}
+
+[data-theme="dark"] .claude-settings-sidebar,
+:root:not([data-theme="light"]) .claude-settings-sidebar {
+  border-right-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .claude-settings-search-input,
+:root:not([data-theme="light"]) .claude-settings-search-input {
   background-color: #080808 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Parameters & System Prompt Popover */
+[data-theme="dark"] .playground-settings-dropdown,
+:root:not([data-theme="light"]) .playground-settings-dropdown,
+[data-theme="dark"] .playground-settings-popover,
+:root:not([data-theme="light"]) .playground-settings-popover {
+  background: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+}
+
+[data-theme="dark"] .param-model-indicator,
+:root:not([data-theme="light"]) .param-model-indicator {
+  background: #080808 !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-[data-theme="dark"] body[data-active-tab="tunnel"] #tunnel-hero .endpoint-copy-row,
-[data-theme="dark"] body[data-active-tab="tunnel"] #tunnel-hero #input-ngrok-authtoken {
-  background-color: #121212 !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+/* Notifications & Toasts */
+[data-theme="dark"] #toast-container .toast,
+:root:not([data-theme="light"]) #toast-container .toast,
+[data-theme="dark"] .bio-toast,
+:root:not([data-theme="light"]) .bio-toast {
+  background-color: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.95) !important;
+}
+
+/* Dropdown menus & Select Popovers */
+[data-theme="dark"] .custom-select-popover,
+:root:not([data-theme="light"]) .custom-select-popover,
+[data-theme="dark"] .custom-select-menu,
+:root:not([data-theme="light"]) .custom-select-menu,
+[data-theme="dark"] .model-selector-popover,
+:root:not([data-theme="light"]) .model-selector-popover,
+[data-theme="dark"] .claude-custom-select-menu,
+:root:not([data-theme="light"]) .claude-custom-select-menu,
+[data-theme="dark"] .preset-dropdown,
+:root:not([data-theme="light"]) .preset-dropdown {
+  background: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95) !important;
+}
+
+/* Cards & Surface Elements in Dark Mode */
+[data-theme="dark"] .provider-card,
+:root:not([data-theme="light"]) .provider-card,
+[data-theme="dark"] .account-card,
+:root:not([data-theme="light"]) .account-card,
+[data-theme="dark"] .limit-card,
+:root:not([data-theme="light"]) .limit-card,
+[data-theme="dark"] .limits-summary-card,
+:root:not([data-theme="light"]) .limits-summary-card,
+[data-theme="dark"] .bio-auth-card,
+:root:not([data-theme="light"]) .bio-auth-card,
+[data-theme="dark"] .bio-editor-pane,
+:root:not([data-theme="light"]) .bio-editor-pane,
+[data-theme="dark"] .bio-preview-pane,
+:root:not([data-theme="light"]) .bio-preview-pane,
+[data-theme="dark"] .conn-form,
+:root:not([data-theme="light"]) .conn-form,
+[data-theme="dark"] .preset-block,
+:root:not([data-theme="light"]) .preset-block,
+[data-theme="dark"] #tunnel-hero,
+:root:not([data-theme="light"]) #tunnel-hero {
+  background-color: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] #tunnel-hero .endpoint-copy-row,
+[data-theme="dark"] #tunnel-hero #input-ngrok-authtoken,
+:root:not([data-theme="light"]) #tunnel-hero .endpoint-copy-row,
+:root:not([data-theme="light"]) #tunnel-hero #input-ngrok-authtoken,
+[data-theme="dark"] .bio-field-group .bio-input,
+:root:not([data-theme="light"]) .bio-field-group .bio-input,
+[data-theme="dark"] .bio-editor-textarea,
+:root:not([data-theme="light"]) .bio-editor-textarea {
+  background-color: #080808 !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
 }
 
 #pane-tunnel {
@@ -2213,6 +2374,47 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
   overflow: hidden;
 }
 
+/* VengeanceUI Animated Light Lines Background */
+.playground-light-lines-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  user-select: none;
+  -webkit-mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 45%, rgba(0, 0, 0, 0.5) 80%, rgba(0, 0, 0, 0) 100%);
+  mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 45%, rgba(0, 0, 0, 0.5) 80%, rgba(0, 0, 0, 0) 100%);
+}
+
+.playground-light-lines-bg svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.playground-light-lines-bg .lines .line {
+  fill: rgba(255, 255, 255, 0.05);
+}
+
+.playground-light-lines-bg .lights .light {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.65));
+  will-change: transform;
+}
+
+[data-theme="light"] .playground-light-lines-bg .lines .line {
+  fill: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .playground-light-lines-bg .lights .light {
+  fill: var(--brand-primary, #d97757);
+  filter: drop-shadow(0 0 5px rgba(217, 119, 87, 0.5));
+}
+
 /* Top Floating Bar */
 .claude-top-bar {
   height: 54px;
@@ -2343,7 +2545,7 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
   margin: 0 auto;
   padding: 12px 20px 20px;
   position: relative;
-  background: linear-gradient(180deg, rgba(20, 20, 20, 0) 0%, var(--bg-primary) 30%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, var(--bg-primary) 30%);
 }
 
 .claude-playground-container.has-messages .claude-hero-section {
@@ -3909,7 +4111,7 @@ body:not([data-theme="dark"]) .chat-md-inline-code {
   flex-direction: column;
   align-items: center;
   padding: 8px 20px 16px;
-  background: linear-gradient(180deg, rgba(21, 21, 21, 0) 0%, var(--bg-primary) 30%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, var(--bg-primary) 30%);
   flex-shrink: 0;
 }
 

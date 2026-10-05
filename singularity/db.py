@@ -2006,10 +2006,10 @@ def list_presets() -> List[Dict[str, Any]]:
 
 def get_preset(name: str) -> Optional[Dict[str, Any]]:
     init_db()
-    if not isinstance(name, str):
+    if not isinstance(name, str) or not name.strip():
         return None
     with closing(get_db_connection()) as conn:
-        row = conn.execute("SELECT * FROM presets WHERE name = ?", (name.strip().lower(),)).fetchone()
+        row = conn.execute("SELECT * FROM presets WHERE name = ? COLLATE NOCASE", (name.strip(),)).fetchone()
     return _preset_row(row) if row else None
 
 

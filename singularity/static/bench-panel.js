@@ -189,6 +189,9 @@
 
     function setVal(v, notify) {
       current = String(v);
+      wrap.dataset.value = current;
+      btn.dataset.value = current;
+      btn.value = current;
       labelSpan.textContent = getLabel(current);
       items.forEach((b) => {
         b.classList.toggle('active', b.getAttribute('data-value') === current);
@@ -196,8 +199,11 @@
       if (notify) {
         if (typeof onChange === 'function') onChange(current);
         wrap.dispatchEvent(new Event('change', { bubbles: true }));
+        btn.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
+
+    setVal(current, false);
 
     function closeMenu() {
       menu.classList.remove('open');
@@ -246,6 +252,13 @@
       enumerable: true,
     });
 
+    Object.defineProperty(btn, 'value', {
+      get() { return current; },
+      set(v) { setVal(v, false); },
+      configurable: true,
+      enumerable: true,
+    });
+
     return wrap;
   }
 
@@ -255,6 +268,7 @@
     const box = root.querySelector('#bench-controls');
     box.textContent = '';
     const wanted = store('singularity_bench_preset') || (state.presets[0] ? state.presets[0].name : '');
+    if (wanted) store('singularity_bench_preset', wanted);
     const preset = select(
       state.presets.map((p) => [p.name, p.name]),
       wanted,
@@ -440,9 +454,12 @@
 
   async function start() {
     const root = root_();
-    const preset = root.querySelector('#bench-preset').value;
+    const presetEl = root.querySelector('#bench-preset') || root.querySelector('#bench-preset-wrap');
+    let preset = (presetEl && (presetEl.value || presetEl.dataset?.value)) || store('singularity_bench_preset') || (state.presets[0] ? state.presets[0].name : '');
+    if (typeof preset === 'string') preset = preset.trim();
     const model = root.querySelector('#bench-model').value.trim();
     const card = root.querySelector('#bench-card').value;
+    if (!preset) { toast('Pick a preset that exists.', 'error'); return; }
     if (!model) { toast('Type the model to test, for example kimi-k3', 'error'); return; }
     try {
       const run = await api('/runs', { method: 'POST', body: JSON.stringify({ preset, model, card, scenarios: [...state.picked] }) });

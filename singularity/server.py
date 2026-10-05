@@ -2466,7 +2466,10 @@ async def api_start_bench_run(request: Request):
     body = await _json_object(request)
     if _BENCH["run_id"] is not None:
         return _bench_error("A test run is already going. Wait for it or cancel it.", 409)
-    preset = db.get_preset(body.get("preset")) if isinstance(body.get("preset"), str) else None
+    req_preset = body.get("preset")
+    if (not req_preset or not str(req_preset).strip()) and db.list_presets():
+        req_preset = db.list_presets()[0]["name"]
+    preset = db.get_preset(req_preset) if isinstance(req_preset, str) else None
     if not preset:
         return _bench_error("Pick a preset that exists.")
     model = body.get("model")
@@ -2874,6 +2877,116 @@ async def api_install_tunnel(request: Request):
         body = {}
     force = bool(body.get("force", False))
     return tunnel.install_ngrok(force=force)
+
+
+def _extract_clean_jwt(token_str: str) -> str:
+    s = token_str.strip()
+    if s.startswith("Bearer "):
+        s = s[7:].strip()
+    import re, base64
+    m = re.search(r'(eyJhbGci[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)', s)
+    if m:
+        return m.group(1)
+    clean_b64 = s.replace("base64-", "").replace("-", "+").replace("_", "/")
+    clean_b64 += "=" * (-len(clean_b64) % 4)
+    try:
+        decoded = base64.b64decode(clean_b64).decode("utf-8", errors="ignore")
+        m2 = re.search(r'(eyJhbGci[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)', decoded)
+        if m2:
+            return m2.group(1)
+    except Exception:
+        pass
+    return s
+
+
+@app.post("/api/janitor/autofetch")
+async def api_janitor_autofetch(request: Request):
+    """Auto-fetches the freshest valid JanitorAI access token from local browsers."""
+    try:
+        from singularity.janitor import auto_fetch_janitor_token
+        result = auto_fetch_janitor_token()
+        status_code = 200 if result.get("ok") else 404
+        return JSONResponse(result, status_code=status_code)
+    except Exception as exc:
+        return JSONResponse({
+            "ok": False,
+            "status_code": 500,
+            "detail": f"Failed to auto-fetch browser token: {str(exc)}"
+        }, status_code=500)
+
+
+@app.post("/api/janitor/deploy")
+async def api_janitor_deploy(request: Request):
+    """Directly deploy/patch character description on JanitorAI using user UUID and Access Token."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    char_uuid = str(body.get("uuid", "")).strip()
+    raw_token = str(body.get("token", "")).strip()
+    token = _extract_clean_jwt(raw_token)
+    description = body.get("description", "")
+
+    if not char_uuid:
+        raise HTTPException(status_code=400, detail="Missing character UUID")
+    if not token:
+        raise HTTPException(status_code=400, detail="Missing JanitorAI Access Token")
+    if not description:
+        raise HTTPException(status_code=400, detail="Bio description content is empty")
+
+    # Pre-validate JWT expiration to give instant actionable guidance
+    try:
+        parts = token.split(".")
+        if len(parts) >= 2:
+            import json as _json, base64 as _b64, time as _time
+            b64_str = parts[1] + "=" * (-len(parts[1]) % 4)
+            jwt_claims = _json.loads(_b64.urlsafe_b64decode(b64_str))
+            exp_ts = jwt_claims.get("exp")
+            if exp_ts and _time.time() > exp_ts:
+                exp_dt = _time.strftime("%Y-%m-%d %H:%M:%S UTC", _time.gmtime(exp_ts))
+                return JSONResponse({
+                    "ok": False,
+                    "status_code": 401,
+                    "detail": f"JanitorAI Access Token expired on {exp_dt}. Supabase tokens only last 1–3 hours. Please refresh your token on janitorai.com or use the 'Copy Console Script' directly in your browser on janitorai.com."
+                }, status_code=401)
+    except Exception:
+        pass
+
+    url = f"https://janitorai.com/mb/characters/{char_uuid}"
+    headers = {
+        "content-type": "application/json",
+        "authorization": f"Bearer {token}",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.patch(url, headers=headers, json={"description": description})
+            try:
+                resp_data = resp.json()
+            except Exception:
+                resp_data = {"raw": resp.text}
+
+            if resp.status_code == 401:
+                detail_msg = "JanitorAI returned 401 (Unauthorized). Your Access Token has expired or is invalid. Please copy a fresh token from janitorai.com or use the self-healing 'Copy Console Script'."
+            elif resp.is_success:
+                detail_msg = "Bio successfully deployed to JanitorAI!"
+            else:
+                detail_msg = f"JanitorAI returned HTTP {resp.status_code}: {resp.text[:200]}"
+
+            return JSONResponse({
+                "ok": resp.is_success,
+                "status_code": resp.status_code,
+                "data": resp_data,
+                "detail": detail_msg
+            }, status_code=resp.status_code if not resp.is_success else 200)
+    except Exception as exc:
+        return JSONResponse({
+            "ok": False,
+            "status_code": 502,
+            "detail": f"Network error contacting JanitorAI: {str(exc)}"
+        }, status_code=502)
 
 
 # -------------------------------------------------------------------

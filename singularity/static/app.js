@@ -1357,6 +1357,10 @@ function switchTab(tabId) {
       h: 'Singularity-Access',
       sub: '',
     },
+    bio: {
+      h: 'Janitor Bio Studio',
+      sub: '',
+    },
   }[tabId] || { h: 'Singularity', sub: '' };
 
   if (heading) heading.textContent = titles.h;
@@ -1374,6 +1378,9 @@ function switchTab(tabId) {
     }
     if (tabId === 'presets') {
       if (window.SingularityPresets?.show) window.SingularityPresets.show();
+    }
+    if (tabId === 'bio') {
+      if (window.JanitorBioStudio?.init) window.JanitorBioStudio.init();
     }
     if (tabId === 'tunnel') {
       loadTunnelTab();
@@ -3238,8 +3245,8 @@ function startCanvasFluidSimulation(canvas, progressPill) {
 
       vec3 color;
       if (u_is_dark > 0.5) {
-        // DARK THEME: UI background color #141414 with glowing #d97757 terracotta streams
-        vec3 bgDark = vec3(0.0784, 0.0784, 0.0784);
+        // DARK THEME: UI background color #000000 with glowing #d97757 terracotta streams
+        vec3 bgDark = vec3(0.0, 0.0, 0.0);
         vec3 terra = vec3(0.851, 0.467, 0.341); // #d97757
         vec3 peach = vec3(0.988, 0.68, 0.56);
         vec3 stream = mix(terra, peach, detail * 0.5);
@@ -3390,8 +3397,8 @@ function startCanvasFluidSimulation(canvas, progressPill) {
     const t = (performance.now() - startTime2D) * 0.001;
     const isDark = isThemeDark();
 
-    // Pure white in light mode, UI dark in dark mode
-    ctx.fillStyle = isDark ? '#141414' : '#ffffff';
+    // Pure white in light mode, pitch black #000000 in dark mode
+    ctx.fillStyle = isDark ? '#000000' : '#ffffff';
     ctx.fillRect(0, 0, w, h);
 
     // Render smooth layered fluid plumes in #d97757
@@ -5543,7 +5550,88 @@ function initArtifactResizer() {
   window.addEventListener('touchend', stopDrag, { passive: true });
 }
 
+// ===================================================================
+// VengeanceUI Animated Light Lines (Playground Background)
+// ===================================================================
+let playgroundLightLinesRunning = false;
+
+function initPlaygroundLightLines() {
+  if (playgroundLightLinesRunning) return;
+  const container = document.getElementById('playground-light-lines');
+  if (!container) return;
+
+  const lightsDown = [
+    { selector: '.light4', from: -1080, to: 1080 },
+    { selector: '.light5', from: -1080, to: 1080 },
+    { selector: '.light6', from: -1080, to: 1080 },
+    { selector: '.light7', from: -1080, to: 1080 },
+    { selector: '.light8', from: -1080, to: 1080 },
+    { selector: '.light11', from: -1080, to: 1080 },
+    { selector: '.light12', from: -1080, to: 1080 },
+    { selector: '.light13', from: -1080, to: 1080 },
+    { selector: '.light14', from: -1080, to: 1080 },
+    { selector: '.light15', from: -1080, to: 1080 },
+    { selector: '.light16', from: -1080, to: 1080 },
+  ];
+
+  const lightsUp = [
+    { selector: '.light1', from: 1080, to: -1080 },
+    { selector: '.light2', from: 1080, to: -1080 },
+    { selector: '.light3', from: 1080, to: -1080 },
+    { selector: '.light9', from: 1080, to: -1080 },
+    { selector: '.light10', from: 1080, to: -1080 },
+    { selector: '.light17', from: 1080, to: -1080 },
+  ];
+
+  const allLights = [...lightsDown, ...lightsUp];
+  const animations = allLights.map(light => {
+    const element = container.querySelector(light.selector);
+    const duration = ((Math.floor(Math.random() * 59) + 2) * 0.5 + 0.5);
+    return {
+      element,
+      from: light.from,
+      to: light.to,
+      duration,
+      startTime: performance.now() - Math.random() * 5000,
+    };
+  });
+
+  let isVisible = true;
+  let frameId = null;
+
+  const animate = (time) => {
+    if (!isVisible) {
+      frameId = requestAnimationFrame(animate);
+      return;
+    }
+
+    for (let i = 0; i < animations.length; i++) {
+      const ref = animations[i];
+      if (!ref.element) continue;
+
+      const elapsed = (time - ref.startTime) / 1000;
+      const progress = (elapsed % ref.duration) / ref.duration;
+      const currentY = ref.from + (ref.to - ref.from) * progress;
+
+      ref.element.style.transform = `translateY(${currentY}px)`;
+    }
+
+    frameId = requestAnimationFrame(animate);
+  };
+
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(([entry]) => {
+      isVisible = entry.isIntersecting;
+    }, { threshold: 0 });
+    observer.observe(container);
+  }
+
+  playgroundLightLinesRunning = true;
+  frameId = requestAnimationFrame(animate);
+}
+
 function initPlayground() {
+  initPlaygroundLightLines();
   const sendBtn = document.getElementById('btn-send-chat');
   const input = document.getElementById('chat-input');
   const tempRange = document.getElementById('temp-range');

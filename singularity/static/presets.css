@@ -229,8 +229,8 @@
   max-height: 240px;
   overflow-y: auto;
   box-sizing: border-box;
-  background-color: var(--bg-surface, #1e1d1b);
-  border: 1px solid var(--border-medium, #3d3936);
+  background-color: var(--bg-surface, #000000);
+  border: 1px solid var(--border-medium, #262626);
   border-radius: var(--radius-lg, 10px);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
   padding: 5px;

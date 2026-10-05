@@ -256,6 +256,9 @@
 
     function setVal(v, notify) {
       current = String(v);
+      wrap.dataset.value = current;
+      btn.dataset.value = current;
+      btn.value = current;
       labelSpan.textContent = getLabel(current);
       items.forEach((b) => {
         b.classList.toggle('active', b.getAttribute('data-value') === current);
@@ -263,8 +266,11 @@
       if (notify) {
         if (typeof onChange === 'function') onChange(current);
         wrap.dispatchEvent(new Event('change', { bubbles: true }));
+        btn.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
+
+    setVal(current, false);
 
     function closeMenu() {
       menu.classList.remove('open');
@@ -310,6 +316,13 @@
     wrap.appendChild(menu);
 
     Object.defineProperty(wrap, 'value', {
+      get() { return current; },
+      set(v) { setVal(v, false); },
+      configurable: true,
+      enumerable: true,
+    });
+
+    Object.defineProperty(btn, 'value', {
       get() { return current; },
       set(v) { setVal(v, false); },
       configurable: true,

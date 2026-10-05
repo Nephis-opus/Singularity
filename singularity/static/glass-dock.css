@@ -145,7 +145,7 @@ body.dock-vertical .claude-playground-container.has-messages .claude-chat-scroll
   gap: 6px;
   padding: 8px 14px;
   border-radius: 20px;
-  background-color: rgba(21, 20, 19, 0.82);
+  background-color: rgba(0, 0, 0, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.09);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -450,6 +450,22 @@ body.dock-vertical .glass-dock-item.active::after {
   animation: tavernSignSwing 0.52s var(--ease-spring) forwards !important;
   color: var(--brand-primary, #d97757);
 }
+
+/* 8. Janitor Bio Studio - Broom Sweep & Sparkle Motion */
+.glass-dock-item[data-dock-id="bio"]:hover svg,
+.glass-dock-item[data-tab="bio"]:hover svg {
+  transform-origin: 30% 80% !important;
+  animation: broomSweepMotion 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+  color: var(--brand-primary, #d97757);
+}
+
+@keyframes broomSweepMotion {
+  0% { transform: rotate(0deg) scale(1); }
+  22% { transform: rotate(-24deg) scale(1.18) translateY(-2px); }
+  50% { transform: rotate(14deg) scale(1.12) translateY(1px); }
+  75% { transform: rotate(-8deg) scale(1.1); }
+  100% { transform: rotate(-10deg) scale(1.14); }
+}
 @keyframes navDollarBounce {
   0% { transform: translateY(0) scale(1) rotate(0deg); }
   35% { transform: translateY(-3.5px) scale(1.18) rotate(-5deg); }
@@ -516,11 +532,11 @@ body.dock-vertical .glass-dock-item.active::after {
   max-width: calc(100vw - 32px);
   height: 600px;
   max-height: calc(100vh - 48px);
-  background-color: var(--bg-surface, #1e1d1b);
-  border: 1px solid var(--border-subtle, #33302c);
+  background-color: var(--bg-surface, #000000);
+  border: 1px solid var(--border-subtle, #262626);
   border-radius: 16px;
-  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.5),
-              0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.8),
+              0 0 0 1px rgba(255, 255, 255, 0.06);
   display: flex;
   overflow: hidden;
   transform: scale(0.96) translateY(6px);
@@ -545,8 +561,8 @@ body.dock-vertical .glass-dock-item.active::after {
 .claude-settings-sidebar {
   width: 230px;
   flex-shrink: 0;
-  background-color: var(--bg-primary, #151515);
-  border-right: 1px solid var(--border-subtle, #2c2926);
+  background-color: var(--bg-primary, #000000);
+  border-right: 1px solid var(--border-subtle, #262626);
   display: flex;
   flex-direction: column;
   padding: 16px 12px;
@@ -576,8 +592,8 @@ body.dock-vertical .glass-dock-item.active::after {
 .claude-settings-search-input {
   width: 100%;
   height: 34px;
-  background-color: var(--bg-surface, #1e1d1b);
-  border: 1px solid var(--border-subtle, #33302c);
+  background-color: var(--bg-surface, #000000);
+  border: 1px solid var(--border-subtle, #262626);
   border-radius: 8px;
   padding: 0 10px 0 32px;
   font-family: var(--font-sans);
@@ -849,8 +865,8 @@ body.dock-vertical .glass-dock-item.active::after {
   height: 34px;
   padding: 0 12px;
   border-radius: 8px;
-  background-color: var(--bg-primary, #151515);
-  border: 1px solid var(--border-subtle, #33302c);
+  background-color: var(--bg-primary, #000000);
+  border: 1px solid var(--border-subtle, #262626);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: 13px;
@@ -875,8 +891,8 @@ body.dock-vertical .glass-dock-item.active::after {
   top: calc(100% + 6px);
   right: 0;
   min-width: 190px;
-  background-color: var(--bg-surface, #1e1d1b);
-  border: 1px solid var(--border-medium, #3d3936);
+  background-color: var(--bg-surface, #000000);
+  border: 1px solid var(--border-medium, #262626);
   border-radius: 10px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
   padding: 4px;
