@@ -7301,10 +7301,225 @@ function stopUptimeTracker() {
   }
 }
 
+// ===================================================================
+// VengeanceUI Testimonials Card Stack Controller (Ngrok Key Guide)
+// ===================================================================
+var GUIDE_STEPS = [
+  {
+    id: 1,
+    title: "1. Create Free Account",
+    description: "Sign up at dashboard.ngrok.com to access your private tunnel credentials.",
+    svg: `<svg viewBox="0 0 160 160" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="vg1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1f1a14"/>
+          <stop offset="100%" stop-color="#0e0e11"/>
+        </linearGradient>
+        <linearGradient id="vog1" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#db7d25"/>
+          <stop offset="100%" stop-color="#f59e0b"/>
+        </linearGradient>
+      </defs>
+      <rect width="160" height="160" fill="url(#vg1)"/>
+      <circle cx="80" cy="65" r="44" fill="#db7d25" opacity="0.08"/>
+      <circle cx="80" cy="65" r="30" fill="none" stroke="#db7d25" stroke-width="1.5" stroke-dasharray="3 3"/>
+      <path d="M80 46 A11 11 0 1 0 80 68 A11 11 0 1 0 80 46 Z M65 82 C65 72 72 68 80 68 C88 68 95 72 95 82 Z" fill="url(#vog1)"/>
+      <rect x="18" y="116" width="124" height="24" rx="6" fill="#18181b" stroke="#27272a" stroke-width="1"/>
+      <text x="80" y="132" fill="#db7d25" font-family="monospace" font-size="9" font-weight="700" text-anchor="middle" letter-spacing="1">DASHBOARD.NGROK.COM</text>
+    </svg>`,
+    image: null
+  },
+  {
+    id: 2,
+    title: "2. Your Authtoken",
+    description: "Navigate to 'Your Authtoken' under Getting Started in the left dashboard sidebar.",
+    svg: `<svg viewBox="0 0 160 160" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="vg2" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1a1c23"/>
+          <stop offset="100%" stop-color="#0d0e12"/>
+        </linearGradient>
+      </defs>
+      <rect width="160" height="160" fill="url(#vg2)"/>
+      <rect x="18" y="24" width="46" height="112" rx="6" fill="#141417" stroke="#27272a" stroke-width="1"/>
+      <line x1="24" y1="36" x2="52" y2="36" stroke="#52525b" stroke-width="2" stroke-linecap="round"/>
+      <line x1="24" y1="46" x2="44" y2="46" stroke="#3f3f46" stroke-width="2" stroke-linecap="round"/>
+      <rect x="22" y="56" width="38" height="16" rx="4" fill="rgba(219, 125, 37, 0.2)" stroke="#db7d25" stroke-width="1"/>
+      <line x1="26" y1="64" x2="52" y2="64" stroke="#db7d25" stroke-width="2" stroke-linecap="round"/>
+      <line x1="24" y1="82" x2="48" y2="82" stroke="#3f3f46" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="110" cy="74" r="28" fill="#db7d25" opacity="0.12"/>
+      <path d="M104 62 A10 10 0 1 0 114 78 L122 86 L128 86 L128 80 L124 80 L124 76 L116 68 A10 10 0 0 0 104 62 Z M102 68 A3 3 0 1 1 108 68 A3 3 0 1 1 102 68 Z" fill="#db7d25"/>
+    </svg>`,
+    image: null
+  },
+  {
+    id: 3,
+    title: "3. Copy Secret Token",
+    description: "Click the 'Copy' button beside your authtoken string to copy it to clipboard.",
+    svg: `<svg viewBox="0 0 160 160" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="vg3" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#181a17"/>
+          <stop offset="100%" stop-color="#0d0f0d"/>
+        </linearGradient>
+      </defs>
+      <rect width="160" height="160" fill="url(#vg3)"/>
+      <rect x="18" y="52" width="124" height="42" rx="8" fill="#131514" stroke="#27272a" stroke-width="1.2"/>
+      <text x="26" y="76" fill="#a1a1aa" font-family="monospace" font-size="11" letter-spacing="2">2tX•••••••••</text>
+      <rect x="108" y="58" width="28" height="30" rx="6" fill="rgba(219, 125, 37, 0.22)" stroke="#db7d25" stroke-width="1"/>
+      <path d="M117 73 L121 77 L128 68" fill="none" stroke="#db7d25" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="80" cy="122" r="12" fill="#10b981" opacity="0.15"/>
+      <text x="80" y="126" fill="#10b981" font-family="monospace" font-size="9" font-weight="700" text-anchor="middle">TOKEN READY</text>
+    </svg>`,
+    image: null
+  },
+  {
+    id: 4,
+    title: "4. Paste & Save",
+    description: "Paste it into the Authtoken field above and click 'Save Token' to activate.",
+    svg: `<svg viewBox="0 0 160 160" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="vg4" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#211710"/>
+          <stop offset="100%" stop-color="#0f0c0a"/>
+        </linearGradient>
+      </defs>
+      <rect width="160" height="160" fill="url(#vg4)"/>
+      <circle cx="80" cy="62" r="32" fill="#db7d25" opacity="0.12"/>
+      <path d="M60 62 L74 62 M86 62 L100 62" stroke="#db7d25" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="2 3"/>
+      <circle cx="56" cy="62" r="5" fill="#db7d25"/>
+      <circle cx="80" cy="62" r="7" fill="#10b981"/>
+      <circle cx="104" cy="62" r="5" fill="#db7d25"/>
+      <rect x="36" y="112" width="88" height="26" rx="6" fill="#db7d25"/>
+      <text x="80" y="128" fill="#ffffff" font-family="sans-serif" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="0.5">SAVE TOKEN</text>
+    </svg>`,
+    image: null
+  }
+];
+
+var guideActiveIndex = 0;
+var guideRotations = [4, -3, -8, 6];
+
+function renderGuideDeck() {
+  var stackEl = document.getElementById('guide-card-stack');
+  if (!stackEl) return;
+
+  var currentStep = GUIDE_STEPS[guideActiveIndex];
+  var counterEl = document.getElementById('guide-deck-counter');
+  var titleEl = document.getElementById('guide-deck-title');
+  var descEl = document.getElementById('guide-deck-desc');
+  var btnPrev = document.getElementById('btn-guide-prev');
+  var btnNext = document.getElementById('btn-guide-next');
+
+  if (counterEl) counterEl.textContent = (guideActiveIndex + 1) + ' / ' + GUIDE_STEPS.length;
+
+  if (titleEl) {
+    titleEl.style.opacity = '0';
+    titleEl.style.transform = 'translateY(4px)';
+    setTimeout(function() {
+      titleEl.textContent = currentStep.title;
+      titleEl.style.opacity = '1';
+      titleEl.style.transform = 'translateY(0)';
+    }, 120);
+  }
+
+  if (descEl) {
+    descEl.style.opacity = '0';
+    descEl.style.transform = 'translateY(4px)';
+    setTimeout(function() {
+      descEl.textContent = currentStep.description;
+      descEl.style.opacity = '1';
+      descEl.style.transform = 'translateY(0)';
+    }, 140);
+  }
+
+  if (btnPrev) btnPrev.disabled = (guideActiveIndex === 0);
+  if (btnNext) btnNext.disabled = (guideActiveIndex === GUIDE_STEPS.length - 1);
+
+  // Render cards if not built yet
+  if (stackEl.children.length !== GUIDE_STEPS.length) {
+    stackEl.innerHTML = '';
+    GUIDE_STEPS.forEach(function(step, index) {
+      var card = document.createElement('div');
+      card.className = 'guide-card-item';
+      card.dataset.index = index;
+      if (step.image) {
+        var img = document.createElement('img');
+        img.src = step.image;
+        img.alt = step.title;
+        img.draggable = false;
+        card.appendChild(img);
+      } else if (step.svg) {
+        card.innerHTML = step.svg;
+      }
+      card.addEventListener('click', function() {
+        if (index !== guideActiveIndex) {
+          guideActiveIndex = index;
+          renderGuideDeck();
+        }
+      });
+      stackEl.appendChild(card);
+    });
+  }
+
+  // Update 3D transforms for each card
+  var cards = stackEl.querySelectorAll('.guide-card-item');
+  cards.forEach(function(card, index) {
+    var offset = index - guideActiveIndex;
+    if (offset === 0) {
+      card.style.transform = 'translate3d(0, 0, 0) rotateZ(0deg) scale(1)';
+      card.style.opacity = '1';
+      card.style.zIndex = '20';
+      card.style.pointerEvents = 'auto';
+    } else if (offset > 0) {
+      var rot = guideRotations[index % guideRotations.length];
+      card.style.transform = 'translate3d(' + (offset * 14) + 'px, ' + (offset * 5) + 'px, ' + (-70 * offset) + 'px) rotateZ(' + rot + 'deg) scale(' + (1 - offset * 0.05) + ')';
+      card.style.opacity = offset === 1 ? '0.7' : (offset === 2 ? '0.35' : '0');
+      card.style.zIndex = String(20 - offset);
+      card.style.pointerEvents = 'auto';
+    } else {
+      card.style.transform = 'translate3d(-160px, -15px, 60px) rotateZ(-12deg) scale(0.85)';
+      card.style.opacity = '0';
+      card.style.zIndex = '0';
+      card.style.pointerEvents = 'none';
+    }
+  });
+}
+
+function initTestimonialsGuideDeck() {
+  var btnPrev = document.getElementById('btn-guide-prev');
+  var btnNext = document.getElementById('btn-guide-next');
+
+  if (btnPrev && !btnPrev.dataset.bound) {
+    btnPrev.dataset.bound = 'true';
+    btnPrev.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (guideActiveIndex > 0) {
+        guideActiveIndex--;
+        renderGuideDeck();
+      }
+    });
+  }
+
+  if (btnNext && !btnNext.dataset.bound) {
+    btnNext.dataset.bound = 'true';
+    btnNext.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (guideActiveIndex < GUIDE_STEPS.length - 1) {
+        guideActiveIndex++;
+        renderGuideDeck();
+      }
+    });
+  }
+
+  renderGuideDeck();
+}
+
 function loadTunnelTab() {
   fetchTunnelStatus();
   initTunnelGlobe();
   startUptimeTracker();
+  initTestimonialsGuideDeck();
 }
 
 // ===================================================================

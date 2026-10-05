@@ -1288,6 +1288,200 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
   }
 }
 
+/* ===================================================================
+   VengeanceUI 3D Testimonials Card Stack (Ngrok Key Guide)
+   =================================================================== */
+.tunnel-guide-deck {
+  position: absolute;
+  right: 28px;
+  top: 24px;
+  z-index: 10;
+  width: 380px;
+  max-width: calc(100% - 40px);
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.guide-deck-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+/* 3D Stack Stage */
+.guide-card-stack {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+  perspective: 1200px;
+  transform-style: preserve-3d;
+}
+
+.guide-card-item {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  background: #111114;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease;
+  will-change: transform, opacity;
+  cursor: pointer;
+}
+
+[data-theme="light"] .guide-card-item {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.12);
+}
+
+.guide-card-item img,
+.guide-card-item svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Content Area */
+.guide-deck-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-deck-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.guide-deck-badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #db7d25;
+  text-transform: uppercase;
+  background: rgba(219, 125, 37, 0.12);
+  border: 1px solid rgba(219, 125, 37, 0.25);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.guide-deck-counter {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.guide-deck-text {
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+
+.guide-deck-title {
+  font-family: 'Anthropic Serif Display', 'Anthropic Serif', var(--font-serif) !important;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.015em;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.guide-deck-desc {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Nav Controls */
+.guide-deck-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.guide-nav-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+}
+
+[data-theme="light"] .guide-nav-btn {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.guide-nav-btn:hover:not(:disabled) {
+  background: rgba(219, 125, 37, 0.18);
+  border-color: rgba(219, 125, 37, 0.45);
+  color: #db7d25;
+  transform: scale(1.08);
+}
+
+.guide-nav-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.guide-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .tunnel-guide-deck {
+    position: relative;
+    right: auto;
+    top: auto;
+    width: 100%;
+    margin-top: 14px;
+  }
+}
+
+@media (max-width: 520px) {
+  .guide-deck-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .guide-card-stack {
+    width: 130px;
+    height: 130px;
+  }
+}
+
 
 
 /* ===================================================================
