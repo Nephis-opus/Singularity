@@ -1293,8 +1293,9 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
    =================================================================== */
 .tunnel-guide-deck {
   position: absolute;
-  right: 28px;
-  top: 24px;
+  right: 36px;
+  bottom: 36px;
+  top: auto;
   z-index: 10;
   width: 380px;
   max-width: calc(100% - 40px);
@@ -1308,17 +1309,17 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
 .guide-deck-inner {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
   width: 100%;
 }
 
 /* 3D Stack Stage */
 .guide-card-stack {
   position: relative;
-  width: 140px;
-  height: 140px;
+  width: 145px;
+  height: 145px;
   flex-shrink: 0;
-  perspective: 1200px;
+  perspective: 1400px;
   transform-style: preserve-3d;
 }
 
@@ -1327,20 +1328,20 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
   inset: 0;
   width: 100%;
   height: 100%;
-  border-radius: 14px;
+  border-radius: 12px;
   overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.12);
-  background: #111114;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease;
+  border: 5px solid rgba(255, 255, 255, 0.18);
+  background: #18181b;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
   will-change: transform, opacity;
   cursor: pointer;
+  transform-origin: center center;
 }
 
 [data-theme="light"] .guide-card-item {
   background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.12);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.12);
+  border: 5px solid #ffffff;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.14);
 }
 
 .guide-card-item img,
@@ -1365,20 +1366,7 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
 .guide-deck-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-
-.guide-deck-badge {
-  font-family: var(--font-mono, monospace);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: #db7d25;
-  text-transform: uppercase;
-  background: rgba(219, 125, 37, 0.12);
-  border: 1px solid rgba(219, 125, 37, 0.25);
-  padding: 1px 6px;
-  border-radius: 4px;
+  justify-content: flex-end;
 }
 
 .guide-deck-counter {
@@ -1394,6 +1382,7 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
   flex-direction: column;
   justify-content: center;
   gap: 3px;
+  will-change: transform, opacity;
 }
 
 .guide-deck-title {
@@ -1404,7 +1393,6 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
   color: var(--text-primary);
   margin: 0;
   letter-spacing: -0.015em;
-  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .guide-deck-desc {
@@ -1413,7 +1401,6 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
   line-height: 1.45;
   color: var(--text-muted);
   margin: 0;
-  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 /* Nav Controls */

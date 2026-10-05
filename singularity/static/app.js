@@ -7398,45 +7398,17 @@ var GUIDE_STEPS = [
 ];
 
 var guideActiveIndex = 0;
-var guideRotations = [4, -3, -8, 6];
+var guideRotations = [4, -2, -9, 7];
+var guideIsAnimating = false;
 
-function renderGuideDeck() {
+function buildGuideTransform(x, y, z, rotDeg, scaleVal) {
+  return 'translate3d(' + x + 'px, ' + y + 'px, ' + z + 'px) rotateZ(' + rotDeg + 'deg) scale(' + scaleVal + ')';
+}
+
+function initGuideCardsDOM() {
   var stackEl = document.getElementById('guide-card-stack');
   if (!stackEl) return;
 
-  var currentStep = GUIDE_STEPS[guideActiveIndex];
-  var counterEl = document.getElementById('guide-deck-counter');
-  var titleEl = document.getElementById('guide-deck-title');
-  var descEl = document.getElementById('guide-deck-desc');
-  var btnPrev = document.getElementById('btn-guide-prev');
-  var btnNext = document.getElementById('btn-guide-next');
-
-  if (counterEl) counterEl.textContent = (guideActiveIndex + 1) + ' / ' + GUIDE_STEPS.length;
-
-  if (titleEl) {
-    titleEl.style.opacity = '0';
-    titleEl.style.transform = 'translateY(4px)';
-    setTimeout(function() {
-      titleEl.textContent = currentStep.title;
-      titleEl.style.opacity = '1';
-      titleEl.style.transform = 'translateY(0)';
-    }, 120);
-  }
-
-  if (descEl) {
-    descEl.style.opacity = '0';
-    descEl.style.transform = 'translateY(4px)';
-    setTimeout(function() {
-      descEl.textContent = currentStep.description;
-      descEl.style.opacity = '1';
-      descEl.style.transform = 'translateY(0)';
-    }, 140);
-  }
-
-  if (btnPrev) btnPrev.disabled = (guideActiveIndex === 0);
-  if (btnNext) btnNext.disabled = (guideActiveIndex === GUIDE_STEPS.length - 1);
-
-  // Render cards if not built yet
   if (stackEl.children.length !== GUIDE_STEPS.length) {
     stackEl.innerHTML = '';
     GUIDE_STEPS.forEach(function(step, index) {
@@ -7453,50 +7425,256 @@ function renderGuideDeck() {
         card.innerHTML = step.svg;
       }
       card.addEventListener('click', function() {
-        if (index !== guideActiveIndex) {
-          guideActiveIndex = index;
-          renderGuideDeck();
+        if (!guideIsAnimating && index !== guideActiveIndex) {
+          animateGuideDeck(index, index > guideActiveIndex ? 1 : -1);
         }
       });
       stackEl.appendChild(card);
     });
   }
+}
 
-  // Update 3D transforms for each card
+function setGuideCardsStatic() {
+  var stackEl = document.getElementById('guide-card-stack');
+  if (!stackEl) return;
   var cards = stackEl.querySelectorAll('.guide-card-item');
+
   cards.forEach(function(card, index) {
     var offset = index - guideActiveIndex;
+    var rot = guideRotations[index % 4];
+
     if (offset === 0) {
-      card.style.transform = 'translate3d(0, 0, 0) rotateZ(0deg) scale(1)';
+      card.style.transform = buildGuideTransform(0, 0, 0, 0, 1);
       card.style.opacity = '1';
-      card.style.zIndex = '20';
+      card.style.zIndex = '100';
       card.style.pointerEvents = 'auto';
     } else if (offset > 0) {
-      var rot = guideRotations[index % guideRotations.length];
-      card.style.transform = 'translate3d(' + (offset * 14) + 'px, ' + (offset * 5) + 'px, ' + (-70 * offset) + 'px) rotateZ(' + rot + 'deg) scale(' + (1 - offset * 0.05) + ')';
-      card.style.opacity = offset === 1 ? '0.7' : (offset === 2 ? '0.35' : '0');
-      card.style.zIndex = String(20 - offset);
+      var x = offset * 15;
+      var y = Math.abs(offset) * 6;
+      var z = -150 * Math.abs(offset);
+      var scale = Math.max(0.65, 0.85 - Math.abs(offset) * 0.04);
+      var opacity = offset === 1 ? 0.55 : (offset === 2 ? 0.35 : 0);
+      card.style.transform = buildGuideTransform(x, y, z, rot, scale);
+      card.style.opacity = String(opacity);
+      card.style.zIndex = String(10 - Math.abs(offset));
       card.style.pointerEvents = 'auto';
     } else {
-      card.style.transform = 'translate3d(-160px, -15px, 60px) rotateZ(-12deg) scale(0.85)';
+      card.style.transform = buildGuideTransform(-250, 0, -260, -10, 0.75);
       card.style.opacity = '0';
       card.style.zIndex = '0';
       card.style.pointerEvents = 'none';
     }
   });
+
+  var currentStep = GUIDE_STEPS[guideActiveIndex];
+  var counterEl = document.getElementById('guide-deck-counter');
+  var titleEl = document.getElementById('guide-deck-title');
+  var descEl = document.getElementById('guide-deck-desc');
+  var btnPrev = document.getElementById('btn-guide-prev');
+  var btnNext = document.getElementById('btn-guide-next');
+
+  if (counterEl) counterEl.textContent = (guideActiveIndex + 1) + ' / ' + GUIDE_STEPS.length;
+  if (titleEl) titleEl.textContent = currentStep.title;
+  if (descEl) descEl.textContent = currentStep.description;
+  if (btnPrev) btnPrev.disabled = (guideActiveIndex === 0);
+  if (btnNext) btnNext.disabled = (guideActiveIndex === GUIDE_STEPS.length - 1);
+}
+
+function animateGuideDeck(targetIndex, direction) {
+  if (guideIsAnimating) return;
+  if (targetIndex === guideActiveIndex) return;
+  if (targetIndex < 0 || targetIndex >= GUIDE_STEPS.length) return;
+
+  var prevIndex = guideActiveIndex;
+  var dir = direction !== undefined ? direction : (targetIndex > prevIndex ? 1 : -1);
+  guideActiveIndex = targetIndex;
+  guideIsAnimating = true;
+
+  var currentStep = GUIDE_STEPS[guideActiveIndex];
+  var counterEl = document.getElementById('guide-deck-counter');
+  var titleEl = document.getElementById('guide-deck-title');
+  var descEl = document.getElementById('guide-deck-desc');
+  var btnPrev = document.getElementById('btn-guide-prev');
+  var btnNext = document.getElementById('btn-guide-next');
+
+  if (counterEl) counterEl.textContent = (guideActiveIndex + 1) + ' / ' + GUIDE_STEPS.length;
+  if (btnPrev) btnPrev.disabled = (guideActiveIndex === 0);
+  if (btnNext) btnNext.disabled = (guideActiveIndex === GUIDE_STEPS.length - 1);
+
+  // Animate Text Area (VengeanceUI AnimatePresence mode="wait")
+  var textWrapper = document.querySelector('.guide-deck-text');
+  if (textWrapper && titleEl && descEl) {
+    textWrapper.animate([
+      { opacity: 1, transform: 'translateY(0px)' },
+      { opacity: 0, transform: 'translateY(' + (dir === 1 ? -25 : 25) + 'px)' }
+    ], {
+      duration: 200,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      fill: 'forwards'
+    }).onfinish = function() {
+      titleEl.textContent = currentStep.title;
+      descEl.textContent = currentStep.description;
+      textWrapper.animate([
+        { opacity: 0, transform: 'translateY(' + (dir === 1 ? 25 : -25) + 'px)' },
+        { opacity: 1, transform: 'translateY(0px)' }
+      ], {
+        duration: 350,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'forwards'
+      });
+    };
+  }
+
+  // Exact VengeanceUI 3D Animation Physics (750ms, cubic-bezier(0.22, 1, 0.36, 1))
+  var stackEl = document.getElementById('guide-card-stack');
+  if (!stackEl) {
+    guideIsAnimating = false;
+    return;
+  }
+  var cards = stackEl.querySelectorAll('.guide-card-item');
+
+  cards.forEach(function(card, index) {
+    var prevOffset = index - prevIndex;
+    var newOffset = index - guideActiveIndex;
+    var rot = guideRotations[index % 4];
+
+    // 1. Exiting card
+    if (prevOffset === 0 && newOffset !== 0) {
+      card.style.zIndex = '80';
+      var exitX = dir === 1 ? -250 : 250;
+      var exitZ = -260;
+      var exitRot = dir === 1 ? -10 : 10;
+      var exitScale = 0.75;
+
+      var exitAnim = card.animate([
+        {
+          transform: buildGuideTransform(0, 0, 0, 0, 1),
+          opacity: 1
+        },
+        {
+          transform: buildGuideTransform(exitX, 0, exitZ, exitRot, exitScale),
+          opacity: 0
+        }
+      ], {
+        duration: 750,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'forwards'
+      });
+
+      exitAnim.onfinish = function() {
+        var finalX = newOffset * 15;
+        var finalY = Math.abs(newOffset) * 6;
+        var finalZ = -150 * Math.abs(newOffset);
+        var finalScale = Math.max(0.65, 0.85 - Math.abs(newOffset) * 0.04);
+        var finalOpacity = newOffset > 0 ? (newOffset === 1 ? 0.55 : 0.35) : 0;
+        card.style.transform = buildGuideTransform(finalX, finalY, finalZ, rot, finalScale);
+        card.style.opacity = String(finalOpacity);
+        card.style.zIndex = String(Math.max(1, 10 - Math.abs(newOffset)));
+        card.style.pointerEvents = newOffset > 0 ? 'auto' : 'none';
+      };
+      return;
+    }
+
+    // 2. Incoming card (the signature 3-keyframe 3D swoop)
+    if (newOffset === 0) {
+      card.style.zIndex = '100';
+      card.style.pointerEvents = 'auto';
+
+      var startX = prevOffset * 15;
+      var startY = Math.abs(prevOffset) * 6;
+      var startZ = -150 * Math.abs(prevOffset);
+      var startScale = Math.max(0.65, 0.85 - Math.abs(prevOffset) * 0.04);
+
+      var swoopX = dir === 1 ? -200 : 200;
+      var swoopZ = 150;
+      var swoopRot = dir === 1 ? -5 : 5;
+      var swoopScale = 1.05;
+
+      var enterAnim = card.animate([
+        {
+          transform: buildGuideTransform(startX, startY, startZ, rot, startScale),
+          opacity: 0.55,
+          offset: 0
+        },
+        {
+          transform: buildGuideTransform(swoopX, 0, swoopZ, swoopRot, swoopScale),
+          opacity: 1,
+          offset: 0.48
+        },
+        {
+          transform: buildGuideTransform(0, 0, 0, 0, 1),
+          opacity: 1,
+          offset: 1
+        }
+      ], {
+        duration: 750,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'forwards'
+      });
+
+      enterAnim.onfinish = function() {
+        card.style.transform = buildGuideTransform(0, 0, 0, 0, 1);
+        card.style.opacity = '1';
+        card.style.zIndex = '100';
+      };
+      return;
+    }
+
+    // 3. Other cards in the background stack
+    var fromX = prevOffset * 15;
+    var fromY = Math.abs(prevOffset) * 6;
+    var fromZ = -150 * Math.abs(prevOffset);
+    var fromScale = Math.max(0.65, 0.85 - Math.abs(prevOffset) * 0.04);
+    var fromOpacity = prevOffset > 0 ? (prevOffset === 1 ? 0.55 : (prevOffset === 2 ? 0.35 : 0)) : 0;
+
+    var toX = newOffset * 15;
+    var toY = Math.abs(newOffset) * 6;
+    var toZ = -150 * Math.abs(newOffset);
+    var toScale = Math.max(0.65, 0.85 - Math.abs(newOffset) * 0.04);
+    var toOpacity = newOffset > 0 ? (newOffset === 1 ? 0.55 : (newOffset === 2 ? 0.35 : 0)) : 0;
+
+    card.style.zIndex = String(Math.max(1, 10 - Math.abs(newOffset)));
+    card.style.pointerEvents = newOffset > 0 ? 'auto' : 'none';
+
+    var bgAnim = card.animate([
+      {
+        transform: buildGuideTransform(fromX, fromY, fromZ, rot, fromScale),
+        opacity: fromOpacity
+      },
+      {
+        transform: buildGuideTransform(toX, toY, toZ, rot, toScale),
+        opacity: toOpacity
+      }
+    ], {
+      duration: 750,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      fill: 'forwards'
+    });
+
+    bgAnim.onfinish = function() {
+      card.style.transform = buildGuideTransform(toX, toY, toZ, rot, toScale);
+      card.style.opacity = String(toOpacity);
+    };
+  });
+
+  setTimeout(function() {
+    guideIsAnimating = false;
+  }, 760);
 }
 
 function initTestimonialsGuideDeck() {
   var btnPrev = document.getElementById('btn-guide-prev');
   var btnNext = document.getElementById('btn-guide-next');
 
+  initGuideCardsDOM();
+  setGuideCardsStatic();
+
   if (btnPrev && !btnPrev.dataset.bound) {
     btnPrev.dataset.bound = 'true';
     btnPrev.addEventListener('click', function(e) {
       e.stopPropagation();
-      if (guideActiveIndex > 0) {
-        guideActiveIndex--;
-        renderGuideDeck();
+      if (!guideIsAnimating && guideActiveIndex > 0) {
+        animateGuideDeck(guideActiveIndex - 1, -1);
       }
     });
   }
@@ -7505,14 +7683,11 @@ function initTestimonialsGuideDeck() {
     btnNext.dataset.bound = 'true';
     btnNext.addEventListener('click', function(e) {
       e.stopPropagation();
-      if (guideActiveIndex < GUIDE_STEPS.length - 1) {
-        guideActiveIndex++;
-        renderGuideDeck();
+      if (!guideIsAnimating && guideActiveIndex < GUIDE_STEPS.length - 1) {
+        animateGuideDeck(guideActiveIndex + 1, 1);
       }
     });
   }
-
-  renderGuideDeck();
 }
 
 function loadTunnelTab() {
