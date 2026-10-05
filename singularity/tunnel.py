@@ -24,6 +24,7 @@ import httpx
 NGROK_INSPECT_URL = "http://127.0.0.1:4040/api/tunnels"
 DEFAULT_PORT = 9000
 SCRIPT_DIR = Path(__file__).resolve().parent
+_tunnel_started_at: Optional[float] = None
 
 
 def is_termux() -> bool:
@@ -358,6 +359,10 @@ def get_tunnel_status() -> Dict[str, Any]:
             data = resp.json()
             tunnels = data.get("tunnels", [])
             if tunnels:
+                global _tunnel_started_at
+                if _tunnel_started_at is None:
+                    _tunnel_started_at = time.time()
+                uptime_seconds = int(time.time() - _tunnel_started_at)
                 https_tunnels = [t for t in tunnels if t.get("proto") == "https" or str(t.get("public_url", "")).startswith("https")]
                 t = https_tunnels[0] if https_tunnels else tunnels[0]
                 public_url = (t.get("public_url") or "").rstrip("/")
@@ -373,6 +378,8 @@ def get_tunnel_status() -> Dict[str, Any]:
                     "chat_completions_url": f"{public_url}/v1/chat/completions",
                     "proto": t.get("proto", "https"),
                     "name": t.get("name", "singularity-access"),
+                    "started_at": _tunnel_started_at,
+                    "uptime_seconds": uptime_seconds,
                 }
     except Exception:
         pass
@@ -387,6 +394,8 @@ def get_tunnel_status() -> Dict[str, Any]:
         "public_url": None,
         "api_url": None,
         "chat_completions_url": None,
+        "started_at": None,
+        "uptime_seconds": 0,
         "message": "Tunnel is offline. Click Start ngrok Tunnel to expose Singularity to the internet.",
     }
 
@@ -416,6 +425,8 @@ def start_tunnel(port: int = DEFAULT_PORT) -> Dict[str, Any]:
 
     # Launch ngrok process detached from parent across Windows, Termux, and Unix
     try:
+        global _tunnel_started_at
+        _tunnel_started_at = time.time()
         popen_kwargs: Dict[str, Any] = {
             "stdout": subprocess.DEVNULL,
             "stderr": subprocess.DEVNULL,
@@ -449,6 +460,8 @@ def start_tunnel(port: int = DEFAULT_PORT) -> Dict[str, Any]:
 
 def stop_tunnel() -> Dict[str, Any]:
     """Stop all active ngrok tunnels by terminating the process."""
+    global _tunnel_started_at
+    _tunnel_started_at = None
     try:
         if sys.platform == "win32":
             subprocess.run(
