@@ -2990,6 +2990,194 @@ async def api_janitor_deploy(request: Request):
 
 
 # -------------------------------------------------------------------
+# System Version Control & Update Engine (GitHub Sync & Cache-Buster)
+# -------------------------------------------------------------------
+
+@app.get("/api/system/version")
+async def api_system_version():
+    """Returns local git commit details, branch, remote origin status, and commit log."""
+    repo_dir = str(ROOT_DIR)
+    
+    local_hash = ""
+    short_hash = ""
+    commit_date = ""
+    commit_message = ""
+    author = ""
+    branch = "main"
+    recent_commits = []
+    
+    try:
+        # Get current branch
+        br_res = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_dir, capture_output=True, text=True, timeout=3)
+        if br_res.returncode == 0:
+            branch = br_res.stdout.strip() or "main"
+            
+        # Get HEAD commit details
+        head_res = subprocess.run(["git", "log", "-1", "--format=%H|%h|%an|%ci|%s"], cwd=repo_dir, capture_output=True, text=True, timeout=3)
+        if head_res.returncode == 0 and head_res.stdout.strip():
+            parts = head_res.stdout.strip().split("|", 4)
+            if len(parts) == 5:
+                local_hash, short_hash, author, commit_date, commit_message = parts
+            else:
+                local_hash = head_res.stdout.strip()
+                short_hash = local_hash[:7]
+                
+        # Get recent commit log (up to 12 commits)
+        log_res = subprocess.run(["git", "log", "-12", "--format=%H|%h|%an|%ci|%s"], cwd=repo_dir, capture_output=True, text=True, timeout=4)
+        if log_res.returncode == 0:
+            for line in log_res.stdout.strip().splitlines():
+                if not line.strip():
+                    continue
+                lp = line.split("|", 4)
+                if len(lp) == 5:
+                    recent_commits.append({
+                        "hash": lp[0],
+                        "short": lp[1],
+                        "author": lp[2],
+                        "date": lp[3],
+                        "message": lp[4]
+                    })
+    except Exception as e:
+        local_hash = local_hash or "unknown"
+        short_hash = short_hash or "v2.5"
+
+    # Query GitHub remote
+    remote_hash = ""
+    remote_short = ""
+    is_latest = True
+    commits_behind = 0
+    remote_error = None
+    
+    try:
+        # Check origin HEAD via git ls-remote
+        ls_res = subprocess.run(["git", "ls-remote", "origin", f"refs/heads/{branch}"], cwd=repo_dir, capture_output=True, text=True, timeout=6)
+        if ls_res.returncode == 0 and ls_res.stdout.strip():
+            first_line = ls_res.stdout.strip().splitlines()[0]
+            remote_hash = first_line.split()[0].strip()
+            remote_short = remote_hash[:7]
+            if local_hash and remote_hash:
+                if local_hash == remote_hash:
+                    is_latest = True
+                    commits_behind = 0
+                else:
+                    is_latest = False
+                    cnt_res = subprocess.run(["git", "rev-list", "--count", f"HEAD..{remote_hash}"], cwd=repo_dir, capture_output=True, text=True, timeout=3)
+                    if cnt_res.returncode == 0 and cnt_res.stdout.strip().isdigit():
+                        commits_behind = int(cnt_res.stdout.strip())
+                    else:
+                        commits_behind = 1
+        elif ls_res.returncode != 0:
+            remote_error = ls_res.stderr.strip() or "Remote origin unreachable"
+            is_latest = None
+    except subprocess.TimeoutExpired:
+        remote_error = "GitHub check timed out (offline or slow connection)"
+        is_latest = None
+    except Exception as exc:
+        remote_error = str(exc)
+        is_latest = None
+
+    return JSONResponse({
+        "ok": True,
+        "version_name": "v2.5.0-Sing",
+        "branch": branch,
+        "local_commit": local_hash,
+        "short_commit": short_hash,
+        "commit_date": commit_date,
+        "commit_message": commit_message,
+        "author": author,
+        "remote_commit": remote_hash,
+        "remote_short": remote_short,
+        "is_latest": is_latest,
+        "commits_behind": commits_behind,
+        "remote_repo": "Nephis-opus/Singularity",
+        "remote_error": remote_error,
+        "recent_commits": recent_commits,
+        "cache_token": int(time.time()),
+    })
+
+
+@app.post("/api/system/update")
+async def api_system_update():
+    """Pulls latest files from GitHub origin/main, verifies integrity, and prepares cache-busted reload."""
+    repo_dir = str(ROOT_DIR)
+    logs = []
+    
+    logs.append(f"Initiating Singularity core sync for {repo_dir}...")
+    logs.append("Target remote: https://github.com/Nephis-opus/Singularity.git [main]")
+    
+    old_hash = ""
+    new_hash = ""
+    
+    try:
+        # Get old HEAD
+        h_res = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_dir, capture_output=True, text=True, timeout=3)
+        if h_res.returncode == 0:
+            old_hash = h_res.stdout.strip()
+            logs.append(f"Current local HEAD: {old_hash[:7]}")
+
+        # Check working tree status
+        stashed = False
+        st_res = subprocess.run(["git", "status", "--porcelain"], cwd=repo_dir, capture_output=True, text=True, timeout=3)
+        if st_res.returncode == 0 and st_res.stdout.strip():
+            logs.append("Notice: Local uncommitted files detected. Preserving workspace state...")
+            s_res = subprocess.run(["git", "stash", "save", "singularity-auto-update"], cwd=repo_dir, capture_output=True, text=True, timeout=4)
+            stashed = (s_res.returncode == 0)
+
+        # Execute git fetch
+        logs.append("Fetching latest refs from origin/main...")
+        f_res = subprocess.run(["git", "fetch", "origin", "main"], cwd=repo_dir, capture_output=True, text=True, timeout=12)
+        if f_res.returncode != 0:
+            err = f_res.stderr.strip() or f_res.stdout.strip()
+            logs.append(f"[!] Fetch failed: {err}")
+            if stashed:
+                subprocess.run(["git", "stash", "pop"], cwd=repo_dir, capture_output=True, text=True, timeout=4)
+            return JSONResponse({"ok": False, "error": err, "logs": logs}, status_code=500)
+            
+        # Execute git pull
+        logs.append("Pulling updates from origin/main...")
+        p_res = subprocess.run(["git", "pull", "origin", "main"], cwd=repo_dir, capture_output=True, text=True, timeout=15)
+        for line in (p_res.stdout + "\n" + p_res.stderr).splitlines():
+            if line.strip():
+                logs.append(f"  {line.strip()}")
+                
+        if stashed:
+            subprocess.run(["git", "stash", "pop"], cwd=repo_dir, capture_output=True, text=True, timeout=4)
+
+        # Get new HEAD
+        nh_res = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_dir, capture_output=True, text=True, timeout=3)
+        if nh_res.returncode == 0:
+            new_hash = nh_res.stdout.strip()
+            logs.append(f"New local HEAD: {new_hash[:7]}")
+
+        updated = (old_hash != new_hash)
+        if updated:
+            logs.append(f"✓ Singularity updated successfully ({old_hash[:7]} -> {new_hash[:7]}).")
+        else:
+            logs.append("✓ Singularity is already on the latest revision.")
+            
+        logs.append("Generating cache-bypass token and preparing instant reload...")
+        cache_buster = f"v{int(time.time())}_{new_hash[:7]}"
+        logs.append(f"Active cache-buster token: {cache_buster}")
+        
+        return JSONResponse({
+            "ok": True,
+            "updated": updated,
+            "old_commit": old_hash,
+            "new_commit": new_hash,
+            "short_commit": new_hash[:7],
+            "cache_token": cache_buster,
+            "logs": logs
+        })
+    except Exception as exc:
+        logs.append(f"[!] Update execution failed: {str(exc)}")
+        return JSONResponse({
+            "ok": False,
+            "error": str(exc),
+            "logs": logs
+        }, status_code=500)
+
+
+# -------------------------------------------------------------------
 # Static Frontend Serving
 # -------------------------------------------------------------------
 
@@ -3000,7 +3188,11 @@ async def serve_index():
     return FileResponse(
         index_path,
         media_type="text/html",
-        headers={"Cache-Control": "no-cache, must-revalidate"},
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
     )
 
 

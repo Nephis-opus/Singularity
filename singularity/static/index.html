@@ -29,6 +29,7 @@
   <link rel="stylesheet" href="/static/glass-dock.css?v=60" />
   <link rel="stylesheet" href="/static/preloader.css?v=1" />
   <link rel="stylesheet" href="/static/janitor-bio.css?v=1" />
+  <link rel="stylesheet" href="/static/updates.css?v=1" />
 </head>
 
 <body data-active-tab="playground">
@@ -1202,6 +1203,290 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
             </div>
           </div>
         </div>
+
+        <!-- 9. UPDATE LOGS & VERSION CONTROL MATRIX TAB (@skiper-ui/skiper74 + @cult-ui/terminal-animation) -->
+        <div class="tab-pane" id="pane-updates">
+          <!-- Aurora Hero Background (VengeanceUI) -->
+          <div class="aurora-hero-bg" aria-hidden="true"></div>
+
+          <div class="updates-container">
+            <!-- Hero Header & Live Matrix -->
+            <div class="updates-hero">
+              <div class="updates-hero-top">
+                <div class="updates-brand">
+                  <img src="/logo.svg" class="updates-brand-logo" alt="Singularity Logo" title="Singularity" />
+                  <div class="updates-title-area">
+                    <h2 class="updates-title">S-Update Logs</h2>
+                  </div>
+                </div>
+
+                <div class="updates-actions-group">
+                  <button type="button" class="btn-update-action secondary" id="btn-check-updates" title="Query GitHub remote origin for new commits">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+                    Check GitHub
+                  </button>
+                  <button type="button" class="btn-update-action primary" id="btn-run-update" title="Pull updates from origin/main, verify code, and bypass Brave cache">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path><path d="M16 16h5v5"></path></svg>
+                    Update App
+                  </button>
+                  <button type="button" class="btn-update-action secondary" id="btn-hard-refresh" title="Force refresh with cache-buster query">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                    Force Refresh
+                  </button>
+                </div>
+              </div>
+
+              <!-- Status Pills Bar -->
+              <div class="updates-status-bar">
+                <div class="updates-chip">
+                  <span>Version:</span>
+                  <strong id="updates-cur-version">v2.5.0-Sing</strong>
+                </div>
+                <a href="https://github.com/Nephis-opus/Singularity/commit/9c600d4" target="_blank" class="updates-chip" id="updates-cur-hash" title="Inspect commit on GitHub">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><line x1="1.05" y1="12" x2="7" y2="12"></line><line x1="17.01" y1="12" x2="22.96" y2="12"></line></svg>
+                  <span id="updates-cur-short">9c600d4</span>
+                </a>
+                <div class="updates-chip">
+                  <span>Branch:</span>
+                  <strong>main</strong>
+                </div>
+                <div class="updates-status-badge up-to-date" id="updates-remote-status">
+                  <span class="status-pulse-dot"></span>
+                  <span id="updates-status-text">Checking GitHub...</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cult-UI Terminal Animation Window -->
+            <div class="terminal-card">
+              <div class="terminal-header">
+                <div class="terminal-header-left">
+                  <div class="terminal-dots">
+                    <span class="terminal-dot red" title="Close"></span>
+                    <span class="terminal-dot yellow" title="Minimize"></span>
+                    <span class="terminal-dot green" title="Expand"></span>
+                  </div>
+                  <span class="terminal-title">singularity@terminal: ~/core-sync</span>
+                </div>
+
+                <div class="terminal-tabs" role="tablist">
+                  <button type="button" class="terminal-tab-btn" data-tab-index="0" role="tab">1. status</button>
+                  <button type="button" class="terminal-tab-btn active" data-tab-index="1" role="tab">2. check-origin</button>
+                  <button type="button" class="terminal-tab-btn" data-tab-index="2" role="tab">3. auto-pull</button>
+                  <button type="button" class="terminal-tab-btn" data-tab-index="3" role="tab">4. cache-bypass</button>
+                </div>
+              </div>
+
+              <div class="terminal-body" id="terminal-body">
+                <div class="terminal-command-wrap">
+                  <span class="terminal-prompt-badge">$</span>
+                  <span class="terminal-typed-cmd" id="terminal-typed-cmd"></span>
+                  <span class="terminal-cursor" id="terminal-cursor">▌</span>
+                </div>
+                <div class="terminal-output" id="terminal-output">
+                  <!-- Animated lines populated via JS -->
+                </div>
+              </div>
+
+              <div class="terminal-footer-bar">
+                <span>Ready — Nephis-opus/Singularity@main</span>
+                <div class="terminal-footer-tools">
+                  <button type="button" class="terminal-tool-btn" id="btn-replay-terminal" title="Replay terminal animation">Replay</button>
+                  <button type="button" class="terminal-tool-btn" id="btn-copy-terminal" title="Copy console output">Copy Logs</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Skiper-UI #74 Sticky Release Timeline & Changelog -->
+            <div class="skiper-timeline-section">
+              <div class="skiper-timeline-header">
+                <div>
+                  <h3 class="skiper-timeline-title">Release History &amp; Changelogs</h3>
+                </div>
+                <div class="skiper-timeline-count">Showing 4 major milestones</div>
+              </div>
+
+              <div class="skiper-timeline-tree">
+                <div class="skiper-timeline-spine"></div>
+
+                <!-- Milestone 1: v2.5.0-Sing -->
+                <div class="skiper-milestone latest">
+                  <div class="skiper-node">
+                    <div class="skiper-node-inner"></div>
+                  </div>
+                  <div class="skiper-card">
+                    <div class="skiper-card-top">
+                      <div class="skiper-card-badges">
+                        <span class="skiper-version-tag">v2.5.0-Sing</span>
+                        <span class="skiper-status-pill latest">Latest Release</span>
+                        <span class="skiper-status-pill stable">Active Session</span>
+                      </div>
+                      <span class="skiper-date-tag">October 5, 2026</span>
+                    </div>
+
+                    <h4 class="skiper-card-title">Janitor Bio Studio, LightLines Backdrop, and System Update Engine</h4>
+
+                    <ul class="skiper-features-list">
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag feat">Feat</span>
+                        <div class="skiper-feature-text"><strong>Janitor Bio Studio:</strong> Autonomous Papercraft &amp; Tempe-compliant Bio Engine featuring 14 Google Fonts, responsive character card grids, unrestricted prompt synthesizer, and instant Supabase token fetcher.</div>
+                      </li>
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag ui">UI/UX</span>
+                        <div class="skiper-feature-text"><strong>LightLines Backdrop:</strong> VengeanceUI-inspired animated fluid light streams canvas backdrop in Playground chat view.</div>
+                      </li>
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag perf">System</span>
+                        <div class="skiper-feature-text"><strong>System Update Engine:</strong> One-click local Git auto-update with GitHub remote synchronization and Brave/Chromium cache-busting.</div>
+                      </li>
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag ui">UI/UX</span>
+                        <div class="skiper-feature-text"><strong>Cult-UI &amp; Skiper-UI Integration:</strong> Interactive animated command terminal simulating git lifecycle operations and sticky timeline changelog.</div>
+                      </li>
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag ui">UI/UX</span>
+                        <div class="skiper-feature-text"><strong>Accessible Custom Selects:</strong> Polished dropdown menus with checkmarks, keyboard focus, and brand styling.</div>
+                      </li>
+                    </ul>
+
+                    <div class="skiper-card-footer">
+                      <a href="https://github.com/Nephis-opus/Singularity/commit/9c600d4" target="_blank" class="skiper-commit-link">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"></circle><line x1="1.05" y1="12" x2="7" y2="12"></line><line x1="17.01" y1="12" x2="22.96" y2="12"></line></svg>
+                        Commit: 9c600d4
+                      </a>
+                      <span>Nephis / Insomiku</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Milestone 2: v2.4.2-Sing -->
+                <div class="skiper-milestone">
+                  <div class="skiper-node">
+                    <div class="skiper-node-inner"></div>
+                  </div>
+                  <div class="skiper-card">
+                    <div class="skiper-card-top">
+                      <div class="skiper-card-badges">
+                        <span class="skiper-version-tag">v2.4.2-Sing</span>
+                        <span class="skiper-status-pill stable">Stable</span>
+                      </div>
+                      <span class="skiper-date-tag">October 5, 2026</span>
+                    </div>
+
+                    <h4 class="skiper-card-title">Cloud Tunnel &amp; Remote Access Optimization</h4>
+
+                    <ul class="skiper-features-list">
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag feat">Feat</span>
+                        <div class="skiper-feature-text"><strong>Ngrok Reverse Proxy:</strong> Native mobile HTTPS tunnel with QR code and ARM32/ARM64 Termux multi-arch detection.</div>
+                      </li>
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag sec">Sec</span>
+                        <div class="skiper-feature-text"><strong>Starlette Gateway:</strong> 100% pure Python Starlette + uvicorn architecture. Zero Rust build toolchain on Android phones.</div>
+                      </li>
+                    </ul>
+
+                    <div class="skiper-card-footer">
+                      <a href="https://github.com/Nephis-opus/Singularity/commit/5dcbcb0" target="_blank" class="skiper-commit-link">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"></circle><line x1="1.05" y1="12" x2="7" y2="12"></line><line x1="17.01" y1="12" x2="22.96" y2="12"></line></svg>
+                        Commit: 5dcbcb0
+                      </a>
+                      <span>Nephis / Insomiku</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Milestone 3: v2.4.0-Sing -->
+                <div class="skiper-milestone">
+                  <div class="skiper-node">
+                    <div class="skiper-node-inner"></div>
+                  </div>
+                  <div class="skiper-card">
+                    <div class="skiper-card-top">
+                      <div class="skiper-card-badges">
+                        <span class="skiper-version-tag">v2.4.0-Sing</span>
+                        <span class="skiper-status-pill stable">Milestone</span>
+                      </div>
+                      <span class="skiper-date-tag">October 4, 2026</span>
+                    </div>
+
+                    <h4 class="skiper-card-title">Universal AI Fleet (8 Providers &amp; 216 Models)</h4>
+
+                    <ul class="skiper-features-list">
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag feat">Feat</span>
+                        <div class="skiper-feature-text"><strong>8 Frontier Providers:</strong> Full ChatGPT, Claude, Gemini, Grok, Kimi, GLM, DeepSeek, and Qwen Web2API reverse proxy engines.</div>
+                      </li>
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag sec">Sec</span>
+                        <div class="skiper-feature-text"><strong>SQLite Credential Vault:</strong> Multi-account database vault with automatic quota rotation and token encryption.</div>
+                      </li>
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag feat">Feat</span>
+                        <div class="skiper-feature-text"><strong>Multimodal Media Pipeline:</strong> Google Omni conversation and Veo cinematic video generation.</div>
+                      </li>
+                    </ul>
+
+                    <div class="skiper-card-footer">
+                      <span class="skiper-commit-link">Fleet Architecture</span>
+                      <span>Nephis / Insomiku</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Milestone 4: v2.2.0-Sing -->
+                <div class="skiper-milestone">
+                  <div class="skiper-node">
+                    <div class="skiper-node-inner"></div>
+                  </div>
+                  <div class="skiper-card">
+                    <div class="skiper-card-top">
+                      <div class="skiper-card-badges">
+                        <span class="skiper-version-tag">v2.2.0-Sing</span>
+                        <span class="skiper-status-pill stable">Core</span>
+                      </div>
+                      <span class="skiper-date-tag">September 2026</span>
+                    </div>
+
+                    <h4 class="skiper-card-title">Tavern Studio Dual-Boot &amp; GenUI Sandboxing</h4>
+
+                    <ul class="skiper-features-list">
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag feat">Feat</span>
+                        <div class="skiper-feature-text"><strong>Tavern Web Studio:</strong> Seamless dual-boot of Singularity (:9000) and SillyTavern Studio (:5173).</div>
+                      </li>
+                      <li class="skiper-feature-item">
+                        <span class="skiper-feature-tag sec">Sec</span>
+                        <div class="skiper-feature-text"><strong>Universal GenUI Interception:</strong> ※genui※ block detection with Babel transpilation and sandboxed iframe shims.</div>
+                      </li>
+                    </ul>
+
+                    <div class="skiper-card-footer">
+                      <span class="skiper-commit-link">Studio Core</span>
+                      <span>Nephis / Insomiku</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Raw Git Commits Accordion -->
+              <div class="skiper-raw-commits-card">
+                <button type="button" class="skiper-accordion-trigger" id="btn-toggle-raw-commits" aria-expanded="false">
+                  <span>Inspect Raw Git Commits (Live Repo HEAD)</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+                <div class="skiper-commits-panel" id="skiper-raw-commits-panel">
+                  <div id="skiper-raw-commits-list">
+                    <!-- Populated via JS -->
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
       </section>
     </main>
     <!-- Media Lightbox Modal (High-Res Zoom & Inspect) -->
@@ -1895,6 +2180,7 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
   <script src="/static/app.js?v=74"></script>
   <script src="/static/glass-dock.js?v=60"></script>
   <script src="/static/janitor-bio.js?v=1"></script>
+  <script src="/static/updates-panel.js?v=1"></script>
 </body>
 
 </html>

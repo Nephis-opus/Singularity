@@ -1361,6 +1361,10 @@ function switchTab(tabId) {
       h: 'Janitor Bio Studio',
       sub: '',
     },
+    updates: {
+      h: 'S-Update Logs',
+      sub: '',
+    },
   }[tabId] || { h: 'Singularity', sub: '' };
 
   if (heading) heading.textContent = titles.h;
@@ -1381,6 +1385,9 @@ function switchTab(tabId) {
     }
     if (tabId === 'bio') {
       if (window.JanitorBioStudio?.init) window.JanitorBioStudio.init();
+    }
+    if (tabId === 'updates') {
+      if (window.SingularityUpdates?.init) window.SingularityUpdates.init();
     }
     if (tabId === 'tunnel') {
       loadTunnelTab();
