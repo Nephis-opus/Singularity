@@ -3046,6 +3046,7 @@ html[data-theme="dark"],
   text-transform: uppercase;
 }
 
+.param-model-badge,
 .param-model-indicator code {
   color: var(--brand-primary);
   font-family: var(--font-mono);

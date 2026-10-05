@@ -2029,8 +2029,11 @@ async function fetchModels() {
     if (modelBadge) modelBadge.textContent = `${state.models.length} Models`;
     renderModels();
     renderCustomSelectOptions();
+    renderParamModelSelectOptions();
     const label = document.getElementById('model-select-label');
     if (label) label.textContent = formatModelDisplayName(state.selectedModel);
+    const paramLabel = document.getElementById('param-model-selected-label');
+    if (paramLabel) paramLabel.textContent = formatModelDisplayName(state.selectedModel);
   } catch (err) {
     console.error('Error fetching models:', err);
   }
@@ -3055,6 +3058,142 @@ function renderCustomSelectOptions(query = '') {
         loadModelSettings(modelId);
       }
     });
+  });
+}
+
+function selectModelFromParamsModal(modelId) {
+  if (!modelId) return;
+  state.selectedModel = modelId;
+
+  // 1. Update Parameters Modal display
+  const paramLabel = document.getElementById('param-model-selected-label');
+  if (paramLabel) paramLabel.textContent = formatModelDisplayName(modelId);
+  const paramInput = document.getElementById('param-model-select');
+  if (paramInput) paramInput.value = modelId;
+  const activeModelLabel = document.getElementById('param-active-model-name');
+  if (activeModelLabel) activeModelLabel.textContent = modelId;
+
+  // 2. Update Main Playground model selector & input model
+  const mainLabel = document.getElementById('model-select-label');
+  if (mainLabel) mainLabel.textContent = formatModelDisplayName(modelId);
+  const inputModel = document.getElementById('input-model-name');
+  if (inputModel) inputModel.textContent = formatModelDisplayName(modelId);
+
+  // 3. Close the custom select menu
+  const menu = document.getElementById('param-model-select-menu');
+  if (menu) menu.classList.remove('open');
+  const wrap = document.getElementById('param-model-select-wrap');
+  if (wrap) wrap.classList.remove('open');
+  const btn = document.getElementById('btn-param-model-select');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+
+  // 4. Re-render options in both selectors
+  renderCustomSelectOptions();
+  renderParamModelSelectOptions();
+
+  // 5. Load model-specific parameters
+  if (typeof loadModelSettings === 'function') {
+    loadModelSettings(modelId);
+  }
+}
+
+function renderParamModelSelectOptions(query = '') {
+  const list = document.getElementById('param-model-options-list');
+  if (!list) return;
+
+  const currentModel = state.selectedModel || 'gpt-5.6-sol';
+  const models = (state.models && state.models.length > 0) ? state.models : [
+    { id: currentModel, name: formatModelDisplayName(currentModel), provider: 'openai' }
+  ];
+
+  const q = (query || '').toLowerCase().trim();
+  const filtered = models.filter(m => {
+    if (!q) return true;
+    const nameMatch = m.name && m.name.toLowerCase().includes(q);
+    const idMatch = m.id && m.id.toLowerCase().includes(q);
+    const provMatch = m.provider && m.provider.toLowerCase().includes(q);
+    return nameMatch || idMatch || provMatch;
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 12px;">No models found</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(m => {
+    const isSelected = m.id === currentModel;
+    return `
+      <button type="button" class="claude-select-option ${isSelected ? 'active' : ''}" data-value="${escapeHtml(m.id)}" title="${escapeHtml(m.name || m.id)}">
+        <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left; min-width: 0; flex: 1; padding-right: 6px;">
+          <span style="font-weight: 550; font-size: 12.5px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 230px;">${escapeHtml(m.name || m.id)}</span>
+          <span style="font-size: 10px; color: var(--text-muted); opacity: 0.85; font-family: var(--font-mono);">${escapeHtml(m.provider || 'ai')} &bull; ${escapeHtml(m.id)}</span>
+        </div>
+        <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+      </button>
+    `;
+  }).join('');
+
+  list.querySelectorAll('.claude-select-option').forEach(opt => {
+    opt.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const val = opt.getAttribute('data-value');
+      selectModelFromParamsModal(val);
+    });
+  });
+}
+
+function initParamModelSelect() {
+  const btn = document.getElementById('btn-param-model-select');
+  const wrap = document.getElementById('param-model-select-wrap');
+  const menu = document.getElementById('param-model-select-menu');
+  const filterInput = document.getElementById('param-model-filter-input');
+
+  const paramLabel = document.getElementById('param-model-selected-label');
+  if (paramLabel) {
+    paramLabel.textContent = formatModelDisplayName(state.selectedModel || 'gpt-5.6-sol');
+  }
+
+  if (!btn || !wrap || !menu) return;
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Close any other open claude-custom-select-menu
+    document.querySelectorAll('.claude-custom-select-menu.open').forEach(m => {
+      if (m !== menu) {
+        m.classList.remove('open');
+        m.closest('.claude-custom-select-wrap')?.classList.remove('open');
+      }
+    });
+
+    const isOpen = menu.classList.toggle('open');
+    wrap.classList.toggle('open', isOpen);
+    btn.setAttribute('aria-expanded', String(isOpen));
+
+    if (isOpen) {
+      renderParamModelSelectOptions(filterInput ? filterInput.value : '');
+      if (filterInput) {
+        filterInput.focus();
+      }
+    }
+  });
+
+  if (filterInput) {
+    filterInput.addEventListener('input', () => {
+      renderParamModelSelectOptions(filterInput.value);
+    });
+    filterInput.addEventListener('click', (e) => e.stopPropagation());
+    filterInput.addEventListener('keydown', (e) => e.stopPropagation());
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) {
+      menu.classList.remove('open');
+      wrap.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
   });
 }
 
@@ -4146,8 +4285,13 @@ function updateThinkingBudgetDisplay(tokens) {
 }
 
 function applyModelSettingsToUI(cfg, model) {
+  const targetModel = model || state.selectedModel || 'gpt-5.6-sol';
   const activeModelLabel = document.getElementById('param-active-model-name');
-  if (activeModelLabel) activeModelLabel.textContent = model || state.selectedModel || 'gpt-5.6-sol';
+  if (activeModelLabel) activeModelLabel.textContent = targetModel;
+  const paramLabel = document.getElementById('param-model-selected-label');
+  if (paramLabel) paramLabel.textContent = formatModelDisplayName(targetModel);
+  const paramInput = document.getElementById('param-model-select');
+  if (paramInput) paramInput.value = targetModel;
 
   const thinkingRange = document.getElementById('thinking-budget-range');
   const maxTokensRange = document.getElementById('max-tokens-range');
@@ -4182,6 +4326,11 @@ async function loadModelSettings(model) {
   const targetModel = model || state.selectedModel || 'gpt-5.6-sol';
   const activeModelLabel = document.getElementById('param-active-model-name');
   if (activeModelLabel) activeModelLabel.textContent = targetModel;
+  const paramLabel = document.getElementById('param-model-selected-label');
+  if (paramLabel) paramLabel.textContent = formatModelDisplayName(targetModel);
+  const paramInput = document.getElementById('param-model-select');
+  if (paramInput) paramInput.value = targetModel;
+  renderParamModelSelectOptions();
 
   try {
     const res = await fetch(`/api/model-settings?model=${encodeURIComponent(targetModel)}`);
@@ -5665,6 +5814,7 @@ function initPlayground() {
       settingsDropdown.classList.toggle('open');
       if (settingsDropdown.classList.contains('open')) {
         loadModelSettings(state.selectedModel || 'gpt-5.6-sol');
+        renderParamModelSelectOptions();
       }
     });
     if (btnCloseSettings) {
@@ -8144,6 +8294,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initModelFilters();
   initCookieTabs();
   initCustomSelect();
+  initParamModelSelect();
   initPlayground();
   initCopyAction();
   initTunnelControls();

@@ -361,9 +361,27 @@
                       </button>
                     </div>
                     <div class="settings-dropdown-body">
-                      <div class="param-model-indicator">
-                        <span class="param-model-label">Configuring Model:</span>
-                        <code id="param-active-model-name">gpt-5-6-mini</code>
+                      <!-- Configuring Model (Custom Select Dropdown) -->
+                      <div class="param-group" id="param-model-selector-group">
+                        <div class="param-label-row">
+                          <label for="btn-param-model-select">Configuring Model</label>
+                          <code id="param-active-model-name" class="param-model-badge">gpt-5.6-sol</code>
+                        </div>
+                        <input type="hidden" id="param-model-select" value="gpt-5.6-sol" />
+                        <div class="claude-custom-select-wrap" id="param-model-select-wrap" style="width: 100%;">
+                          <button type="button" class="claude-custom-select-btn" id="btn-param-model-select" aria-haspopup="listbox" aria-expanded="false" style="width: 100%; box-sizing: border-box;">
+                            <span class="claude-custom-select-text" id="param-model-selected-label">Gpt 5.6 Sol</span>
+                            <svg class="claude-select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                          </button>
+                          <div class="claude-custom-select-menu" id="param-model-select-menu" role="listbox" style="width: 100%; left: 0; right: 0; box-sizing: border-box; max-height: 270px; overflow-y: auto;">
+                            <div class="select-search-box" style="position: sticky; top: 0; z-index: 5; padding: 4px; margin-bottom: 4px;">
+                              <input type="text" class="select-search-input" id="param-model-filter-input" placeholder="Search models or providers..." style="width: 100%; box-sizing: border-box;" autocomplete="off" />
+                            </div>
+                            <div id="param-model-options-list" style="display: flex; flex-direction: column; gap: 2px;">
+                              <!-- Rendered dynamically by app.js -->
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       <!-- Thinking Budget Cap -->

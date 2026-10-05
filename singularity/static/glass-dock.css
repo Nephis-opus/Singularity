@@ -1011,11 +1011,22 @@ body.dock-vertical .glass-dock-item.active::after {
   border-color: #dedbd5;
 }
 
-#search-backend-select-wrap {
+.claude-select-chevron {
+  transition: transform 0.18s ease;
+  flex-shrink: 0;
+}
+
+.claude-custom-select-wrap.open .claude-select-chevron {
+  transform: rotate(180deg);
+}
+
+#search-backend-select-wrap,
+#param-model-select-wrap {
   width: 100%;
 }
 
-#search-backend-select-wrap .claude-custom-select-btn {
+#search-backend-select-wrap .claude-custom-select-btn,
+#param-model-select-wrap .claude-custom-select-btn {
   width: 100%;
   height: 38px;
   box-sizing: border-box;
@@ -1024,29 +1035,44 @@ body.dock-vertical .glass-dock-item.active::after {
   border-radius: 8px;
   padding: 0 12px;
   font-size: 13px;
+  color: var(--text-primary);
 }
 
-[data-theme="light"] #search-backend-select-wrap .claude-custom-select-btn {
+[data-theme="light"] #search-backend-select-wrap .claude-custom-select-btn,
+[data-theme="light"] #param-model-select-wrap .claude-custom-select-btn {
   background-color: #ffffff;
   border-color: #dedbd5;
   color: #1a1918;
 }
 
-#search-backend-select-wrap .claude-custom-select-menu {
+#search-backend-select-wrap .claude-custom-select-menu,
+#param-model-select-wrap .claude-custom-select-menu {
   width: 100%;
   left: 0;
   right: 0;
   box-sizing: border-box;
-  background-color: var(--bg-surface, #1e1d1b);
-  border: 1px solid var(--border-medium, #3d3936);
+  background-color: #000000 !important;
+  border: 1px solid var(--border-medium, #262626);
   border-radius: 10px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65);
+  z-index: 1200;
 }
 
-[data-theme="light"] #search-backend-select-wrap .claude-custom-select-menu {
-  background-color: #ffffff;
+[data-theme="light"] #search-backend-select-wrap .claude-custom-select-menu,
+[data-theme="light"] #param-model-select-wrap .claude-custom-select-menu {
+  background-color: #ffffff !important;
   border-color: #dedbd5;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+#param-model-select-menu .select-search-box {
+  background-color: #000000 !important;
+  border-bottom: 1px solid #262626;
+}
+
+[data-theme="light"] #param-model-select-menu .select-search-box {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #dedbd5;
 }
 
 .claude-settings-textarea {
