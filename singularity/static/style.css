@@ -1152,43 +1152,41 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
    =================================================================== */
 .tunnel-uptime-card {
   position: absolute;
-  left: 32px;
-  top: 28px;
+  left: 28px;
+  top: 24px;
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px 24px;
-  border-radius: 18px;
-  background: rgba(12, 12, 12, 0.65);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  gap: 6px;
+  padding: 0;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
   pointer-events: auto;
   user-select: none;
-  transition: transform 0.25s var(--ease-spring), border-color 0.2s ease, box-shadow 0.25s ease;
 }
 
 [data-theme="light"] .tunnel-uptime-card {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .tunnel-uptime-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(219, 125, 37, 0.35);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6), 0 0 20px rgba(219, 125, 37, 0.12);
+  transform: none;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .tunnel-uptime-header {
   font-family: 'Anthropic Serif Display', 'Anthropic Serif', var(--font-serif) !important;
-  font-size: 32px;
+  font-size: 23px;
   font-weight: 400;
-  line-height: 1.15;
+  line-height: 1.2;
   color: var(--text-primary);
-  letter-spacing: -0.022em;
+  letter-spacing: -0.02em;
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -1199,18 +1197,18 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
 .skiper37-timer {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .skiper37-unit-group {
   display: inline-flex;
   align-items: flex-end;
-  gap: 2px;
+  gap: 1px;
 }
 
 .skiper37-digit-col {
-  width: 36px;
-  height: 60px;
+  width: 25px;
+  height: 42px;
   overflow: hidden;
   position: relative;
   mask-image: linear-gradient(to bottom, transparent 0%, black 16%, black 84%, transparent 100%);
@@ -1225,9 +1223,9 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
 
 .skiper37-digit-track span {
   display: block;
-  height: 60px;
-  line-height: 60px;
-  font-size: 54px;
+  height: 42px;
+  line-height: 42px;
+  font-size: 38px;
   font-weight: 700;
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-variant-numeric: tabular-nums;
@@ -1238,25 +1236,25 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
 
 .skiper37-colon {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 38px;
+  font-size: 26px;
   font-weight: 300;
   color: #db7d25;
   opacity: 0.7;
   align-self: center;
-  margin: 0 4px;
-  padding-bottom: 6px;
+  margin: 0 3px;
+  padding-bottom: 4px;
   line-height: 1;
 }
 
 .skiper37-unit-label {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 600;
   color: #db7d25;
   align-self: flex-end;
-  padding-bottom: 8px;
+  padding-bottom: 5px;
   margin-left: 2px;
-  margin-right: 2px;
+  margin-right: 1px;
 }
 
 @media (max-width: 768px) {
@@ -1265,28 +1263,28 @@ html[data-active-tab="tunnel"][data-theme="dark"] {
     left: auto;
     top: auto;
     width: 100%;
-    margin-bottom: 16px;
-    padding: 14px 18px;
+    margin-bottom: 12px;
+    padding: 0;
   }
   .tunnel-uptime-header {
-    font-size: 24px;
+    font-size: 19px;
   }
   .skiper37-digit-col {
-    width: 26px;
-    height: 44px;
+    width: 20px;
+    height: 34px;
   }
   .skiper37-digit-track span {
-    height: 44px;
-    line-height: 44px;
-    font-size: 38px;
+    height: 34px;
+    line-height: 34px;
+    font-size: 30px;
   }
   .skiper37-colon {
-    font-size: 26px;
-    padding-bottom: 4px;
+    font-size: 20px;
+    padding-bottom: 3px;
   }
   .skiper37-unit-label {
-    font-size: 11px;
-    padding-bottom: 5px;
+    font-size: 10px;
+    padding-bottom: 4px;
   }
 }
 

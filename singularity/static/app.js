@@ -7182,7 +7182,7 @@ function setSkiper37Digit(colName, nextDigit) {
   var targetDigit = parseInt(nextDigit, 10);
   if (isNaN(targetDigit)) targetDigit = 0;
 
-  var itemHeight = 60;
+  var itemHeight = 42;
   var firstSpan = track.querySelector('span');
   if (firstSpan && firstSpan.offsetHeight > 0) {
     itemHeight = firstSpan.offsetHeight;
