@@ -20,7 +20,7 @@
 
   <link rel="stylesheet" href="/static/tokens.css?v=60" />
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css?v=1" />
-  <link rel="stylesheet" href="/static/style.css?v=67" />
+  <link rel="stylesheet" href="/static/style.css?v=68" />
   <link rel="stylesheet" href="/static/tool-steps.css?v=5" />
   <link rel="stylesheet" href="/static/message-controls.css?v=3" />
   <link rel="stylesheet" href="/static/chat-management.css?v=1" />
@@ -789,26 +789,20 @@
                 </div>
               </div>
 
-              <!-- Endpoint Copy Row matching Universal API Base URL -->
+              <!-- Endpoint Copy Row with auto /chat/completions -->
               <div class="endpoint-copy-row">
                 <span class="endpoint-text" id="tunnel-url-text">Offline — Click "Start ngrok Tunnel" to expose</span>
               </div>
 
-              <!-- App Clients Row matching Universal Link with SillyTavern small button and API Key -->
-              <div class="app-clients-row" id="tunnel-clients-row">
-                <div class="client-chip clickable-chip" id="chip-tunnel-st" title="Click to toggle /chat/completions">
-                  SillyTavern: <code>/chat/completions</code>
-                </div>
-                <div class="client-chip">API Key: <code>sk-singularity-local</code> (or any)</div>
+              <!-- Authtoken Management Header Row -->
+              <div class="tunnel-authtoken-header">
+                <span class="tunnel-authtoken-label">ngrok Authtoken</span>
+                <button class="btn btn-secondary btn-sm" id="btn-save-authtoken">Save Token</button>
               </div>
 
-              <!-- Authtoken Management Section (Moved to top tab so it is together) -->
-              <div class="tunnel-authtoken-row">
-                <div class="tunnel-authtoken-input-wrap">
-                  <span class="tunnel-authtoken-label">ngrok Authtoken</span>
-                  <input type="password" class="model-search-input" id="input-ngrok-authtoken" placeholder="Paste ngrok authtoken here..." />
-                </div>
-                <button class="btn btn-secondary btn-sm" id="btn-save-authtoken">Save Token</button>
+              <!-- Authtoken Input on its own separate line -->
+              <div class="tunnel-authtoken-input-wrap">
+                <input type="password" class="model-search-input" id="input-ngrok-authtoken" placeholder="Paste ngrok authtoken here..." />
               </div>
             </div>
 
@@ -1508,7 +1502,7 @@
   <script src="/static/logs-panel.js?v=2"></script>
   <script src="/static/bench-panel.js?v=1"></script>
   <script src="/static/preloader.js?v=1"></script>
-  <script src="/static/app.js?v=67"></script>
+  <script src="/static/app.js?v=68"></script>
   <script src="/static/glass-dock.js?v=60"></script>
 </body>
 

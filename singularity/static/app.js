@@ -6729,15 +6729,9 @@ function updateTunnelUI() {
 
   // URL Display Box & Text
   const urlText = document.getElementById('tunnel-url-text');
-  const stChip = document.getElementById('chip-tunnel-st');
   if (urlText) {
     if (isOnline) {
-      const base = `${t.public_url}/v1`;
-      if (stChip && stChip.classList.contains('active')) {
-        urlText.textContent = `${base}/chat/completions`;
-      } else {
-        urlText.textContent = base;
-      }
+      urlText.textContent = `${t.public_url}/v1/chat/completions`;
     } else {
       if (!isInstalled) {
         urlText.textContent = t.is_termux
@@ -6746,7 +6740,6 @@ function updateTunnelUI() {
       } else {
         urlText.textContent = 'Offline — Click "Start ngrok Tunnel" to expose';
       }
-      if (stChip) stChip.classList.remove('active');
     }
   }
 
@@ -6891,12 +6884,12 @@ function drawGlobeFrame(now) {
   globeSpin += (globeVel * dt) / 1000;
 
   // Whole, majestic 3D sphere centered vertically and horizontally with NO cut-off lines
-  var availableHalfHeight = Math.max(80, (globeHeight / 2) - 16);
-  var availableHalfWidth = Math.max(80, (globeWidth / 2) - 16);
+  var availableHalfHeight = Math.max(80, (globeHeight / 2) - 4);
+  var availableHalfWidth = Math.max(80, (globeWidth / 2) - 4);
   var R = Math.min(availableHalfWidth, availableHalfHeight);
   var cx = globeWidth / 2;
   var cy = globeHeight / 2;
-  var fs = R * 0.072;
+  var fs = R * 0.076;
 
   var cs = Math.cos(globeSpin), sn = Math.sin(globeSpin);
   var ct = Math.cos(globeTilt), st = Math.sin(globeTilt);
@@ -7149,28 +7142,6 @@ function initTunnelControls() {
       navigator.clipboard.writeText(text).then(() => {
         showToast('Copied endpoint to clipboard: ' + text, 'success');
       });
-    });
-  }
-
-  const chipSt = document.getElementById('chip-tunnel-st');
-  if (chipSt) {
-    chipSt.addEventListener('click', () => {
-      const t = state.tunnel;
-      if (!t || t.status !== 'online' || !t.public_url) {
-        showToast('Start ngrok tunnel first to use endpoint', 'info');
-        return;
-      }
-      const urlSpan = document.getElementById('tunnel-url-text');
-      const base = `${t.public_url}/v1`;
-      if (urlSpan.textContent.endsWith('/chat/completions')) {
-        urlSpan.textContent = base;
-        chipSt.classList.remove('active');
-        showToast('Switched to Base URL: ' + base, 'info');
-      } else {
-        urlSpan.textContent = base + '/chat/completions';
-        chipSt.classList.add('active');
-        showToast('Appended /chat/completions for SillyTavern', 'success');
-      }
     });
   }
 
