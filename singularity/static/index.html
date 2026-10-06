@@ -11,11 +11,11 @@
   <link rel="preload" href="/static/fonts/AnthropicSans-Text-Regular-Static.otf" as="font" type="font/otf" crossorigin />
   <link rel="preload" href="/static/fonts/AnthropicSerif-Display-Regular-Static.otf" as="font" type="font/otf" crossorigin />
 
-  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <!-- Google Fonts: Plus Jakarta Sans, JetBrains Mono & Janitor AI Bio Fonts (14 official families) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Berkshire+Swash&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=Dancing+Script:wght@400..700&family=Fraunces:ital,opsz,wght@0,9..144,400..800;1,9..144,400..800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Jura:wght@400;500;600;700&family=Lexend:wght@400;600;700&family=Monoton&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:ital,wght@0,400;0,600;0,700;1,400&family=Press+Start+2P&family=Rock+Salt&family=VT323&display=swap"
     rel="stylesheet" />
 
   <link rel="stylesheet" href="/static/tokens.css?v=60" />
@@ -30,6 +30,8 @@
   <link rel="stylesheet" href="/static/preloader.css?v=1" />
   <link rel="stylesheet" href="/static/janitor-bio.css?v=1" />
   <link rel="stylesheet" href="/static/updates.css?v=1" />
+  <link rel="stylesheet" href="/static/connect.css?v=8" />
+  <link rel="stylesheet" href="/static/login-portal.css?v=1" />
 </head>
 
 <body data-active-tab="playground">
@@ -67,6 +69,127 @@
         <div class="skiper7-progress-fill"></div>
       </div>
       <div class="skiper7-skip-prompt">CLICK ANYWHERE OR PRESS ESC TO ENTER</div>
+    </div>
+  </div>
+
+  <!-- Singularity Cloud Login Portal (Cloudflare Replica) -->
+  <div id="singularity-cloud-login-portal" data-portal-theme="dark" class="portal-hidden" aria-label="Singularity Cloud Authentication Portal">
+    <div class="portal-container">
+      <!-- LEFT COLUMN: Authentication Form -->
+      <div class="portal-auth-column">
+        <div class="portal-brand-header">
+          <svg class="portal-rotating-logo" viewBox="0 0 64 64" fill="none">
+            <path d="m32.57 24.68c0 .25.75.25.75.25s.21-.54-1-5.83-3.5-8.21-3.67-8.29a8.42 8.42 0 0 0 -1.37-.13 41.46 41.46 0 0 1 2.87 4.59c1.42 2.91 2.42 9.16 2.42 9.41zm2.43-.25c.08.17.42.13.58.09a14.9 14.9 0 0 0 -.45-5 41.77 41.77 0 0 0 -2.25-6.38c-.13-.21-.75-.12-1-.12a32.68 32.68 0 0 1 1.83 4.58 50.41 50.41 0 0 1 1.29 6.83zm2.29.5c0 .13.42.21.59.25s.25-.33.12-2.66a15.59 15.59 0 0 0 -.62-4.42c-.21-.21-1-.17-1-.17a24.53 24.53 0 0 1 .58 3c.28 1.75.32 3.88.36 4zm9 3.42a10.07 10.07 0 0 0 4.08-3.79c0-.21-.08-.42-.33-.38s-1.29 1.34-3.75 3a7.32 7.32 0 0 1 -4.37 1.29 1.64 1.64 0 0 0 .12.88 7.82 7.82 0 0 0 4.24-1zm-1.13 3.65c3-.55 4.2-2.25 4.29-2.5s.08-.67-.09-.67a22 22 0 0 1 -3.2 1.83c-1.84.75-4.39.39-4.55.54a3.55 3.55 0 0 0 -.29 1.13c.04.27.88.23 3.84-.33zm-1.59 2.41c-1.25 0-1.58-.16-1.71-.25s-.41.79-.29 1 0 0 .75.17a6.71 6.71 0 0 0 2.42-.25c.25-.09.29-.67.33-.79s-.25.1-1.5.14zm-5.41 2.59c0 .2.7 2.12 3.5 3.95s8.62 1.67 9.16 1.63.54-.71.54-.92-.29.09-1.87.09a21.45 21.45 0 0 1 -7.25-1.63c-1.92-1-3.33-3.83-3.33-3.83s-.71.52-.75.71zm1 4.41a17.84 17.84 0 0 1 -3.38-4.37 1.54 1.54 0 0 0 -.75 0c-.21.12.38 2.21 3.13 4.75a9.18 9.18 0 0 0 6.08 2.71c.46-.09.21-.29.17-.54s-2.92-.49-5.21-2.53zm-3.17.5a11.13 11.13 0 0 1 -2.33-4.54s-.65-.52-.84-.29-.08 1.33 1.25 3.58a9.22 9.22 0 0 0 3.25 3.5c.38.13.5 0 .59-.16s-.13-.15-1.91-2.07zm-4.42-4.46c.05-.12-.7-.29-.7-.16a10.14 10.14 0 0 0 .7 4.58c.21.25 1 .29 1.13.08s-.54-.83-.88-1.91a7.57 7.57 0 0 1 -.21-2.57zm-1.5-.37s-.48-.91-.75-.83-.66 1.95-.91 3.12a13.43 13.43 0 0 0 .41 7.21c1.13 3.71 5 8.71 5 8.71s.34-.13.38-.42-3-4.79-4.58-8.5.49-9.27.49-9.27zm-1.7-2.42s-.29-.57-.5-.5c-.38.13-1.75 2.75-2.3 7.63s2.3 10.79 2.5 10.91.71.25.8 0-2.09-4.25-2.5-9.16a15.91 15.91 0 0 1 2.04-8.86zm-4.37 5.11a11.77 11.77 0 0 1 2.67-6.42s-.09-.56-.29-.5c-.59.17-2.67 3-3.17 5.5a24 24 0 0 0 .12 7.08c.13.21.67.21.8.13a34.15 34.15 0 0 1 -.13-5.79zm-1.54-5c-.21.16-1.75 2.54-1.83 2.66s.37.25.62.3 1.58-2.71 1.58-2.71-.13-.38-.34-.21zm3.33-3.59c-.16-.12-4.21 1.55-8.16 4.3a21.72 21.72 0 0 0 -6.21 7.12s.62.46.87.42 1.64-3.42 4.59-6 8.75-5.09 8.91-5.17.21-.5.03-.63zm-12.18 5.75a24.07 24.07 0 0 1 5.17-4.83c2.83-2 7.38-2.67 7.38-2.67s.12-.54 0-.66a17.94 17.94 0 0 0 -7.46 2.45 25 25 0 0 0 -6 5.42s.5.75.5.75a1.26 1.26 0 0 0 .41-.46zm11.21-10.62c-1.41.12-4.17.41-4.33.46s-.29.95-.29 1.08.46-.08 2-.5a15.94 15.94 0 0 1 4.29-.17 1.14 1.14 0 0 0 .21-.5c0-.21-.46-.5-1.88-.37zm-6-1.25c0-.21-1.33-.71-3.83-.42a33.79 33.79 0 0 0 -4.25.75s-.25.71-.21.88 1.47-.27 3.47-.63a15.78 15.78 0 0 1 4.71.17c.15 0 .2-.54.15-.75zm-1.45-2.25a28.64 28.64 0 0 1 6.63.19c4.17.5 5.33 2.33 5.33 2.33l.88-.38s-1-1.95-5.42-2.91a19.11 19.11 0 0 0 -8.62 0c-.38.17-1 .7-.84.75a18.79 18.79 0 0 0 2.08.02zm13.63 1.41h.5s.38-.62-1.33-2.29a7.11 7.11 0 0 0 -4.17-1.93 6.06 6.06 0 0 0 -1.67.54s1 .21 3.17.71 3.5 2.97 3.5 2.97zm-22.51-9.08c.33.08 1.54-.67 4.08-1.21a8.62 8.62 0 0 1 4.92.59 1.38 1.38 0 0 0 .25-.71c0-.38-2.42-1.5-5.17-1.17s-4.69 1.36-4.57 1.46.16.96.49 1.04zm2.51-7.08s0 1.5.25 1.54.83-1.17.83-1.17 1.46 1.21 1.71.92-.5-1.67-.46-1.88.46-.83.21-1.25-.87.09-.87.09-.79-2-1.09-2-.17 1.92-.29 2-2 .41-2 .62 1.71 1.13 1.71 1.13zm43.2 24.75.5.75a13.58 13.58 0 0 0 1.75-1.79 11.69 11.69 0 0 0 2.12-4.13c.09-.17-.76-.53-.91-.46-.42.21-.92 1.67-1.38 3a7.36 7.36 0 0 1 -2.08 2.63zm-4.5-25c.21 0 0 2.17.37 2.29s.93-1.1 1.09-1.25 1 .17 1 .17l.16-1.3s.42-.54.38-.79-1-.29-1.17-.25-.87-1.68-1.33-1.62-.38 1.46-.46 1.62-1.57-.13-1.63.13c-.11.58 1.38 1.04 1.59 1.04zm-8.29 3c1.66 2.38 1.7 6.54 1.75 6.83s.29.25.62.09.5-2.5-.75-5.92a11.32 11.32 0 0 0 -4.58-5.58 2.91 2.91 0 0 0 -.88.41 26.35 26.35 0 0 1 3.84 4.25zm-32 44.42c-.42 0-.63 1.33-.71 1.54l-1.7.54a1.09 1.09 0 0 0 .17.79c.25.25 1.21.21 1.21.21s0 1.29.29 1.41 1-.7 1.16-.87 1.34.37 1.46.17-.29-.92-.25-1.13.67-.58.63-.75-1.17-.17-1.34-.21-.47-1.58-.88-1.62zm44.16-3c-.12-.25-4 .29-6.5 0s-4.76-1.6-4.91-1.5a1.27 1.27 0 0 0 -.5 1.21c.08.58 2.16.83 4.91 1.29a23.77 23.77 0 0 0 7 0 1.25 1.25 0 0 0 .04-.92zm-.79 3.16c-2 .67-2.33 2.8-1.12 3.63s3.91.5 4-1.5a2.11 2.11 0 0 0 -2.84-2.05zm2.22 2.54c-.13.75-1.71 1.13-2.46.71s-.71-1.75.79-2.33c1.02-.42 1.74.87 1.67 1.62zm4.75-6.79a.56.56 0 0 0 .08-.75 1.56 1.56 0 0 0 -1-.25c-.21 0-.58-1.42-1-1.46s-.58 1.59-.63 1.84-1.2-.07-1.2.12c0 .54 1.16.88 1.16.88s-.37 1.33-.12 1.62 1-.46 1-.46.58.34.92.17-.38-1.29-.38-1.42.91-.16 1.12-.29zm-41.21 3c-2.17-3.5-.33-7.13-.29-7.33s-.53-.45-.67-.3c-1.17 1.3-1.58 4.5-.58 7s4.25 6 4.62 5.92.75-.33.63-.75-1.59-1.08-3.76-4.58zm19.33-.25c-4-2.29-5.25-7.42-5.08-7.58s1.25.83 3.62 1.41a26.86 26.86 0 0 0 13.8-.75c5.5-1.91 9.12-6.54 9.29-7.12s.25-2.17-.29-2.34-4.21.92-7.21 1.05-5.25-.42-5.21-.63a15.6 15.6 0 0 0 3.83-3.08c2.5-2.67 3.55-5.46 4-11.38s-.62-10.47-1.38-11.33-2.17-.08-2.42.38a24.74 24.74 0 0 1 -2.62 7.2 10.66 10.66 0 0 1 -6.2 4.46 19.8 19.8 0 0 0 -1.79-7.87c-2-4.63-6.84-8.09-13.13-9.13s-9.91.44-10.12.5c-.92.25-.55 1.29-.34 1.71s.5.17 1 .17.75-.34 4 .62 5 7.38 5 7.38a40.13 40.13 0 0 0 -5.37.33 27.14 27.14 0 0 0 -10.55 3.83c-5.12 3.13-6.5 10.42-6.5 10.8s1.21 1 1.46 1.08.5-.58 2.59-2.75a7.92 7.92 0 0 1 5.41-2.13h1.04a22.83 22.83 0 0 0 -3.09 3.34 24.67 24.67 0 0 0 -3.37 10.79c-.17 4.46 3.42 8.62 3.67 8.83s1.08 0 1.29-.29.08-1.12 0-1.83a9.13 9.13 0 0 1 1.66-5.38 13.25 13.25 0 0 1 4.55-3.08 21 21 0 0 0 .95 7.08c1.13 2.82 4.42 7.29 10.84 9.82s12 .8 12.62.38a1.51 1.51 0 0 0 .75-1.54c-.12-.49-2.75-.7-6.75-2.99zm2 3.71c-.17.16-6.58.12-10.83-2.54s-7.13-8.17-7.5-9.46-.54-5.13-.68-5.6-1.33-.8-2-.46-4.41 1.93-5.86 4.68-1.46 3.21-1.46 3.21a11.44 11.44 0 0 1 -1.17-8.37 21 21 0 0 1 6-9.71c1.3-.92 2.34-1.5 2.3-1.67a7.89 7.89 0 0 0 -4.75-1 19.63 19.63 0 0 0 -5.46 1.71 8.37 8.37 0 0 1 -1.63.88s2-3.88 3.92-5.42a24.76 24.76 0 0 1 11-4.46 43.91 43.91 0 0 1 6.79-.54.94.94 0 0 0 .37-.33s-.33-3.67-2.08-5.88a31.73 31.73 0 0 0 -3.83-3.92c.25-.08 8.75 0 12.63 4.42s4.37 10.38 4.44 11.17 0 1.66.38 1.79 2.41 0 5-1.67a12 12 0 0 0 4.25-4.29c1.08-1.62 2.25-4.75 2.62-4.83s1.68 6.16-.32 12.69-5.59 8.72-6.68 9-1.58.16-1.79.45.33 1.34.58 1.42-.08.92 4.88 1 7.83-.62 7.92-.37-2 3.71-6 5.16-9 2-11.09 1.67a37.7 37.7 0 0 1 -6.58-2c-.67-.33-1.33-.71-1.75-.46s-1.37 3.38.79 6.59a28.43 28.43 0 0 0 6.54 6.33c.71.52 1.18.6.96.77zm-7.42-31.6c-3.25.84-3.93 4.54-3.29 6.92 1 3.75 9.37 4.46 9.91-1.29s-3.56-6.44-6.62-5.63zm5 5.24c-.37 3.88-5.66 3.56-6.53 1.31s-.55-4.33 2.29-5.09c2.05-.58 4.59-.13 4.23 3.75z" fill="#d97757"/>
+          </svg>
+          <span class="portal-brand-text">Singularity</span>
+        </div>
+
+        <div class="portal-header-actions">
+          <button type="button" class="portal-theme-btn" id="btn-portal-theme-toggle" title="Toggle Light / Dark mode" aria-label="Toggle theme">
+            <svg id="portal-theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div class="portal-auth-wrap">
+          <h1 class="portal-heading" id="portal-heading">Sign in to Singularity</h1>
+
+          <!-- Google OAuth Primary Button -->
+          <button type="button" class="portal-google-btn" id="btn-portal-google">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+
+          <button type="button" class="portal-sso-btn" id="btn-portal-sso">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <span>Continue with Gateway Key</span>
+          </button>
+
+          <!-- OR Divider -->
+          <div class="portal-divider">
+            <span>OR</span>
+          </div>
+
+          <!-- Email & Password Form (with onsubmit return false guard) -->
+          <form id="portal-login-form" onsubmit="event.preventDefault(); return false;">
+            <div class="portal-form-group">
+              <label class="portal-form-label" for="portal-email">Email</label>
+              <div class="portal-input-wrap">
+                <input 
+                  type="email" 
+                  id="portal-email" 
+                  class="portal-input-field" 
+                  required 
+                  placeholder="name@example.com" 
+                  autocomplete="email"
+                />
+              </div>
+            </div>
+
+            <div class="portal-form-group">
+              <label class="portal-form-label" for="portal-password">Password</label>
+              <div class="portal-input-wrap">
+                <input 
+                  type="password" 
+                  id="portal-password" 
+                  class="portal-input-field" 
+                  required 
+                  autocomplete="current-password"
+                />
+                <button type="button" class="portal-password-toggle" id="btn-portal-toggle-pw" aria-label="Toggle password view">
+                  <svg id="portal-eye-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <label class="portal-checkbox-row">
+              <input type="checkbox" id="portal-remember-me" checked>
+              <span class="portal-checkbox-label">Save login on this device</span>
+            </label>
+
+            <button type="submit" class="portal-submit-btn" id="portal-submit-btn">
+              Sign In
+            </button>
+
+            <div id="portal-msg-box" class="portal-msg-box"></div>
+          </form>
+
+          <div class="portal-links-footer">
+            <div>
+              Don't have an account? 
+              <a href="#" class="portal-link" id="portal-toggle-mode">Sign up</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: Radiant Crimson Hero with Embedded 3D Rotating Typographic Globe -->
+      <div class="portal-hero-column">
+        <canvas id="login-globe-canvas" class="portal-globe-canvas"></canvas>
+        <div style="position:relative; z-index:2;"></div>
+        <div class="portal-hero-content">
+          <div class="portal-hero-pill">
+            <span>SINGULARITY NEXUS</span>
+          </div>
+          <h2 class="portal-hero-title">Universal AI Gateway.</h2>
+          <p class="portal-hero-desc">
+            Frontier models, custom personas, and stacked accounts.<br>
+            Real-time cloud database sync across phone and laptop.
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1505,6 +1628,53 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
 
           </div>
         </div>
+
+        <!-- 10. S-CONNECT TAB (Domcord Cards Matrix & JanitorAI Bot Hub) -->
+        <div class="tab-pane" id="pane-connect">
+          <!-- Top Navigation Bar (Exact Domcord Nav Bar) -->
+          <header class="cards-top-nav-bar">
+            <div class="cards-nav-brand" onclick="SConnect.navigate('discover')">
+              <span class="cards-nav-brand-icon">
+                <img src="/logo.svg" alt="Singularity Logo" class="cards-nav-brand-logo" />
+              </span>
+              <span class="cards-nav-brand-title">S-Connect</span>
+            </div>
+
+            <nav class="cards-nav-capsule" role="tablist">
+              <button type="button" class="cards-nav-pill-btn is-active" id="cnav-discover" onclick="SConnect.navigate('discover')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+                <span>Discover</span>
+              </button>
+              <button type="button" class="cards-nav-pill-btn" id="cnav-following" onclick="SConnect.navigate('following')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span>Following Feed</span>
+              </button>
+              <button type="button" class="cards-nav-pill-btn" id="cnav-my-chats" onclick="SConnect.navigate('my-chats')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <span>My Chats</span>
+              </button>
+              <button type="button" class="cards-nav-pill-btn" id="cnav-creators" onclick="SConnect.navigate('creators')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                <span>Creators</span>
+              </button>
+              <button type="button" class="cards-nav-pill-btn" id="cnav-library" onclick="SConnect.navigate('library')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                <span>Library</span>
+              </button>
+              <button type="button" class="cards-nav-pill-btn" id="cnav-interceptor" onclick="SConnect.navigate('interceptor')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                <span>Interceptor</span>
+              </button>
+            </nav>
+
+            <div class="cards-nav-right-spacer" style="min-width: 140px;"></div>
+          </header>
+
+          <!-- Main Dynamic Container for Views (Discover, Detail, Creators, etc.) -->
+          <main id="connect-main-view" class="cards-app-container">
+            <!-- Dynamically populated by SConnect -->
+          </main>
+        </div>
       </section>
     </main>
     <!-- Media Lightbox Modal (High-Res Zoom & Inspect) -->
@@ -1833,6 +2003,36 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
 
             <!-- Panel 2: Account (Profile Photo, Display Name, Cache) -->
             <div class="claude-settings-panel" id="settings-panel-account" role="tabpanel">
+              <!-- Section: Supabase Cloud Account -->
+              <div class="claude-settings-section-title" style="display: flex; align-items: center; justify-content: space-between;">
+                <span>Singularity Cloud Account</span>
+                <span class="cloud-sync-status-badge" id="cloud-sync-status-badge">
+                  <span class="cloud-status-dot"></span>
+                  <span id="cloud-status-text">Connected</span>
+                </span>
+              </div>
+              <div class="claude-settings-row" data-search-text="cloud supabase account sync login email" style="flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 22px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                  <div>
+                    <div class="claude-settings-item-title" id="cloud-user-email-display" style="font-size: 14px; font-weight: 600;">operator@singularity.local</div>
+                    <div class="claude-settings-item-desc" id="cloud-endpoint-display"><code>ugbjziwpbdhgqovnlfvs.supabase.co</code> &bull; Auto-sync active</div>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-cloud-sync-now" style="font-size: 12px; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                      </svg>
+                      Sync Now
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-cloud-sign-out" style="font-size: 12px; padding: 5px 12px; color: #ef4444; border-color: rgba(239, 68, 68, 0.35);">
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div class="claude-settings-section-title">Profile</div>
 
               <!-- Row: Profile Photo Upload -->
@@ -2195,10 +2395,13 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
   <script src="/static/logs-panel.js?v=2"></script>
   <script src="/static/bench-panel.js?v=1"></script>
   <script src="/static/preloader.js?v=1"></script>
-  <script src="/static/app.js?v=74"></script>
+  <script src="/static/vendor/supabase.min.js"></script>
+  <script src="/static/supabase-sync.js?v=1"></script>
+  <script src="/static/app.js?v=75"></script>
   <script src="/static/glass-dock.js?v=60"></script>
   <script src="/static/janitor-bio.js?v=1"></script>
   <script src="/static/updates-panel.js?v=1"></script>
+  <script src="/static/connect-panel.js?v=8"></script>
 </body>
 
 </html>

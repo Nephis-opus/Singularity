@@ -347,6 +347,78 @@ def _create_tables() -> None:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS connect_cards (
+                bot_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
+                avatar TEXT NOT NULL DEFAULT '',
+                creator_id TEXT NOT NULL DEFAULT '',
+                creator_name TEXT NOT NULL DEFAULT '',
+                creator_avatar TEXT NOT NULL DEFAULT '',
+                category TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
+                personality TEXT NOT NULL DEFAULT '',
+                scenario TEXT NOT NULL DEFAULT '',
+                first_message TEXT NOT NULL DEFAULT '',
+                greetings_json TEXT NOT NULL DEFAULT '[]',
+                tags_json TEXT NOT NULL DEFAULT '[]',
+                tokens INTEGER NOT NULL DEFAULT 0,
+                chats INTEGER NOT NULL DEFAULT 0,
+                messages INTEGER NOT NULL DEFAULT 0,
+                is_unmasked BOOLEAN NOT NULL DEFAULT 0,
+                definition_private BOOLEAN NOT NULL DEFAULT 1,
+                source TEXT NOT NULL DEFAULT 'janitorai',
+                raw_payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at REAL NOT NULL DEFAULT 0.0,
+                updated_at REAL NOT NULL DEFAULT 0.0
+            );
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS connect_intercepts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bot_id TEXT NOT NULL DEFAULT '',
+                bot_name TEXT NOT NULL DEFAULT '',
+                model TEXT NOT NULL DEFAULT '',
+                system_prompt TEXT NOT NULL DEFAULT '',
+                user_prompt TEXT NOT NULL DEFAULT '',
+                detected_persona TEXT NOT NULL DEFAULT '',
+                intercepted_at REAL NOT NULL DEFAULT 0.0,
+                raw_body_json TEXT NOT NULL DEFAULT '{}'
+            );
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS connect_saved_cards (
+                bot_id TEXT PRIMARY KEY,
+                saved_at REAL NOT NULL DEFAULT 0.0
+            );
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS connect_chat_sessions (
+                session_id TEXT PRIMARY KEY,
+                bot_id TEXT NOT NULL DEFAULT '',
+                bot_name TEXT NOT NULL DEFAULT '',
+                bot_avatar TEXT NOT NULL DEFAULT '',
+                bot_description TEXT NOT NULL DEFAULT '',
+                created_at REAL NOT NULL DEFAULT 0.0,
+                updated_at REAL NOT NULL DEFAULT 0.0,
+                summary TEXT NOT NULL DEFAULT '',
+                message_count INTEGER NOT NULL DEFAULT 0,
+                greeting_idx INTEGER NOT NULL DEFAULT 0,
+                persona_id TEXT NOT NULL DEFAULT '',
+                persona_name TEXT NOT NULL DEFAULT '',
+                persona_avatar TEXT NOT NULL DEFAULT '',
+                is_published BOOLEAN NOT NULL DEFAULT 0,
+                messages_json TEXT NOT NULL DEFAULT '[]',
+                settings_json TEXT NOT NULL DEFAULT '{}'
+            );
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS connect_user_vault (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT '',
+                updated_at REAL NOT NULL DEFAULT 0.0
+            );
+        """)
         conn.execute("UPDATE bench_runs SET status = 'interrupted', finished_at = CURRENT_TIMESTAMP WHERE status = 'running'")
         conn.commit()
 
@@ -2647,4 +2719,497 @@ def delete_lorebook_entry(name: str, entry_id: str) -> bool:
         return False
     _write_entries(book["id"], kept)
     return True
+
+
+# ==============================================================================
+# S-Connect Card Vault & Proxy Intercept Storage
+# ==============================================================================
+
+def save_connect_card(card: Dict[str, Any]) -> None:
+    """Insert or update a character card in the S-Connect vault."""
+    bot_id = str(card.get("id") or card.get("bot_id") or "").strip()
+    if not bot_id:
+        return
+    now = time.time()
+    greetings = card.get("greetings") or []
+    tags = card.get("tags") or []
+    
+    with closing(get_db_connection()) as conn:
+        conn.execute("""
+            INSERT INTO connect_cards (
+                bot_id, name, avatar, creator_id, creator_name, creator_avatar,
+                category, description, personality, scenario, first_message,
+                greetings_json, tags_json, tokens, chats, messages,
+                is_unmasked, definition_private, source, raw_payload_json,
+                created_at, updated_at
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?
+            )
+            ON CONFLICT(bot_id) DO UPDATE SET
+                name = excluded.name,
+                avatar = excluded.avatar,
+                creator_id = excluded.creator_id,
+                creator_name = excluded.creator_name,
+                creator_avatar = excluded.creator_avatar,
+                category = excluded.category,
+                description = excluded.description,
+                personality = CASE WHEN length(excluded.personality) > 0 THEN excluded.personality ELSE connect_cards.personality END,
+                scenario = CASE WHEN length(excluded.scenario) > 0 THEN excluded.scenario ELSE connect_cards.scenario END,
+                first_message = CASE WHEN length(excluded.first_message) > 0 THEN excluded.first_message ELSE connect_cards.first_message END,
+                greetings_json = excluded.greetings_json,
+                tags_json = excluded.tags_json,
+                tokens = excluded.tokens,
+                chats = excluded.chats,
+                messages = excluded.messages,
+                is_unmasked = CASE WHEN excluded.is_unmasked = 1 THEN 1 ELSE connect_cards.is_unmasked END,
+                definition_private = CASE WHEN excluded.is_unmasked = 1 THEN 0 ELSE excluded.definition_private END,
+                raw_payload_json = excluded.raw_payload_json,
+                updated_at = excluded.updated_at
+        """, (
+            bot_id,
+            str(card.get("name") or "Character"),
+            str(card.get("avatar") or ""),
+            str(card.get("creator_id") or card.get("creatorId") or ""),
+            str(card.get("creator_name") or card.get("creatorName") or "Creator"),
+            str(card.get("creator_avatar") or card.get("creatorAvatar") or ""),
+            str(card.get("category") or ""),
+            str(card.get("description") or ""),
+            str(card.get("personality") or ""),
+            str(card.get("scenario") or ""),
+            str(card.get("first_message") or card.get("firstMessage") or ""),
+            json.dumps(greetings),
+            json.dumps(tags),
+            int(card.get("tokens") or 0),
+            int(card.get("chats") or 0),
+            int(card.get("messages") or 0),
+            1 if (card.get("is_unmasked") or card.get("isUnmasked") or (card.get("personality") and len(str(card.get("personality")).strip()) > 0 and not card.get("definition_private") and not card.get("definitionPrivate"))) else 0,
+            1 if (card.get("definition_private") or card.get("definitionPrivate")) and not (card.get("is_unmasked") or card.get("isUnmasked")) else 0,
+            str(card.get("source") or "janitorai"),
+            json.dumps(card),
+            float(card.get("created_at")) if isinstance(card.get("created_at"), (int, float)) else now,
+            now
+        ))
+        conn.commit()
+
+
+def get_connect_card(bot_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve a single character card from SQLite vault."""
+    clean_id = str(bot_id or "").strip()
+    if not clean_id:
+        return None
+    with closing(get_db_connection()) as conn:
+        row = conn.execute("SELECT * FROM connect_cards WHERE bot_id = ?", (clean_id,)).fetchone()
+        if not row:
+            return None
+        return _format_connect_card_row(dict(row))
+
+
+def list_connect_cards(q: str = "", unmasked_only: bool = False, limit: int = 60) -> List[Dict[str, Any]]:
+    """List character cards matching search filters."""
+    query_parts = ["SELECT * FROM connect_cards WHERE 1=1"]
+    params = []
+    
+    clean_q = str(q or "").strip().lower()
+    if clean_q:
+        query_parts.append("(lower(name) LIKE ? OR lower(creator_name) LIKE ? OR lower(description) LIKE ? OR lower(tags_json) LIKE ?)")
+        wild = f"%{clean_q}%"
+        params.extend([wild, wild, wild, wild])
+    
+    if unmasked_only:
+        query_parts.append("is_unmasked = 1")
+    
+    query_parts.append("ORDER BY updated_at DESC LIMIT ?")
+    params.append(limit)
+    
+    with closing(get_db_connection()) as conn:
+        rows = conn.execute(" ".join(query_parts), tuple(params)).fetchall()
+        return [_format_connect_card_row(dict(r)) for r in rows]
+
+
+def delete_connect_card(bot_id: str) -> bool:
+    """Delete a stored card from vault."""
+    clean_id = str(bot_id or "").strip()
+    if not clean_id:
+        return False
+    with closing(get_db_connection()) as conn:
+        cur = conn.execute("DELETE FROM connect_cards WHERE bot_id = ?", (clean_id,))
+        conn.execute("DELETE FROM connect_saved_cards WHERE bot_id = ?", (clean_id,))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def save_connect_bookmark(bot_id: str, card: Optional[Dict[str, Any]] = None) -> None:
+    """Explicitly save/bookmark a character card in the user's library."""
+    clean_id = str(bot_id or "").strip()
+    if not clean_id:
+        return
+    if card:
+        save_connect_card(card)
+    now = time.time()
+    with closing(get_db_connection()) as conn:
+        conn.execute("""
+            INSERT INTO connect_saved_cards (bot_id, saved_at)
+            VALUES (?, ?)
+            ON CONFLICT(bot_id) DO UPDATE SET saved_at = excluded.saved_at
+        """, (clean_id, now))
+        conn.commit()
+
+
+def delete_connect_bookmark(bot_id: str) -> bool:
+    """Remove a character bookmark from the user's library."""
+    clean_id = str(bot_id or "").strip()
+    if not clean_id:
+        return False
+    with closing(get_db_connection()) as conn:
+        cur = conn.execute("DELETE FROM connect_saved_cards WHERE bot_id = ?", (clean_id,))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def list_saved_connect_cards(q: str = "", limit: int = 60) -> List[Dict[str, Any]]:
+    """List character cards explicitly saved by the user, ordered newly saved to oldest saved."""
+    query_parts = [
+        "SELECT c.*, s.saved_at FROM connect_saved_cards s",
+        "JOIN connect_cards c ON s.bot_id = c.bot_id",
+        "WHERE 1=1"
+    ]
+    params = []
+    
+    clean_q = str(q or "").strip().lower()
+    if clean_q:
+        query_parts.append("AND (lower(c.name) LIKE ? OR lower(c.creator_name) LIKE ? OR lower(c.description) LIKE ? OR lower(c.tags_json) LIKE ?)")
+        wild = f"%{clean_q}%"
+        params.extend([wild, wild, wild, wild])
+    
+    query_parts.append("ORDER BY s.saved_at DESC LIMIT ?")
+    params.append(limit)
+    
+    with closing(get_db_connection()) as conn:
+        rows = conn.execute(" ".join(query_parts), tuple(params)).fetchall()
+        return [_format_connect_card_row(dict(r)) for r in rows]
+
+
+
+def _format_connect_card_row(r: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        greetings = json.loads(r.get("greetings_json") or "[]")
+    except Exception:
+        greetings = []
+    try:
+        tags = json.loads(r.get("tags_json") or "[]")
+    except Exception:
+        tags = []
+    
+    return {
+        "id": r["bot_id"],
+        "name": r["name"],
+        "avatar": r["avatar"],
+        "creator_id": r["creator_id"],
+        "creator_name": r["creator_name"],
+        "creator_avatar": r["creator_avatar"],
+        "category": r["category"],
+        "description": r["description"],
+        "personality": r["personality"],
+        "scenario": r["scenario"],
+        "first_message": r["first_message"],
+        "firstMessage": r["first_message"],
+        "greetings": greetings,
+        "tags": tags,
+        "tokens": r["tokens"],
+        "chats": r["chats"],
+        "messages": r["messages"],
+        "is_unmasked": bool(r["is_unmasked"]),
+        "isUnmasked": bool(r["is_unmasked"]),
+        "definition_private": bool(r["definition_private"]),
+        "definitionPrivate": bool(r["definition_private"]),
+        "source": r["source"],
+        "created_at": r["created_at"],
+        "updated_at": r["updated_at"]
+    }
+
+
+def save_connect_intercept(intercept: Dict[str, Any]) -> int:
+    """Save an intercepted system prompt / character persona capture."""
+    now = time.time()
+    with closing(get_db_connection()) as conn:
+        cur = conn.execute("""
+            INSERT INTO connect_intercepts (
+                bot_id, bot_name, model, system_prompt, user_prompt,
+                detected_persona, intercepted_at, raw_body_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            str(intercept.get("bot_id") or ""),
+            str(intercept.get("bot_name") or "Captured Character"),
+            str(intercept.get("model") or "s-connect-proxy"),
+            str(intercept.get("system_prompt") or ""),
+            str(intercept.get("user_prompt") or ""),
+            str(intercept.get("detected_persona") or ""),
+            float(intercept.get("intercepted_at") or now),
+            json.dumps(intercept.get("raw_body") or {})
+        ))
+        conn.commit()
+        return cur.lastrowid or 0
+
+
+def get_latest_connect_intercept() -> Optional[Dict[str, Any]]:
+    """Return the most recent intercepted character prompt."""
+    with closing(get_db_connection()) as conn:
+        row = conn.execute("SELECT * FROM connect_intercepts ORDER BY id DESC LIMIT 1").fetchone()
+        if not row:
+            return None
+        return dict(row)
+
+
+def list_connect_intercepts(limit: int = 30) -> List[Dict[str, Any]]:
+    """Return recent intercepted prompts for live inspection."""
+    with closing(get_db_connection()) as conn:
+        rows = conn.execute("SELECT * FROM connect_intercepts ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def clear_connect_intercepts() -> None:
+    """Clear captured intercepts log."""
+    with closing(get_db_connection()) as conn:
+        conn.execute("DELETE FROM connect_intercepts")
+        conn.commit()
+
+
+# ==============================================================================
+# S-Connect Chat Sessions & Cross-Device Cloud Sync
+# ==============================================================================
+
+def save_connect_session(session: Dict[str, Any]) -> None:
+    """Insert or update an S-Connect chat session in SQLite."""
+    session_id = str(session.get("id") or session.get("session_id") or "").strip()
+    if not session_id:
+        return
+    bot_id = str(session.get("botId") or session.get("bot_id") or "").strip()
+    bot_name = str(session.get("botName") or session.get("bot_name") or "")
+    bot_avatar = str(session.get("botAvatar") or session.get("bot_avatar") or "")
+    bot_desc = str(session.get("botDescription") or session.get("bot_description") or "")
+    created_at = float(session.get("createdAt") or session.get("created_at") or time.time() * 1000)
+    updated_at = float(session.get("updatedAt") or session.get("updated_at") or time.time() * 1000)
+    summary = str(session.get("summary") or "no summary :(")
+    msg_count = int(session.get("messageCount") or session.get("message_count") or 0)
+    greeting_idx = int(session.get("greetingIdx") or session.get("greeting_idx") or 0)
+    persona_id = str(session.get("personaId") or session.get("persona_id") or "")
+    persona_name = str(session.get("personaName") or session.get("persona_name") or "")
+    persona_avatar = str(session.get("personaAvatar") or session.get("persona_avatar") or "")
+    is_pub = 1 if session.get("isPublished") or session.get("is_published") else 0
+
+    msgs = session.get("messages")
+    msgs_json = json.dumps(msgs) if isinstance(msgs, list) else str(session.get("messages_json") or "[]")
+
+    settings = session.get("settings")
+    settings_json = json.dumps(settings) if isinstance(settings, dict) else str(session.get("settings_json") or "{}")
+
+    with closing(get_db_connection()) as conn:
+        conn.execute("""
+            INSERT INTO connect_chat_sessions (
+                session_id, bot_id, bot_name, bot_avatar, bot_description,
+                created_at, updated_at, summary, message_count, greeting_idx,
+                persona_id, persona_name, persona_avatar, is_published,
+                messages_json, settings_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                bot_id = excluded.bot_id,
+                bot_name = excluded.bot_name,
+                bot_avatar = excluded.bot_avatar,
+                bot_description = excluded.bot_description,
+                updated_at = excluded.updated_at,
+                summary = excluded.summary,
+                message_count = excluded.message_count,
+                greeting_idx = excluded.greeting_idx,
+                persona_id = excluded.persona_id,
+                persona_name = excluded.persona_name,
+                persona_avatar = excluded.persona_avatar,
+                is_published = excluded.is_published,
+                messages_json = CASE WHEN excluded.messages_json != '[]' THEN excluded.messages_json ELSE connect_chat_sessions.messages_json END,
+                settings_json = CASE WHEN excluded.settings_json != '{}' THEN excluded.settings_json ELSE connect_chat_sessions.settings_json END
+        """, (
+            session_id, bot_id, bot_name, bot_avatar, bot_desc,
+            created_at, updated_at, summary, msg_count, greeting_idx,
+            persona_id, persona_name, persona_avatar, is_pub,
+            msgs_json, settings_json
+        ))
+        conn.commit()
+
+
+def get_connect_sessions(bot_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Return all stored S-Connect chat sessions, optionally filtered by bot_id."""
+    query = "SELECT * FROM connect_chat_sessions"
+    params: List[Any] = []
+    if bot_id:
+        query += " WHERE bot_id = ?"
+        params.append(str(bot_id).strip())
+    query += " ORDER BY updated_at DESC"
+
+    with closing(get_db_connection()) as conn:
+        rows = conn.execute(query, tuple(params)).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            try:
+                msgs = json.loads(d.get("messages_json") or "[]")
+            except Exception:
+                msgs = []
+            try:
+                sett = json.loads(d.get("settings_json") or "{}")
+            except Exception:
+                sett = {}
+            result.append({
+                "id": d["session_id"],
+                "session_id": d["session_id"],
+                "botId": d["bot_id"],
+                "botName": d["bot_name"],
+                "botAvatar": d["bot_avatar"],
+                "botDescription": d["bot_description"],
+                "createdAt": d["created_at"],
+                "updatedAt": d["updated_at"],
+                "summary": d["summary"],
+                "messageCount": d["message_count"],
+                "greetingIdx": d["greeting_idx"],
+                "personaId": d["persona_id"],
+                "personaName": d["persona_name"],
+                "personaAvatar": d["persona_avatar"],
+                "isPublished": bool(d["is_published"]),
+                "messages": msgs,
+                "settings": sett
+            })
+        return result
+
+
+def get_connect_session_by_id(session_id: str) -> Optional[Dict[str, Any]]:
+    """Return single session by ID with its messages and settings."""
+    clean_id = str(session_id or "").strip()
+    if not clean_id:
+        return None
+    with closing(get_db_connection()) as conn:
+        row = conn.execute("SELECT * FROM connect_chat_sessions WHERE session_id = ?", (clean_id,)).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            msgs = json.loads(d.get("messages_json") or "[]")
+        except Exception:
+            msgs = []
+        try:
+            sett = json.loads(d.get("settings_json") or "{}")
+        except Exception:
+            sett = {}
+        return {
+            "id": d["session_id"],
+            "session_id": d["session_id"],
+            "botId": d["bot_id"],
+            "botName": d["bot_name"],
+            "botAvatar": d["bot_avatar"],
+            "botDescription": d["bot_description"],
+            "createdAt": d["created_at"],
+            "updatedAt": d["updated_at"],
+            "summary": d["summary"],
+            "messageCount": d["message_count"],
+            "greetingIdx": d["greeting_idx"],
+            "personaId": d["persona_id"],
+            "personaName": d["persona_name"],
+            "personaAvatar": d["persona_avatar"],
+            "isPublished": bool(d["is_published"]),
+            "messages": msgs,
+            "settings": sett
+        }
+
+
+def delete_connect_session(session_id: str) -> bool:
+    """Delete a chat session from SQLite."""
+    clean_id = str(session_id or "").strip()
+    if not clean_id:
+        return False
+    with closing(get_db_connection()) as conn:
+        cur = conn.execute("DELETE FROM connect_chat_sessions WHERE session_id = ?", (clean_id,))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def get_connect_vault_val(key: str, default: Any = None) -> Any:
+    """Get a stored preference/vault value (e.g. personas, saved bots)."""
+    with closing(get_db_connection()) as conn:
+        row = conn.execute("SELECT value FROM connect_user_vault WHERE key = ?", (key,)).fetchone()
+        if not row:
+            return default
+        try:
+            return json.loads(row["value"])
+        except Exception:
+            return row["value"]
+
+
+def set_connect_vault_val(key: str, value: Any) -> None:
+    """Set a stored preference/vault value."""
+    val_str = json.dumps(value) if not isinstance(value, str) else value
+    with closing(get_db_connection()) as conn:
+        conn.execute("""
+            INSERT INTO connect_user_vault (key, value, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+        """, (key, val_str, time.time()))
+        conn.commit()
+
+
+def get_full_connect_sync_payload() -> Dict[str, Any]:
+    """Assemble complete portable sync bundle of sessions, personas, and preferences."""
+    sessions = get_connect_sessions()
+    personas = get_connect_vault_val("personas", [])
+    active_persona_id = get_connect_vault_val("active_persona_id", "persona_default")
+    saved_bots = get_connect_vault_val("saved_bots", [])
+    following = get_connect_vault_val("following", [])
+    active_chats = get_connect_vault_val("active_chats", {})
+
+    return {
+        "version": 2,
+        "synced_at": time.time(),
+        "sessions": sessions,
+        "personas": personas,
+        "active_persona_id": active_persona_id,
+        "saved_bots": saved_bots,
+        "following": following,
+        "active_chats": active_chats
+    }
+
+
+def merge_connect_sync_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge an incoming bundle with the local SQLite vault (newest updatedAt wins)."""
+    incoming_sessions = payload.get("sessions") or []
+    for s in incoming_sessions:
+        if isinstance(s, dict) and (s.get("id") or s.get("session_id")):
+            save_connect_session(s)
+
+    if "personas" in payload and isinstance(payload["personas"], list) and payload["personas"]:
+        local_personas = get_connect_vault_val("personas", [])
+        p_map = {p.get("id"): p for p in local_personas if isinstance(p, dict) and p.get("id")}
+        for p in payload["personas"]:
+            if isinstance(p, dict) and p.get("id"):
+                p_map[p["id"]] = p
+        set_connect_vault_val("personas", list(p_map.values()))
+
+    if "active_persona_id" in payload and payload["active_persona_id"]:
+        set_connect_vault_val("active_persona_id", payload["active_persona_id"])
+
+    if "saved_bots" in payload and isinstance(payload["saved_bots"], list):
+        local_saved = set(get_connect_vault_val("saved_bots", []))
+        local_saved.update(payload["saved_bots"])
+        set_connect_vault_val("saved_bots", list(local_saved))
+
+    if "following" in payload and isinstance(payload["following"], list):
+        local_following = set(get_connect_vault_val("following", []))
+        local_following.update(payload["following"])
+        set_connect_vault_val("following", list(local_following))
+
+    if "active_chats" in payload and isinstance(payload["active_chats"], dict):
+        local_active = get_connect_vault_val("active_chats", {})
+        local_active.update(payload["active_chats"])
+        set_connect_vault_val("active_chats", local_active)
+
+    return get_full_connect_sync_payload()
+
 

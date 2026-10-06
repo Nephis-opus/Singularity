@@ -6,16 +6,15 @@ There are two distinct repositories/forks — maintaining clear separation is st
   - The canonical, active workspace repository.
   - Fully built and developed by Nephis / InsomniacZero.
   - Heavy focus on user-friendliness, streamlined pure-Python architecture (`StarletteGateway` / zero Rust compilation on mobile), unified Control Center & Playground UI, and Tavern integration.
-- **NISTE-sing (`https://github.com/InsomniacZero/Singularity`) [ISOLATED REFERENCE]**:
-  - Separate fork originally created by InsomniacZero, currently developed and maintained by someone else.
-  - Pulled into the isolated directory [`niste-sing/`](file:///home/insomniac/Desktop/Janitor/niste-sing) strictly for reference, protocol inspection, or comparative analysis.
-  - **Rule**: Never import, execute, or mix files from `niste-sing/` directly into NEPHIS-Sing runtime code.
+- **NISTE-sing & DOMCORD-CARDS [ISOLATED REFERENCES]**:
+  - `niste-sing/` and `Domcord-Cards/` are pulled/extracted strictly for reference, protocol inspection, or comparative reverse-engineering.
+  - **Rule**: Never import, execute, or mix files from `niste-sing/`, `legacy/`, or `Domcord-Cards/` directly into NEPHIS-Sing runtime code. All runtime code must live purely in `singularity/`.
 
 ## ⚠️ Essential Project Rules
 1. **NO GIT PUSH**: Never push code or tokens to GitHub (`git push` is forbidden unless explicitly asked by the user).
 2. **NO BROWSER / CHROME AUTOMATION**: Do not open Chrome or use browser subagents unless explicitly instructed.
 3. **PREFER REPO CLI (`./singular` or `./c2a`)**: When checking accounts, verifying quotas/limits, testing models, checking status, or toggling simulation mode, **DO NOT** write multi-line Python scratch scripts or raw curl commands. **Always use the built-in `./singular` (or `./c2a`) CLI tool**.
-4. **NO LEGACY / NISTE-SING DEPENDENCIES**: The Singularity workspace is 100% self-contained in `singularity/`. Do not import, execute, or link against files from `legacy/` or `niste-sing/`.
+4. **NO LEGACY / NISTE-SING / DOMCORD-CARDS DEPENDENCIES**: The Singularity workspace is 100% self-contained in `singularity/`. Do not import, execute, or link against files from `legacy/`, `niste-sing/`, or `Domcord-Cards/`.
 5. **ZERO RUST BUILD TOOLCHAINS ON MOBILE**: Singularity runs on pure Python with `StarletteGateway` and `uvicorn`. Never add `pydantic` or `fastapi` to `requirements.txt`. Startup dependency checks must verify pure packages (`starlette, uvicorn, httpx`) so phone installation completes in 3–5 seconds without Cargo/Rust compilation.
 6. **ARCHITECTURE MANUAL**: Consult [ARCHITECTURE.md](file:///home/insomniac/Desktop/Janitor/ARCHITECTURE.md) for the full architectural blueprint, request lifecycle, engine protocol specifications, and data flow pipelines.
 

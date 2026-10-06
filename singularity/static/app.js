@@ -107,7 +107,7 @@ function showGatewayLogin() {
         This device isn't the one running Singularity. On that machine, run
         <code style="font-family:var(--font-mono);">./singular key</code> and paste the key here.
       </div>
-      <input type="password" name="key" autocomplete="current-password" placeholder="sk-sing-…" required
+      <input type="password" name="key" autocomplete="current-password" placeholder="Insom-Singularity" required
              style="padding:10px 12px;border-radius:var(--radius-md);border:1px solid var(--border-medium);background:var(--bg-input);color:var(--text-primary);font-family:var(--font-mono);font-size:var(--font-size-sm);" />
       <div class="gateway-login-error" role="alert" style="font-size:var(--font-size-xs);color:var(--color-error);min-height:16px;"></div>
       <button type="submit" style="padding:10px 12px;border:none;border-radius:var(--radius-md);background:var(--brand-primary);color:#fff;font-weight:600;font-size:var(--font-size-sm);cursor:pointer;">Unlock</button>
@@ -122,13 +122,15 @@ function showGatewayLogin() {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorEl.textContent = '';
+    const keyVal = input.value.trim();
     try {
       const res = await nativeFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: input.value.trim() }),
+        body: JSON.stringify({ key: keyVal }),
       });
       if (res.ok) {
+        localStorage.setItem('singularity_gateway_key', keyVal);
         window.location.reload();
         return;
       }
@@ -140,7 +142,19 @@ function showGatewayLogin() {
   });
 }
 
-window.fetch = async (input, init) => {
+window.fetch = async (input, init = {}) => {
+  const savedKey = localStorage.getItem('singularity_gateway_key');
+  if (savedKey) {
+    init = init || {};
+    init.headers = init.headers || {};
+    if (init.headers instanceof Headers) {
+      if (!init.headers.has('X-Gateway-Key')) init.headers.set('X-Gateway-Key', savedKey);
+    } else if (Array.isArray(init.headers)) {
+      init.headers.push(['X-Gateway-Key', savedKey]);
+    } else {
+      if (!init.headers['X-Gateway-Key']) init.headers['X-Gateway-Key'] = savedKey;
+    }
+  }
   const res = await nativeFetch(input, init);
   if (res.status === 401) {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
@@ -1309,7 +1323,7 @@ function initNavigation() {
   document.documentElement.dataset.activeTab = state.currentTab || 'playground';
 }
 
-function switchTab(tabId) {
+function switchTab(tabId, updateHash = true) {
   state.currentTab = tabId;
   document.body.dataset.activeTab = tabId;
   document.documentElement.dataset.activeTab = tabId;
@@ -1324,6 +1338,21 @@ function switchTab(tabId) {
 
   window.SingularityGlassDock?.updateActiveDockTab?.();
   window.SingularityGlassDock?.updateDockMode?.();
+
+  // Push state to browser history so Back/Forward buttons work cleanly
+  if (updateHash) {
+    if (tabId === 'connect') {
+      const connectView = window.SConnect?.currentView || 'discover';
+      const cHash = window.location.hash.startsWith('#connect') ? window.location.hash : (connectView === 'discover' ? '#connect' : `#connect/${connectView}`);
+      if (window.location.hash !== cHash) {
+        history.pushState({ tab: 'connect' }, '', cHash);
+      }
+    } else {
+      if (window.location.hash !== `#${tabId}`) {
+        history.pushState({ tab: tabId }, '', `#${tabId}`);
+      }
+    }
+  }
 
   const heading = document.getElementById('page-heading');
   const subheading = document.getElementById('page-subheading');
@@ -1361,6 +1390,10 @@ function switchTab(tabId) {
       h: 'Janitor Bio Studio',
       sub: '',
     },
+    connect: {
+      h: 'S-Connect',
+      sub: '',
+    },
     updates: {
       h: 'S-Update Logs',
       sub: '',
@@ -1385,6 +1418,9 @@ function switchTab(tabId) {
     }
     if (tabId === 'bio') {
       if (window.JanitorBioStudio?.init) window.JanitorBioStudio.init();
+    }
+    if (tabId === 'connect') {
+      if (window.SConnect?.show) window.SConnect.show();
     }
     if (tabId === 'updates') {
       if (window.SingularityUpdates?.init) window.SingularityUpdates.init();
@@ -6805,6 +6841,7 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
 
     // Create Claude-grade interactive response action bar
     createResponseActionBar(assistantMsgEl, fullContent, userText, state.selectedModel, elapsed, new Date());
+    window.dispatchEvent(new CustomEvent('singularity-chat-updated'));
 
   } catch (err) {
     if (loaderObj.finish) loaderObj.finish();
@@ -8283,6 +8320,50 @@ function initSidebar() {
 }
 
 // ===================================================================
+// Universal App Router (Enables Browser Back/Forward & Direct URL Hashing)
+// ===================================================================
+function initAppRouter() {
+  function handleRoute() {
+    const rawHash = (window.location.hash || '').replace(/^#\/?/, '');
+    if (!rawHash) {
+      if (state.currentTab !== 'playground') {
+        switchTab('playground', false);
+      }
+      return;
+    }
+
+    const parts = rawHash.split('/');
+    const tab = parts[0];
+
+    if (tab === 'connect') {
+      if (state.currentTab !== 'connect') {
+        switchTab('connect', false);
+      }
+      const view = parts[1] || 'discover';
+      const id = parts.slice(2).join('/') || '';
+      if (window.SConnect && typeof window.SConnect.navigate === 'function') {
+        window.SConnect.navigate(view, { id }, false);
+      }
+    } else {
+      const validTabs = ['playground', 'providers', 'accounts', 'limits', 'tunnel', 'updates', 'bio', 'presets', 'lorebooks'];
+      if (validTabs.includes(tab)) {
+        if (state.currentTab !== tab) {
+          switchTab(tab, false);
+        }
+      }
+    }
+  }
+
+  window.addEventListener('hashchange', handleRoute);
+  window.addEventListener('popstate', handleRoute);
+
+  // If a hash was present on initial boot, navigate to it cleanly
+  if (window.location.hash) {
+    setTimeout(handleRoute, 40);
+  }
+}
+
+// ===================================================================
 // Initialization
 // ===================================================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -8291,6 +8372,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSidebar();
   initTooltips();
   initNavigation();
+  initAppRouter();
   initModelFilters();
   initCookieTabs();
   initCustomSelect();

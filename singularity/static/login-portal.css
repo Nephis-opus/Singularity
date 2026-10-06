@@ -1,0 +1,527 @@
+/* ==========================================================================
+   SINGULARITY CLOUD PORTAL (CLOUDFLARE SPLIT-SCREEN THEME)
+   - Left: High-contrast authentication (Google + Email/Password + Gateway Key)
+   - Right: Radiant crimson-orange hero with interactive 3D rotating typographic world sphere
+   - Full dark theme support matching Singularity's pitch black UI
+   ========================================================================== */
+
+:root,
+#singularity-cloud-login-portal,
+#singularity-cloud-login-portal[data-portal-theme="dark"],
+[data-theme="light"] #singularity-cloud-login-portal[data-portal-theme="dark"] {
+  --portal-bg: #000000;
+  --portal-auth-bg: #000000;
+  --portal-text-main: #ffffff;
+  --portal-text-muted: #9ca3af;
+  --portal-border: rgba(255, 255, 255, 0.14);
+  --portal-input-bg: #0c0e12;
+  --portal-input-border: rgba(255, 255, 255, 0.18);
+  --portal-input-text: #ffffff;
+  --portal-input-placeholder: #6b7280;
+  --portal-btn-google-bg: #14171f;
+  --portal-btn-google-border: rgba(255, 255, 255, 0.18);
+  --portal-btn-google-text: #ffffff;
+  --portal-btn-sso-bg: rgba(255, 255, 255, 0.05);
+  --portal-btn-sso-border: rgba(255, 255, 255, 0.12);
+  --portal-btn-sso-text: #d1d5db;
+  --portal-hero-gradient: linear-gradient(135deg, #a8230f 0%, #700f13 45%, #150202 100%);
+  --portal-primary-blue: #2563eb;
+  --portal-primary-blue-hover: #1d4ed8;
+}
+
+#singularity-cloud-login-portal[data-portal-theme="light"] {
+  --portal-bg: #ffffff;
+  --portal-auth-bg: #ffffff;
+  --portal-text-main: #111827;
+  --portal-text-muted: #6b7280;
+  --portal-border: #d1d5db;
+  --portal-input-bg: #f9fafb;
+  --portal-input-border: #d1d5db;
+  --portal-input-text: #111827;
+  --portal-input-placeholder: #9ca3af;
+  --portal-btn-google-bg: #ffffff;
+  --portal-btn-google-border: #d1d5db;
+  --portal-btn-google-text: #1f2937;
+  --portal-btn-sso-bg: #f9fafb;
+  --portal-btn-sso-border: #d1d5db;
+  --portal-btn-sso-text: #4b5563;
+  --portal-hero-gradient: linear-gradient(135deg, #f03e22 0%, #ea2934 45%, #b91c1c 100%);
+  --portal-primary-blue: #1c64f2;
+  --portal-primary-blue-hover: #1a56db;
+}
+
+#singularity-cloud-login-portal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99998;
+  background: var(--portal-bg);
+  display: flex;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--portal-text-main);
+}
+
+#singularity-cloud-login-portal.portal-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  transform: scale(0.985);
+  display: none !important;
+}
+
+.portal-container {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* -------------------------------------------------------------------------
+   LEFT COLUMN: Authentication Form
+   ------------------------------------------------------------------------- */
+.portal-auth-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 64px;
+  background: var(--portal-auth-bg);
+  position: relative;
+  overflow-y: auto;
+  border-right: 1px solid var(--portal-border);
+}
+
+.portal-brand-header {
+  position: absolute;
+  top: 36px;
+  left: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Theme switch in header */
+.portal-header-actions {
+  position: absolute;
+  top: 36px;
+  right: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.portal-theme-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--portal-btn-sso-bg);
+  border: 1px solid var(--portal-border);
+  color: var(--portal-text-main);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.portal-theme-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Clockwise continuous spinning logo */
+.portal-rotating-logo {
+  width: 42px;
+  height: 42px;
+  animation: portalSpinClockwise 14s linear infinite;
+  transform-origin: center center;
+  display: block;
+}
+
+@keyframes portalSpinClockwise {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.portal-brand-text {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--portal-text-main);
+}
+
+.portal-auth-wrap {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.portal-heading {
+  font-size: 1.95rem;
+  font-weight: 800;
+  color: var(--portal-text-main);
+  margin-bottom: 24px;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+/* Google OAuth Button */
+.portal-google-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 46px;
+  background: var(--portal-btn-google-bg);
+  border: 1px solid var(--portal-btn-google-border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--portal-btn-google-text);
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: all 0.15s ease;
+}
+
+.portal-google-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+.portal-sso-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  background: var(--portal-btn-sso-bg);
+  border: 1px solid var(--portal-btn-sso-border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--portal-btn-sso-text);
+  cursor: pointer;
+  margin-top: 10px;
+  transition: all 0.15s ease;
+}
+
+.portal-sso-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--portal-text-main);
+}
+
+/* OR Divider */
+.portal-divider {
+  display: flex;
+  align-items: center;
+  margin: 22px 0 18px 0;
+  color: var(--portal-text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.portal-divider::before,
+.portal-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--portal-border);
+}
+
+.portal-divider span {
+  padding: 0 14px;
+}
+
+/* Form Inputs */
+.portal-form-group {
+  margin-bottom: 16px;
+}
+
+.portal-form-label {
+  display: block;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--portal-text-muted);
+  margin-bottom: 6px;
+}
+
+.portal-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.portal-input-field {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 0.94rem;
+  color: var(--portal-input-text, var(--portal-text-main));
+  background: var(--portal-input-bg);
+  border: 1px solid var(--portal-input-border);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.portal-input-field::placeholder {
+  color: var(--portal-input-placeholder, #6b7280);
+}
+
+.portal-input-field:-webkit-autofill,
+.portal-input-field:-webkit-autofill:hover, 
+.portal-input-field:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--portal-input-text, var(--portal-text-main)) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--portal-input-bg) inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.portal-input-field:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.portal-password-toggle {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--portal-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+
+.portal-password-toggle:hover {
+  color: var(--portal-text-main);
+}
+
+/* Checkbox */
+.portal-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 20px 0;
+  cursor: pointer;
+}
+
+.portal-checkbox-row input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.portal-checkbox-label {
+  font-size: 0.86rem;
+  color: var(--portal-text-muted);
+  user-select: none;
+}
+
+/* Primary Submit Button */
+.portal-submit-btn {
+  width: 100%;
+  height: 46px;
+  background: var(--portal-primary-blue);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.portal-submit-btn:hover {
+  background: var(--portal-primary-blue-hover);
+}
+
+.portal-submit-btn:active {
+  transform: scale(0.99);
+}
+
+.portal-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.portal-msg-box {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  display: none;
+}
+
+.portal-msg-box.error {
+  display: block;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
+
+.portal-msg-box.success {
+  display: block;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+
+/* Toggle Footer Links */
+.portal-links-footer {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--portal-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.portal-link {
+  color: #60a5fa;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.portal-link:hover {
+  text-decoration: underline;
+}
+
+/* -------------------------------------------------------------------------
+   RIGHT COLUMN: Radiant Crimson Hero with Embedded 3D Rotating Typographic Globe
+   ------------------------------------------------------------------------- */
+.portal-hero-column {
+  background: var(--portal-hero-gradient);
+  color: #ffffff;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px 56px;
+  overflow: hidden;
+}
+
+.portal-globe-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.94;
+}
+
+.portal-hero-content {
+  position: relative;
+  z-index: 2;
+  max-width: 520px;
+  margin-top: auto;
+  margin-bottom: 32px;
+}
+
+.portal-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffff;
+  margin-bottom: 18px;
+}
+
+.portal-hero-title {
+  font-size: 2.85rem;
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  margin-bottom: 16px;
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.portal-hero-desc {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 400;
+}
+
+/* Cloud sync status badge in Settings */
+.cloud-sync-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.cloud-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+
+/* Responsive */
+@media (max-width: 960px) {
+  .portal-container {
+    grid-template-columns: 1fr;
+  }
+  .portal-hero-column {
+    display: none;
+  }
+  .portal-auth-column {
+    padding: 36px 20px;
+    border-right: none;
+  }
+  .portal-brand-header {
+    position: static;
+    margin-bottom: 28px;
+  }
+  .portal-header-actions {
+    position: static;
+    margin-bottom: 20px;
+  }
+}

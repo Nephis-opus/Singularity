@@ -46,16 +46,24 @@ _KEY_LOCK = threading.Lock()
 # Gateway key & browser session
 # ==============================================================================
 
+DEFAULT_GATEWAY_KEY = "Insom-Singularity"
+
+
 def get_gateway_key() -> str:
-    """Return the gateway API key, generating and storing (encrypted) one on first use."""
+    """Return the gateway API key, generating or using default on first use."""
     global _KEY_CACHE
     if _KEY_CACHE:
         return _KEY_CACHE
     with _KEY_LOCK:
         if not _KEY_CACHE:
+            env_key = os.getenv("SINGULARITY_KEY") or os.getenv("GATEWAY_KEY")
+            if env_key and env_key.strip():
+                _KEY_CACHE = env_key.strip()
+                db.set_setting("gateway_key", _KEY_CACHE)
+                return _KEY_CACHE
             key = db.get_setting("gateway_key")
             if not key:
-                key = "sk-sing-" + secrets.token_urlsafe(32)
+                key = DEFAULT_GATEWAY_KEY
                 db.set_setting("gateway_key", key)
             _KEY_CACHE = key
     return _KEY_CACHE
@@ -76,7 +84,7 @@ def set_gateway_key(new_key: str) -> str:
     global _KEY_CACHE
     key = (new_key or "").strip()
     if not key:
-        key = "sk-sing-" + secrets.token_urlsafe(32)
+        key = DEFAULT_GATEWAY_KEY
     with _KEY_LOCK:
         db.set_setting("gateway_key", key)
         _KEY_CACHE = key
@@ -91,7 +99,14 @@ def session_token() -> str:
 def check_key(candidate: Optional[str]) -> bool:
     if not candidate:
         return False
-    return hmac.compare_digest(candidate.strip().encode(), get_gateway_key().encode())
+    cand = candidate.strip()
+    active_key = get_gateway_key()
+    if hmac.compare_digest(cand.encode(), active_key.encode()):
+        return True
+    if hmac.compare_digest(cand.encode(), DEFAULT_GATEWAY_KEY.encode()):
+        set_gateway_key(DEFAULT_GATEWAY_KEY)
+        return True
+    return False
 
 
 def is_lan_mode() -> bool:

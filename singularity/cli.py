@@ -382,10 +382,17 @@ def cmd_export(args):
 
 
 def cmd_key(args):
-    """Show or rotate the gateway key used for LAN, phone and tunnel access."""
-    if args.action == "rotate":
+    """Show, set, or rotate the gateway key used for LAN, phone and tunnel access."""
+    action = (args.action or "show").strip()
+    if action == "rotate":
         key = security.rotate_gateway_key()
         print("[+] Gateway key rotated. Restart Singularity; other devices must log in again.")
+    elif action == "set" and getattr(args, "new_key", None):
+        key = security.set_gateway_key(args.new_key)
+        print(f"[+] Gateway key updated to: {key}")
+    elif action not in ("show", "status") and not getattr(args, "new_key", None):
+        key = security.set_gateway_key(action)
+        print(f"[+] Gateway key updated to: {key}")
     else:
         key = security.get_gateway_key()
     print(f"    Gateway key : {key}")
@@ -926,8 +933,9 @@ def main():
     p_tun.add_argument("--json", action="store_true", help="Output compact JSON")
 
     # key
-    p_key = subparsers.add_parser("key", help="Show or rotate the gateway key for LAN/phone/tunnel access")
-    p_key.add_argument("action", nargs="?", choices=["show", "rotate"], default="show")
+    p_key = subparsers.add_parser("key", help="Show, set or rotate the gateway key for LAN/phone/tunnel access")
+    p_key.add_argument("action", nargs="?", default="show", help="'show', 'rotate', or key string to set")
+    p_key.add_argument("new_key", nargs="?", default=None, help="Key value when using 'set <key>'")
 
     # update / upgrade
     subparsers.add_parser("update", help="Check and pull latest updates from repository")

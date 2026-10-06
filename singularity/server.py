@@ -249,10 +249,28 @@ def resolve_model_provider(model_name: str) -> str:
 # -------------------------------------------------------------------
 
 @app.get("/v1/models")
+@app.get("/models")
+@app.get("/api/v1/models")
 async def list_models():
-    """Return unified OpenAI-compatible models list across all 8 providers."""
+    """Return unified OpenAI-compatible models list across all 8 providers + S-Connect Proxy."""
     now = int(time.time())
     data = []
+    
+    # Expose S-Connect Proxy models for JanitorAI custom LLM integration
+    for proxy_m in ("s-connect-proxy", "cards-unmask-proxy"):
+        data.append({
+            "id": proxy_m,
+            "object": "model",
+            "created": now,
+            "owned_by": "singularity-connect",
+            "permission": [],
+            "root": proxy_m,
+            "parent": None,
+            "locked": False,
+            "reason": None,
+            "capabilities": ["chat", "roleplay", "unmask"],
+        })
+
     catalog = get_dynamic_models_catalog()
     for m in catalog:
         data.append({
@@ -723,8 +741,9 @@ async def smooth_chat_stream(
 
 
 @app.post("/v1/chat/completions")
+@app.post("/chat/completions")
 async def chat_completions(request: Request):
-    """Universal router for chat completions across all 7 providers."""
+    """Universal router for chat completions across all providers + S-Connect Proxy Interceptor."""
     try:
         body = await request.json()
     except Exception:
@@ -732,6 +751,49 @@ async def chat_completions(request: Request):
 
     requested_model = body.get("model", "gpt-5-6-mini")
     incoming_messages = list(body.get("messages") or []) if isinstance(body.get("messages"), list) else []
+
+    # -------------------------------------------------------------------------
+    # S-Connect JanitorAI Custom Proxy Interceptor Engine
+    # -------------------------------------------------------------------------
+    if requested_model in ("s-connect-proxy", "cards-unmask-proxy") or requested_model.startswith("s-connect"):
+        from singularity import connect
+        resp_payload, intercept_id = connect.handle_incoming_proxy_completion(body)
+        if body.get("stream"):
+            async def sse_proxy_stream():
+                content_txt = resp_payload["choices"][0]["message"]["content"]
+                chunk = {
+                    "id": resp_payload["id"],
+                    "object": "chat.completion.chunk",
+                    "created": resp_payload["created"],
+                    "model": requested_model,
+                    "choices": [{
+                        "index": 0,
+                        "delta": {"role": "assistant", "content": content_txt},
+                        "finish_reason": "stop"
+                    }]
+                }
+                yield f"data: {json.dumps(chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(sse_proxy_stream(), media_type="text/event-stream")
+        return JSONResponse(resp_payload)
+
+    # Passive Intercept: If JanitorAI sends character prompts to any regular model, auto-capture it!
+    try:
+        from singularity import connect
+        extracted = connect.extract_persona_from_messages(incoming_messages)
+        if len(extracted.get("system_prompt", "").strip()) > 80:
+            db.save_connect_intercept({
+                "bot_name": extracted.get("bot_name", "Captured Character"),
+                "system_prompt": extracted.get("system_prompt", ""),
+                "user_prompt": extracted.get("user_prompt", ""),
+                "model": requested_model,
+                "detected_persona": extracted.get("system_prompt", "")[:500],
+                "intercepted_at": time.time(),
+                "raw_body": body
+            })
+    except Exception:
+        pass
+
     pipeline_info: Dict[str, Any] = {}
     # `kimi-k3@noir`: everything below sees the bare model; the reply keeps the name the client sent.
     model_name, preset_name = presets.split_model_ref(requested_model)
@@ -1478,13 +1540,13 @@ async def api_auth_login(request: Request):
         await asyncio.sleep(0.5)
         return JSONResponse({"status": "error", "message": "Invalid gateway key"}, status_code=401)
     secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
-    resp = JSONResponse({"status": "ok"})
+    resp = JSONResponse({"status": "ok", "token": security.session_token(), "key": key.strip()})
     resp.set_cookie(
         security.SESSION_COOKIE,
         security.session_token(),
         max_age=60 * 60 * 24 * 365,
         httponly=True,
-        samesite="strict",
+        samesite="lax",
         secure=secure,
         path="/",
     )
@@ -2987,6 +3049,340 @@ async def api_janitor_deploy(request: Request):
             "status_code": 502,
             "detail": f"Network error contacting JanitorAI: {str(exc)}"
         }, status_code=502)
+
+
+# -------------------------------------------------------------------
+# S-Connect: JanitorAI Bot Hub, Prompt Interceptor & SillyTavern Matrix
+# -------------------------------------------------------------------
+
+@app.get("/api/connect/search")
+async def api_connect_search(request: Request):
+    q = request.query_params.get("q", "")
+    sort = request.query_params.get("sort", "trending")
+    tag = request.query_params.get("tag", "")
+    page = int(request.query_params.get("page", 1))
+    limit = int(request.query_params.get("limit", 24))
+    unmasked = request.query_params.get("unmasked", "").lower() in ("1", "true")
+    from singularity import connect
+    res = await connect.search_cards(q=q, sort=sort, tag=tag, page=page, limit=limit, unmasked_only=unmasked)
+    return JSONResponse(res)
+
+
+@app.get("/api/connect/bot/{bot_id}")
+async def api_connect_get_bot(bot_id: str):
+    from singularity import connect
+    bot = await connect.fetch_bot_details(bot_id)
+    if not bot:
+        raise HTTPException(status_code=404, detail="Character bot not found")
+    return JSONResponse({"success": True, "data": bot})
+
+
+@app.post("/api/connect/bot/{bot_id}/unmask")
+async def api_connect_unmask_bot(bot_id: str):
+    from singularity import connect
+    res = await connect.trigger_remote_unmask(bot_id)
+    return JSONResponse(res)
+
+
+@app.get("/api/connect/bot/{bot_id}/unmask_status")
+async def api_connect_unmask_status(bot_id: str):
+    from singularity import connect
+    res = await connect.get_unmask_status(bot_id)
+    return JSONResponse(res)
+
+
+@app.post("/api/connect/bot/{bot_id}/import")
+async def api_connect_import_definition(bot_id: str, request: Request):
+    try:
+        body = await request.json()
+        definition = body.get("definition") or body.get("personality") or ""
+    except Exception:
+        definition = ""
+    from singularity import connect
+    res = connect.import_manual_definition(bot_id, str(definition))
+    return JSONResponse(res)
+
+
+@app.get("/api/connect/bot/{bot_id}/download_png")
+async def api_connect_download_png(bot_id: str):
+    from singularity import connect
+    bot = await connect.fetch_bot_details(bot_id)
+    if not bot:
+        raise HTTPException(status_code=404, detail="Character bot not found")
+    png_bytes = await connect.generate_sillytavern_png_bytes(bot)
+    safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', bot.get("name", "character"))[:40]
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_name}_card.png"',
+            "Content-Type": "image/png"
+        }
+    )
+
+
+@app.get("/api/connect/bot/{bot_id}/json")
+async def api_connect_download_json(bot_id: str):
+    from singularity import connect
+    bot = await connect.fetch_bot_details(bot_id)
+    if not bot:
+        raise HTTPException(status_code=404, detail="Character bot not found")
+    v2_payload = connect.build_sillytavern_v2_payload(bot)
+    safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', bot.get("name", "character"))[:40]
+    return JSONResponse(
+        v2_payload,
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_name}_v2.json"'
+        }
+    )
+
+
+@app.post("/api/connect/save")
+async def api_connect_save_card(request: Request):
+    try:
+        card = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    from singularity import connect
+    norm = connect.normalize_card_payload(card)
+    bot_id = norm.get("id") or str(card.get("id") or "")
+    db.save_connect_bookmark(bot_id, norm)
+    return JSONResponse({"success": True, "saved": True, "id": bot_id})
+
+
+@app.delete("/api/connect/save/{bot_id}")
+async def api_connect_unsave_card(bot_id: str):
+    deleted = db.delete_connect_bookmark(bot_id)
+    return JSONResponse({"success": True, "unsaved": deleted, "id": bot_id})
+
+
+@app.delete("/api/connect/card/{bot_id}")
+async def api_connect_delete_card(bot_id: str):
+    deleted = db.delete_connect_card(bot_id)
+    return JSONResponse({"success": True, "deleted": deleted})
+
+
+@app.get("/api/cloud/config")
+async def api_cloud_config():
+    url = os.getenv("SUPABASE_URL") or db.get_setting("supabase_url", "https://ugbjziwpbdhgqovnlfvs.supabase.co")
+    key = os.getenv("SUPABASE_KEY") or db.get_setting("supabase_key", "")
+    return JSONResponse({"url": url, "key": key})
+
+
+@app.post("/api/cloud/config")
+async def api_cloud_config_set(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    url = (body.get("url") or "").strip()
+    key = (body.get("key") or "").strip()
+    if url:
+        db.set_setting("supabase_url", url)
+    if key:
+        db.set_setting("supabase_key", key)
+    return JSONResponse({"success": True})
+
+
+@app.get("/api/connect/library")
+async def api_connect_library(request: Request):
+    q = request.query_params.get("q", "")
+    limit = int(request.query_params.get("limit", 60))
+    cards = db.list_saved_connect_cards(q=q, limit=limit)
+    return JSONResponse({"success": True, "items": cards, "total": len(cards)})
+
+
+@app.get("/api/connect/resolve")
+async def api_connect_resolve(request: Request):
+    q = request.query_params.get("q", "")
+    if not q:
+        raise HTTPException(status_code=400, detail="Missing query")
+    from singularity import connect
+    bot_id = connect.extract_janitor_bot_id(q)
+    if bot_id:
+        bot = await connect.fetch_bot_details(bot_id)
+        if bot:
+            return JSONResponse({"success": True, "type": "bot", "data": bot})
+    # If not a direct UUID, search for it
+    search_res = await connect.search_cards(q=q, limit=1)
+    if search_res.get("items"):
+        return JSONResponse({"success": True, "type": "bot", "data": search_res["items"][0]})
+    return JSONResponse({"success": False, "type": "unknown", "query": q})
+
+
+@app.get("/api/connect/creators/{creator_id}")
+async def api_connect_get_creator(creator_id: str):
+    from singularity import connect
+    creator_data = await connect.fetch_creator_profile(creator_id)
+    if not creator_data:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    return JSONResponse({"success": True, "data": creator_data})
+
+
+@app.get("/api/connect/creators/{creator_id}/bots")
+async def api_connect_get_creator_bots(creator_id: str, request: Request):
+    page = int(request.query_params.get("page", 1))
+    limit = int(request.query_params.get("limit", 20))
+    sort = request.query_params.get("sort", "latest")
+    from singularity import connect
+    data = await connect.fetch_creator_bots(creator_id, page=page, limit=limit, sort=sort)
+    return JSONResponse({"success": True, "data": data})
+
+
+@app.get("/api/connect/proxy/info")
+async def api_connect_proxy_info(request: Request):
+    lan_ip = get_lan_ip()
+    port = int(os.getenv("PORT", "9000"))
+    return JSONResponse({
+        "status": "ready",
+        "local_url": f"http://127.0.0.1:{port}/v1",
+        "lan_url": f"http://{lan_ip}:{port}/v1",
+        "model": "s-connect-proxy",
+        "supported_models": ["s-connect-proxy", "cards-unmask-proxy"],
+        "intercept_count": len(db.list_connect_intercepts(limit=100))
+    })
+
+
+@app.get("/api/connect/proxy/intercepts")
+async def api_connect_proxy_intercepts(request: Request):
+    limit = int(request.query_params.get("limit", 30))
+    intercepts = db.list_connect_intercepts(limit=limit)
+    return JSONResponse({"success": True, "intercepts": intercepts})
+
+
+@app.delete("/api/connect/proxy/intercepts")
+async def api_connect_clear_intercepts():
+    db.clear_connect_intercepts()
+    return JSONResponse({"success": True, "cleared": True})
+
+
+# -------------------------------------------------------------------
+# S-Connect Cloud & Cross-Device State Synchronization
+# -------------------------------------------------------------------
+
+@app.get("/api/connect/sync")
+async def api_connect_sync_get():
+    """Retrieve full persistent state bundle (chat sessions, personas, vault)."""
+    data = db.get_full_connect_sync_payload()
+    return JSONResponse({"success": True, "data": data})
+
+
+@app.post("/api/connect/sync")
+async def api_connect_sync_post(request: Request):
+    """Merge incoming state bundle into local SQLite database."""
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"success": False, "error": "Invalid JSON body"}, status_code=400)
+    
+    if not isinstance(payload, dict):
+        return JSONResponse({"success": False, "error": "Payload must be an object"}, status_code=400)
+    
+    merged = db.merge_connect_sync_payload(payload)
+    return JSONResponse({"success": True, "data": merged})
+
+
+@app.post("/api/connect/sync/session")
+async def api_connect_sync_session_save(request: Request):
+    """Save or update an individual chat session and its full message history."""
+    try:
+        session_data = await request.json()
+    except Exception:
+        return JSONResponse({"success": False, "error": "Invalid JSON body"}, status_code=400)
+    
+    if not isinstance(session_data, dict) or not (session_data.get("id") or session_data.get("session_id")):
+        return JSONResponse({"success": False, "error": "Session must contain 'id' or 'session_id'"}, status_code=400)
+    
+    db.save_connect_session(session_data)
+    sess_id = session_data.get("id") or session_data.get("session_id")
+    return JSONResponse({"success": True, "session_id": sess_id})
+
+
+@app.get("/api/connect/sync/sessions")
+async def api_connect_sync_sessions_list(request: Request):
+    """List all stored S-Connect sessions, optionally filtered by bot_id."""
+    bot_id = request.query_params.get("bot_id")
+    sessions = db.get_connect_sessions(bot_id=bot_id)
+    return JSONResponse({"success": True, "sessions": sessions})
+
+
+@app.get("/api/connect/sync/session/{session_id}")
+async def api_connect_sync_session_get(request: Request):
+    """Get single session by ID."""
+    session_id = request.path_params.get("session_id", "")
+    sess = db.get_connect_session_by_id(session_id)
+    if not sess:
+        return JSONResponse({"success": False, "error": "Session not found"}, status_code=404)
+    return JSONResponse({"success": True, "session": sess})
+
+
+@app.delete("/api/connect/sync/session/{session_id}")
+async def api_connect_sync_session_delete(request: Request):
+    """Delete a single session by ID."""
+    session_id = request.path_params.get("session_id", "")
+    ok = db.delete_connect_session(session_id)
+    return JSONResponse({"success": ok, "session_id": session_id})
+
+
+@app.post("/api/connect/sync/remote")
+async def api_connect_sync_remote(request: Request):
+    """Sync state with a remote Singularity server (e.g. phone syncing with laptop or vice-versa)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"success": False, "error": "Invalid JSON"}, status_code=400)
+
+    remote_url = str(body.get("remote_url", "")).strip().rstrip("/")
+    gateway_key = str(body.get("gateway_key", "")).strip() or security.get_gateway_key()
+    mode = str(body.get("mode", "pull")).lower().strip()
+
+    if not remote_url.startswith(("http://", "https://")):
+        return JSONResponse({"success": False, "error": "Invalid remote URL (must start with http:// or https://)"}, status_code=400)
+
+    headers = {
+        "Authorization": f"Bearer {gateway_key}",
+        "X-Gateway-Key": gateway_key,
+        "User-Agent": "Singularity-CloudSync/1.0"
+    }
+
+    pulled_count = 0
+    pushed_count = 0
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
+            if mode in ("pull", "both"):
+                r = await client.get(f"{remote_url}/api/connect/sync", headers=headers)
+                if r.status_code != 200:
+                    return JSONResponse({
+                        "success": False,
+                        "error": f"Remote server returned HTTP {r.status_code}: {r.text[:200]}"
+                    }, status_code=502)
+                data = r.json()
+                incoming = data.get("data", data)
+                if isinstance(incoming, dict):
+                    db.merge_connect_sync_payload(incoming)
+                    pulled_count = len(incoming.get("sessions", []))
+
+            if mode in ("push", "both"):
+                local_bundle = db.get_full_connect_sync_payload()
+                pushed_count = len(local_bundle.get("sessions", []))
+                r = await client.post(f"{remote_url}/api/connect/sync", headers=headers, json=local_bundle)
+                if r.status_code != 200:
+                    return JSONResponse({
+                        "success": False,
+                        "error": f"Remote server rejected push with HTTP {r.status_code}: {r.text[:200]}"
+                    }, status_code=502)
+
+        return JSONResponse({
+            "success": True,
+            "message": f"Sync successful ({mode})",
+            "pulled_sessions": pulled_count,
+            "pushed_sessions": pushed_count,
+            "current_total_sessions": len(db.get_connect_sessions())
+        })
+    except Exception as e:
+        logger.error(f"[Sync] Remote sync failed: {e}")
+        return JSONResponse({"success": False, "error": f"Connection error: {str(e)}"}, status_code=500)
 
 
 # -------------------------------------------------------------------

@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in to Singularity | Universal AI Gateway</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ==========================================================================
+       SINGULARITY CLOUD PORTAL (CLOUDFLARE SPLIT-SCREEN REPLICA)
+       - Left: Ultra-clean authentication (Google + Email/Password + Gateway Key)
+       - Right: Energetic radiant crimson/orange with direct 3D rotating canvas globe
+       ========================================================================== */
+    :root {
+      --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --brand-terracotta: #d97757;
+      --brand-terracotta-hover: #c46243;
+      --brand-blue: #1c64f2;
+      --brand-blue-hover: #1a56db;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --border-color: #d1d5db;
+      --bg-input: #ffffff;
+      --bg-left: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-main);
+      background: var(--bg-left);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Master Two-Column Grid */
+    .portal-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      width: 100vw;
+      min-height: 100vh;
+    }
+
+    /* -------------------------------------------------------------------------
+       LEFT COLUMN: Authentication
+       ------------------------------------------------------------------------- */
+    .portal-auth-column {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 48px 56px;
+      background: var(--bg-left);
+      position: relative;
+    }
+
+    .portal-brand-header {
+      position: absolute;
+      top: 40px;
+      left: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Rotating Singularity Logo (Clockwise) */
+    .portal-rotating-logo {
+      width: 44px;
+      height: 44px;
+      animation: spinClockwise 14s linear infinite;
+      transform-origin: center center;
+    }
+
+    @keyframes spinClockwise {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .portal-brand-text {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #111827;
+    }
+
+    .portal-auth-wrap {
+      width: 100%;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    .portal-heading {
+      font-size: 1.85rem;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 24px;
+      letter-spacing: -0.03em;
+    }
+
+    /* Google OAuth Button */
+    .portal-google-btn {
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      height: 46px;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #1f2937;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      transition: all 0.15s ease;
+    }
+
+    .portal-google-btn:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .portal-sso-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 42px;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #4b5563;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: all 0.15s ease;
+    }
+
+    .portal-sso-btn:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
+      color: #111827;
+    }
+
+    /* OR Divider */
+    .portal-divider {
+      display: flex;
+      align-items: center;
+      margin: 24px 0 20px 0;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+    }
+
+    .portal-divider::before,
+    .portal-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e5e7eb;
+    }
+
+    .portal-divider span {
+      padding: 0 14px;
+    }
+
+    /* Form Inputs */
+    .portal-form-group {
+      margin-bottom: 18px;
+    }
+
+    .portal-form-label {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 7px;
+    }
+
+    .portal-input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .portal-input-field {
+      width: 100%;
+      height: 44px;
+      padding: 0 14px;
+      font-family: inherit;
+      font-size: 0.94rem;
+      color: var(--text-main);
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .portal-input-field:focus {
+      border-color: var(--brand-blue);
+      box-shadow: 0 0 0 3px rgba(28, 100, 242, 0.14);
+    }
+
+    .portal-password-toggle {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 4px;
+    }
+
+    .portal-password-toggle:hover {
+      color: var(--text-main);
+    }
+
+    /* Checkbox */
+    .portal-checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 18px 0 22px 0;
+      cursor: pointer;
+    }
+
+    .portal-checkbox-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--brand-blue);
+      cursor: pointer;
+    }
+
+    .portal-checkbox-label {
+      font-size: 0.88rem;
+      color: #4b5563;
+      user-select: none;
+    }
+
+    /* Primary Submit Button */
+    .portal-submit-btn {
+      width: 100%;
+      height: 46px;
+      background: var(--brand-blue);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.98rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+
+    .portal-submit-btn:hover {
+      background: var(--brand-blue-hover);
+    }
+
+    .portal-submit-btn:active {
+      transform: scale(0.99);
+    }
+
+    /* Footer Links */
+    .portal-links-footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .portal-link {
+      color: var(--brand-blue);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .portal-link:hover {
+      text-decoration: underline;
+    }
+
+    /* -------------------------------------------------------------------------
+       RIGHT COLUMN: Radiant Red-Orange & Rotating 3D Canvas Globe
+       ------------------------------------------------------------------------- */
+    .portal-hero-column {
+      background: linear-gradient(135deg, #f03e22 0%, #ea2934 45%, #b91c1c 100%);
+      color: #ffffff;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 48px 56px;
+      overflow: hidden;
+    }
+
+    /* Rotating Typographic World Sphere Canvas */
+    .portal-globe-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.92;
+    }
+
+    /* Foreground Content Overlay */
+    .portal-hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 520px;
+      margin-top: auto;
+      margin-bottom: 40px;
+    }
+
+    .portal-hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #ffffff;
+      margin-bottom: 20px;
+    }
+
+    .portal-hero-title {
+      font-size: 3rem;
+      font-weight: 800;
+      line-height: 1.12;
+      letter-spacing: -0.03em;
+      margin-bottom: 18px;
+      color: #ffffff;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .portal-hero-desc {
+      font-size: 1.05rem;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.92);
+      font-weight: 400;
+    }
+
+    /* Responsive */
+    @media (max-width: 960px) {
+      .portal-container {
+        grid-template-columns: 1fr;
+      }
+      .portal-hero-column {
+        display: none;
+      }
+      .portal-auth-column {
+        padding: 40px 24px;
+      }
+      .portal-brand-header {
+        position: static;
+        margin-bottom: 30px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="portal-container">
+    <!-- LEFT PANEL: Authentication Portal -->
+    <div class="portal-auth-column">
+      <!-- Top Brand Header with Clockwise Rotating Singularity Logo -->
+      <div class="portal-brand-header">
+        <svg class="portal-rotating-logo" viewBox="0 0 64 64" fill="none">
+          <path d="m32.57 24.68c0 .25.75.25.75.25s.21-.54-1-5.83-3.5-8.21-3.67-8.29a8.42 8.42 0 0 0 -1.37-.13 41.46 41.46 0 0 1 2.87 4.59c1.42 2.91 2.42 9.16 2.42 9.41zm2.43-.25c.08.17.42.13.58.09a14.9 14.9 0 0 0 -.45-5 41.77 41.77 0 0 0 -2.25-6.38c-.13-.21-.75-.12-1-.12a32.68 32.68 0 0 1 1.83 4.58 50.41 50.41 0 0 1 1.29 6.83zm2.29.5c0 .13.42.21.59.25s.25-.33.12-2.66a15.59 15.59 0 0 0 -.62-4.42c-.21-.21-1-.17-1-.17a24.53 24.53 0 0 1 .58 3c.28 1.75.32 3.88.36 4zm9 3.42a10.07 10.07 0 0 0 4.08-3.79c0-.21-.08-.42-.33-.38s-1.29 1.34-3.75 3a7.32 7.32 0 0 1 -4.37 1.29 1.64 1.64 0 0 0 .12.88 7.82 7.82 0 0 0 4.24-1zm-1.13 3.65c3-.55 4.2-2.25 4.29-2.5s.08-.67-.09-.67a22 22 0 0 1 -3.2 1.83c-1.84.75-4.39.39-4.55.54a3.55 3.55 0 0 0 -.29 1.13c.04.27.88.23 3.84-.33zm-1.59 2.41c-1.25 0-1.58-.16-1.71-.25s-.41.79-.29 1 0 0 .75.17a6.71 6.71 0 0 0 2.42-.25c.25-.09.29-.67.33-.79s-.25.1-1.5.14zm-5.41 2.59c0 .2.7 2.12 3.5 3.95s8.62 1.67 9.16 1.63.54-.71.54-.92-.29.09-1.87.09a21.45 21.45 0 0 1 -7.25-1.63c-1.92-1-3.33-3.83-3.33-3.83s-.71.52-.75.71zm1 4.41a17.84 17.84 0 0 1 -3.38-4.37 1.54 1.54 0 0 0 -.75 0c-.21.12.38 2.21 3.13 4.75a9.18 9.18 0 0 0 6.08 2.71c.46-.09.21-.29.17-.54s-2.92-.49-5.21-2.53zm-3.17.5a11.13 11.13 0 0 1 -2.33-4.54s-.65-.52-.84-.29-.08 1.33 1.25 3.58a9.22 9.22 0 0 0 3.25 3.5c.38.13.5 0 .59-.16s-.13-.15-1.91-2.07zm-4.42-4.46c.05-.12-.7-.29-.7-.16a10.14 10.14 0 0 0 .7 4.58c.21.25 1 .29 1.13.08s-.54-.83-.88-1.91a7.57 7.57 0 0 1 -.21-2.57zm-1.5-.37s-.48-.91-.75-.83-.66 1.95-.91 3.12a13.43 13.43 0 0 0 .41 7.21c1.13 3.71 5 8.71 5 8.71s.34-.13.38-.42-3-4.79-4.58-8.5.49-9.27.49-9.27zm-1.7-2.42s-.29-.57-.5-.5c-.38.13-1.75 2.75-2.3 7.63s2.3 10.79 2.5 10.91.71.25.8 0-2.09-4.25-2.5-9.16a15.91 15.91 0 0 1 2.04-8.86zm-4.37 5.11a11.77 11.77 0 0 1 2.67-6.42s-.09-.56-.29-.5c-.59.17-2.67 3-3.17 5.5a24 24 0 0 0 .12 7.08c.13.21.67.21.8.13a34.15 34.15 0 0 1 -.13-5.79zm-1.54-5c-.21.16-1.75 2.54-1.83 2.66s.37.25.62.3 1.58-2.71 1.58-2.71-.13-.38-.34-.21zm3.33-3.59c-.16-.12-4.21 1.55-8.16 4.3a21.72 21.72 0 0 0 -6.21 7.12s.62.46.87.42 1.64-3.42 4.59-6 8.75-5.09 8.91-5.17.21-.5.03-.63zm-12.18 5.75a24.07 24.07 0 0 1 5.17-4.83c2.83-2 7.38-2.67 7.38-2.67s.12-.54 0-.66a17.94 17.94 0 0 0 -7.46 2.45 25 25 0 0 0 -6 5.42s.5.75.5.75a1.26 1.26 0 0 0 .41-.46zm11.21-10.62c-1.41.12-4.17.41-4.33.46s-.29.95-.29 1.08.46-.08 2-.5a15.94 15.94 0 0 1 4.29-.17 1.14 1.14 0 0 0 .21-.5c0-.21-.46-.5-1.88-.37zm-6-1.25c0-.21-1.33-.71-3.83-.42a33.79 33.79 0 0 0 -4.25.75s-.25.71-.21.88 1.47-.27 3.47-.63a15.78 15.78 0 0 1 4.71.17c.15 0 .2-.54.15-.75zm-1.45-2.25a28.64 28.64 0 0 1 6.63.19c4.17.5 5.33 2.33 5.33 2.33l.88-.38s-1-1.95-5.42-2.91a19.11 19.11 0 0 0 -8.62 0c-.38.17-1 .7-.84.75a18.79 18.79 0 0 0 2.08.02zm13.63 1.41h.5s.38-.62-1.33-2.29a7.11 7.11 0 0 0 -4.17-1.93 6.06 6.06 0 0 0 -1.67.54s1 .21 3.17.71 3.5 2.97 3.5 2.97zm-22.51-9.08c.33.08 1.54-.67 4.08-1.21a8.62 8.62 0 0 1 4.92.59 1.38 1.38 0 0 0 .25-.71c0-.38-2.42-1.5-5.17-1.17s-4.69 1.36-4.57 1.46.16.96.49 1.04zm2.51-7.08s0 1.5.25 1.54.83-1.17.83-1.17 1.46 1.21 1.71.92-.5-1.67-.46-1.88.46-.83.21-1.25-.87.09-.87.09-.79-2-1.09-2-.17 1.92-.29 2-2 .41-2 .62 1.71 1.13 1.71 1.13zm43.2 24.75.5.75a13.58 13.58 0 0 0 1.75-1.79 11.69 11.69 0 0 0 2.12-4.13c.09-.17-.76-.53-.91-.46-.42.21-.92 1.67-1.38 3a7.36 7.36 0 0 1 -2.08 2.63zm-4.5-25c.21 0 0 2.17.37 2.29s.93-1.1 1.09-1.25 1 .17 1 .17l.16-1.3s.42-.54.38-.79-1-.29-1.17-.25-.87-1.68-1.33-1.62-.38 1.46-.46 1.62-1.57-.13-1.63.13c-.11.58 1.38 1.04 1.59 1.04zm-8.29 3c1.66 2.38 1.7 6.54 1.75 6.83s.29.25.62.09.5-2.5-.75-5.92a11.32 11.32 0 0 0 -4.58-5.58 2.91 2.91 0 0 0 -.88.41 26.35 26.35 0 0 1 3.84 4.25zm-32 44.42c-.42 0-.63 1.33-.71 1.54l-1.7.54a1.09 1.09 0 0 0 .17.79c.25.25 1.21.21 1.21.21s0 1.29.29 1.41 1-.7 1.16-.87 1.34.37 1.46.17-.29-.92-.25-1.13.67-.58.63-.75-1.17-.17-1.34-.21-.47-1.58-.88-1.62zm44.16-3c-.12-.25-4 .29-6.5 0s-4.76-1.6-4.91-1.5a1.27 1.27 0 0 0 -.5 1.21c.08.58 2.16.83 4.91 1.29a23.77 23.77 0 0 0 7 0 1.25 1.25 0 0 0 .04-.92zm-.79 3.16c-2 .67-2.33 2.8-1.12 3.63s3.91.5 4-1.5a2.11 2.11 0 0 0 -2.84-2.05zm2.22 2.54c-.13.75-1.71 1.13-2.46.71s-.71-1.75.79-2.33c1.02-.42 1.74.87 1.67 1.62zm4.75-6.79a.56.56 0 0 0 .08-.75 1.56 1.56 0 0 0 -1-.25c-.21 0-.58-1.42-1-1.46s-.58 1.59-.63 1.84-1.2-.07-1.2.12c0 .54 1.16.88 1.16.88s-.37 1.33-.12 1.62 1-.46 1-.46.58.34.92.17-.38-1.29-.38-1.42.91-.16 1.12-.29zm-41.21 3c-2.17-3.5-.33-7.13-.29-7.33s-.53-.45-.67-.3c-1.17 1.3-1.58 4.5-.58 7s4.25 6 4.62 5.92.75-.33.63-.75-1.59-1.08-3.76-4.58zm19.33-.25c-4-2.29-5.25-7.42-5.08-7.58s1.25.83 3.62 1.41a26.86 26.86 0 0 0 13.8-.75c5.5-1.91 9.12-6.54 9.29-7.12s.25-2.17-.29-2.34-4.21.92-7.21 1.05-5.25-.42-5.21-.63a15.6 15.6 0 0 0 3.83-3.08c2.5-2.67 3.55-5.46 4-11.38s-.62-10.47-1.38-11.33-2.17-.08-2.42.38a24.74 24.74 0 0 1 -2.62 7.2 10.66 10.66 0 0 1 -6.2 4.46 19.8 19.8 0 0 0 -1.79-7.87c-2-4.63-6.84-8.09-13.13-9.13s-9.91.44-10.12.5c-.92.25-.55 1.29-.34 1.71s.5.17 1 .17.75-.34 4 .62 5 7.38 5 7.38a40.13 40.13 0 0 0 -5.37.33 27.14 27.14 0 0 0 -10.55 3.83c-5.12 3.13-6.5 10.42-6.5 10.8s1.21 1 1.46 1.08.5-.58 2.59-2.75a7.92 7.92 0 0 1 5.41-2.13h1.04a22.83 22.83 0 0 0 -3.09 3.34 24.67 24.67 0 0 0 -3.37 10.79c-.17 4.46 3.42 8.62 3.67 8.83s1.08 0 1.29-.29.08-1.12 0-1.83a9.13 9.13 0 0 1 1.66-5.38 13.25 13.25 0 0 1 4.55-3.08 21 21 0 0 0 .95 7.08c1.13 2.82 4.42 7.29 10.84 9.82s12 .8 12.62.38a1.51 1.51 0 0 0 .75-1.54c-.12-.49-2.75-.7-6.75-2.99zm2 3.71c-.17.16-6.58.12-10.83-2.54s-7.13-8.17-7.5-9.46-.54-5.13-.68-5.6-1.33-.8-2-.46-4.41 1.93-5.86 4.68-1.46 3.21-1.46 3.21a11.44 11.44 0 0 1 -1.17-8.37 21 21 0 0 1 6-9.71c1.3-.92 2.34-1.5 2.3-1.67a7.89 7.89 0 0 0 -4.75-1 19.63 19.63 0 0 0 -5.46 1.71 8.37 8.37 0 0 1 -1.63.88s2-3.88 3.92-5.42a24.76 24.76 0 0 1 11-4.46 43.91 43.91 0 0 1 6.79-.54.94.94 0 0 0 .37-.33s-.33-3.67-2.08-5.88a31.73 31.73 0 0 0 -3.83-3.92c.25-.08 8.75 0 12.63 4.42s4.37 10.38 4.44 11.17 0 1.66.38 1.79 2.41 0 5-1.67a12 12 0 0 0 4.25-4.29c1.08-1.62 2.25-4.75 2.62-4.83s1.68 6.16-.32 12.69-5.59 8.72-6.68 9-1.58.16-1.79.45.33 1.34.58 1.42-.08.92 4.88 1 7.83-.62 7.92-.37-2 3.71-6 5.16-9 2-11.09 1.67a37.7 37.7 0 0 1 -6.58-2c-.67-.33-1.33-.71-1.75-.46s-1.37 3.38.79 6.59a28.43 28.43 0 0 0 6.54 6.33c.71.52 1.18.6.96.77zm-7.42-31.6c-3.25.84-3.93 4.54-3.29 6.92 1 3.75 9.37 4.46 9.91-1.29s-3.56-6.44-6.62-5.63zm5 5.24c-.37 3.88-5.66 3.56-6.53 1.31s-.55-4.33 2.29-5.09c2.05-.58 4.59-.13 4.23 3.75z" fill="#d97757"/>
+        </svg>
+        <span class="portal-brand-text">Singularity</span>
+      </div>
+
+      <!-- Center Auth Box -->
+      <div class="portal-auth-wrap">
+        <h1 class="portal-heading" id="auth-heading">Sign in to Singularity</h1>
+
+        <!-- Google OAuth Primary Button -->
+        <button class="portal-google-btn" id="btn-google-login" onclick="triggerGoogleAuth()">
+          <!-- Official Google SVG Icon -->
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"/>
+            <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+          </svg>
+          <span>Continue with Google</span>
+        </button>
+
+        <button class="portal-sso-btn" onclick="toggleSSOMode()">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span>Continue with Gateway Key</span>
+        </button>
+
+        <!-- OR Divider -->
+        <div class="portal-divider">
+          <span>OR</span>
+        </div>
+
+        <!-- Email & Password Form -->
+        <form id="portal-login-form" onsubmit="handleAuthSubmit(event)">
+          <div class="portal-form-group">
+            <label class="portal-form-label" for="portal-email">Email</label>
+            <div class="portal-input-wrap">
+              <input 
+                type="email" 
+                id="portal-email" 
+                class="portal-input-field" 
+                required 
+                placeholder="name@example.com" 
+                autocomplete="email"
+              />
+            </div>
+          </div>
+
+          <div class="portal-form-group">
+            <label class="portal-form-label" for="portal-password">Password</label>
+            <div class="portal-input-wrap">
+              <input 
+                type="password" 
+                id="portal-password" 
+                class="portal-input-field" 
+                required 
+                autocomplete="current-password"
+              />
+              <button type="button" class="portal-password-toggle" onclick="togglePasswordVisibility()" aria-label="Toggle password view">
+                <svg id="eye-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <label class="portal-checkbox-row">
+            <input type="checkbox" id="portal-remember-me" checked>
+            <span class="portal-checkbox-label">Save login on this device</span>
+          </label>
+
+          <button type="submit" class="portal-submit-btn" id="portal-submit-btn">
+            Sign In
+          </button>
+        </form>
+
+        <div class="portal-links-footer">
+          <div>
+            Don't have an account? 
+            <a href="#" class="portal-link" id="toggle-auth-mode" onclick="toggleAuthMode(event)">Sign up</a>
+          </div>
+          <div>
+            Forgot your <a href="#" class="portal-link">password</a>?
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: Radiant Crimson Hero with Embedded 3D Rotating Typographic Globe -->
+    <div class="portal-hero-column">
+      <!-- 3D Rotating Globe Canvas -->
+      <canvas id="login-globe-canvas" class="portal-globe-canvas"></canvas>
+
+      <!-- Minimalist Brand Header in Hero -->
+      <div style="position:relative; z-index:2;"></div>
+
+      <!-- Hero Title and Subtitle Overlay -->
+      <div class="portal-hero-content">
+        <div class="portal-hero-pill">
+          <span>SINGULARITY NEXUS</span>
+        </div>
+        <h2 class="portal-hero-title">Universal AI Gateway.</h2>
+        <p class="portal-hero-desc">
+          Frontier models, custom personas, and stacked accounts.<br>
+          Real-time cloud database sync across phone and laptop.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 3D Typographic World Sphere Canvas Engine (Singularity Access Engine)
+    // =========================================================================
+    var GLOBE_LAND_B64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPcBAOD/HwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACA//+P//f/LwgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4/v/4/////wcAAAAEAPABAAAAfAAAAAAAAAAAAAAAAAAAAADg9w/4/////wEAAP4AAAAAAAAA+AAAAAAAAAAAAAAAAAAAAIAG+Of//////wAAAHwGAAAAAAAAAAMAAAAAAAAAAAAAAACABwAc/4P//////wAAADAAAAAAQAAAAD4AAAAAAAAAAAAAAAAAfMbDcQAA/v///wAAAAAAAADABwAA//8HAMAPAAAAAAAAAABgAAAAAAAA/P///wAAAAAAAABwAADg//8AAAAAAAAAAAAAAADwG457dwcA8P//HwAAAAAAAAAYAAD///9/eAAAAAAAAAAAAAD4/g0H/w8A8P//PwAAAAAAAAAOgOv/////fwD/AAAAAAA/AAAA/B84/v8A8P//LwAAAAD4AAAA4PP//////////wAAAOD///H/+D/3cPgDoP//DwAAAID/BwAAx/v/////////P4AA/P///////////////////////w8AAOcBAAgAAAAAAAAAAAAAgP///////////////////////wcAACYAAAQAAAAAAAAAAAAAgf///////////////////////wMM8AAAAAAAAAAAAAAAAAAAIID/////////e+wPwH8AgA8AAP/5z/////////////////8/ANH///////9/AIALgD8AAAAAwH/+//////////////////9/APj///////8fADwAAD8AAAAA8D/+//////////////////sPAPC/+f////8fAPwAADgAAAAA8D/+////////////////D/wBAMCfAP////8PAPwYAAAAAAAA8H/4//////////////9/DgcAAAAcAOD///8/APw/AAAAAAAQAB7w//////////////8BgAMAAAACAMD/////Afh/AAAAAAA4gBz+/////////////38A4AMAAMAAAMD/////B/z/AAAAAABwwAb+/////////////x8A8AEAAAAAAAD/////P///AwAAAADmgOH//////////////z8A4AAAAAAAAAD+////P/7/BwAAAAD28P////////////////8D4AAAAAAAAAD8////f/7/BwAAAADz+f////////////////8HIAAAAAAAAAD6////////BAAAAABw/v////////////////8EAAAAAAAAAADo//////8jHgAAAACA//////////////////8MAAAAAAAAAADQ//////8OPgAAAADw//////////////////8AAAAAAAAAAADg//////+PIAAAAADA////v////////////38EAAAAAAAAAADg////////AAAAAACA//v/zD/8/////////z8AAAAAAAAAAADg//////8bAAAAAACA//N/gD///////////x8GAAAAAAAAAADw//////8AAAAAAAD+B8c/AD/+/////////wcPAAAAAAAAAADg//////8AAAAAAAD+gx4/DH74/////////wABAAAAAAAAAADg/////x8AAAAAAAD+gbCn///8////////fQABAAAAAAAAAADg/////w8AAAAAAAD/gCDn///4//////9/MgADAAAAAAAAAADA/////w8AAAAAAAD+AADm/3/4//////8/cIABAAAAAAAAAADA/////wcAAAAAAAA44AHC///5////////4+ABAAAAAAAAAACA/////wcAAAAAAACI/wEA4P//////////4OgAAAAAAAAAAAAA/////wMAAAAAAAD4/wAA4P//////////ADYAAAAAAAAAAAAA/P///wEAAAAAAAD+/wEA8P//////////AQcAAAAAAAAAAAAA+P//fwAAAAAAAAD//w8P8P//////////AQEAAAAAAAAAAAAAyP//fwAAAAAAAAD//3//////////////AQAAAAAAAAAAAAAA0P+PYQAAAAAAAAD//////z//////////AwAAAAAAAAAAAAAAoP8HwAAAAAAAAMD/////83/+////////AQAAAAAAAAAAAAAAIP8DwAAAAAAAAOD/////5//I////////AAAAAAAAAAAAAAAAQP4DgAAAAAAAAPD/////z/+A////////AAAAAAAAAAAAAAAAAPwDAAIAAAAAAPD/////z/8ZwP////9/AQAAAAAAAAAAAAAAAPgDQAAAAAAAAPj/////j/9/gP////8fAQAAAAAAAAAAAAAAAPADEAMAAAAAAPz/////v///AP9//P8DAAAAAAAAAAAAAAAAAPADAwwAAAAAAPj/////P/9/APw//B8AAAAAAAAAAAAIAAAAAPCHA8AAAAAAAPj/////P/4/APwP+J8BAAAAAAAAAAAAAAAAAMD/A0YEAAAAAPj/////f/4fAPwH+B8AAwAAAAAAAAAAAAAAAAD/AQAAAAAAAPj/////f/wHAPgD8D8AAwAAAAAAAAAAAAAAAADgHwAAAAAAAPj///////wDAPgAwH8AAQAAAAAAAAAAAAAAAADAHwAAAAAAAPz//////30AAPAAwH8AAAAAAAAAAAAAAAAAAAAAHAAAAAAAAPj//////wsAAPAAgH4AAQAAAAAAAAAAAAAAAAAAGEAAAAAAAPj//////wMBAPAAgHwAAAAAAAAAAAAAAAAAAAAAGPAhAAAAAPD///////cBAOAAgDiABAAAAAAAAAAAAAAAAAAAIPl/AAAAAOD///////8AAGABABBAFAAAAAAAAAAAAAAAAAAAgP7/AQAAAMD///////8AAAABgAAAHAAAAAAAAAAAAAAAAAAAAPz/AQAAAID///////8AAAABAAEgCAAAAAAAAAAAAAAAAAAAAPz/HwAAAAD/8P///38AAAAAAANgAAAAAAAAAAAAAAAAAAAAAPz/fwAAAAAAoP///z8AAAAAYAd4AAAAAAAAAAAAAAAAAAAAAPz/fwAAAAAAAP///x8AAAAAwAY8AAAAAAAAAAAAAAAAAAAAAP7//wAAAAAAAP///w8AAAAAgAc+AAAAAAAAAAAAAAAAAAAAAP///wAAAAAAAP///wcAAAAAgIM/TwAAAAAAAAAAAAAAAAAAAP///wEAAAAAgP///wMAAAAAAIc/QAQAAAAAAAAAAAAAAAAAgP///w8AAAAAgP///wEAAAAAAA6fAUQAAAAAAAAAAAAAAAAAAP////8AAAAAAP///wAAAAAAAB6ewuwDAgAAAAAAAAAAAAAAgP////8DAAAAAP7//wAAAAAAABwAAvAPAgAAAAAAAAAAAAAAgP////8PAAAAAPz/fwAAAAAAABAAAMCfAQAAAAAAAAAAAAAAAP////8PAAAAAPz//wAAAAAAAOADAIA/MAAAAAAAAAAAAAAAAP7///8PAAAAAPz/fwAAAAAAAAAPAMBngAAAAAAAAAAAAAAAAP7///8PAAAAAPz//wAAAAAAAAAACABAAAAAAAAAAAAAAAAAAPz///8HAAAAAPj//wAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAPz///8DAAAAAPj//wAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAPj///8BAAAAAPz//4AAAAAAAAAAAB8GAAAAAAAAAAAAAAAAAPj///8BAAAAAPz//8EAAAAAAAAAIB8OAAAAAAAAAAAAAAAAAPD///8BAAAAAP7//+AAAAAAAAAA+B8OACAAAAAAAAAAAAAAAMD///8BAAAAAP7/f/gAAAAAAAAA/H8eAAAAAAAAAAAAAAAAAID///8AAAAAAP7/H/gAAAAAAAAA/P8fAABAAAAAAAAAAAAAAAD///8AAAAAAPz/D3AAAAAAAAAA/v8/AAAAAAAAAAAAAAAAAAD///8AAAAAAPj/D3gAAAAAAADA//9/AAgAAAAAAAAAAAAAAAD//38AAAAAAPj/DzgAAAAAAADw////AAAAAAAAAAAAAAAAAAD//x8AAAAAAPD/DzgAAAAAAAD4////AQAAAAAAAAAAAAAAAAD//wMAAAAAAPD/DzgAAAAAAAD4////AwAAAAAAAAAAAAAAAID//wEAAAAAAPD/AwAAAAAAAAD4////AwAAAAAAAAAAAAAAAID//wEAAAAAAPD/AwAAAAAAAAD4////BwAAAAAAAAAAAAAAAID//wEAAAAAAOD/AwAAAAAAAAD4////BwAAAAAAAAAAAAAAAID//wAAAAAAAOD/AQAAAAAAAADw////BwAAAAAAAAAAAAAAAID//wAAAAAAAMD/AAAAAAAAAADw////AwAAAAAAAAAAAAAAAID/fwAAAAAAAIB/AAAAAAAAAADgf/z/AwAAAAAAAAAAAAAAAID/PwAAAAAAAIA/AAAAAAAAAADgB/D/AQAAAAAAAAAAAAAAAMD/HQAAAAAAAIABAAAAAAAAAADwAND/AQAAAAAAAAAAAAAAAMD/AwAAAAAAAAAAAAAAAAAAAAAAAID/AAAIAAAAAAAAAAAAAMD/BwAAAAAAAAAAAAAAAAAAAAAAAAD/AAAQAAAAAAAAAAAAAOD/AwAAAAAAAAAAAAAAAAAAAAAAAAA+AABwAAAAAAAAAAAAAOA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAOA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAOAPAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAGAAAAAAAAAAAAAMAPAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAADAAAAAAAAAAAAAPAPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMABAAAAAAAAAAAAAPADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOABAAAAAAAAAAAAAPAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPADAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAPABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPCBAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAA+AABAAJ8//j8PAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAPD/fwD///////8/AAAAAAAAAAAAAAAAAIA+AAAAAAAAAAAAPP///8D/////////HwAAAAAAAAAAAAAAAIA9AAAAAAAA8Pz/////P/j//////////wMAAAAAAAAAAMAAAPB9AAAAAID/////////P/7///////////8BAAAAAAAAAOABAwB/AAAAAPD///////////////////////8AAAAAAFACPoD///9/AAAAAPD//////////////////////x8AAAAA+P////////8HAAAAAP///////////////////////wcAAAAA/v///////wMAAAAA/v///////////////////////wcAAAD8/////////w8AAA7w/////////////////////////w8AAMAB/////////wMAgB84/////////////////////////wEAAAAA/P///////3/w4AcA/////////////////////////wAAAADg//////////8/gM///////////////////////////wMAAADg/////////////f///////////////////////////z8A7wMA/v////////////////////////////////////////8/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+    var globeNodes = [];
+    (function initGlobe() {
+      var MW = 288, MH = 144;
+      var bin = atob(GLOBE_LAND_B64);
+      var land = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) land[i] = bin.charCodeAt(i);
+
+      function isLand(lon, lat) {
+        var gx = Math.floor(((lon + 180) / 360) * MW);
+        var gy = Math.floor(((90 - lat) / 180) * MH);
+        if (gx < 0 || gx >= MW || gy < 0 || gy >= MH) return false;
+        var b = gy * MW + gx;
+        return (land[b >> 3] >> (b & 7)) & 1;
+      }
+
+      var PHRASE = "singularityfrontieruniverseallmodelsinoneplace";
+      var LAT_STEP = 3.2;
+      var k = 0, run = 0, sea3 = 0;
+      for (var lat = -86; lat <= 86; lat += LAT_STEP) {
+        var rl = Math.cos((lat * Math.PI) / 180);
+        var n = Math.max(1, Math.round(96 * rl));
+        for (var i = 0; i < n; i++) {
+          var lon = -180 + (360 * i) / n;
+          var l = isLand(lon, lat);
+          if (!l && sea3++ % 2) continue;
+          var letter = 0;
+          if (l && run++ % 2 === 0) letter = PHRASE.charAt(k++ % PHRASE.length);
+          globeNodes.push({
+            lat: (lat * Math.PI) / 180,
+            lon: (lon * Math.PI) / 180,
+            land: l,
+            c: letter
+          });
+        }
+      }
+    })();
+
+    var canvas = document.getElementById('login-globe-canvas');
+    var ctx = canvas.getContext('2d');
+    var globeSpin = 2.4;
+    var globeVel = 0.22;
+    var globeTilt = -0.25;
+    var globeDpr = 1;
+    var globeWidth = 0, globeHeight = 0;
+    var globePrevTime = performance.now();
+
+    var globeLand8 = [];
+    var globeSea = [];
+    var globeSoil = [];
+
+    var globeInk64 = [];
+    var GLOBE_SOFT = 0.95;
+    // Pure radiant white ink on radiant red-orange
+    for (var q = 0; q < 64; q++) {
+      globeInk64.push('rgba(255, 255, 255, ' + ((q / 63) * GLOBE_SOFT).toFixed(4) + ')');
+    }
+
+    function getInk(a) {
+      return globeInk64[a <= 0 ? 0 : a >= 1 ? 63 : (a * 63) | 0];
+    }
+
+    var GLOBE_QA = (Math.PI * 2) / 64;
+    function qang(a) { return Math.round(a / GLOBE_QA) * GLOBE_QA; }
+
+    function resizeGlobe() {
+      var rect = canvas.getBoundingClientRect();
+      globeDpr = Math.min(2, window.devicePixelRatio || 1);
+      globeWidth = Math.round(rect.width || window.innerWidth / 2);
+      globeHeight = Math.round(rect.height || window.innerHeight);
+      if (canvas.width !== Math.round(globeWidth * globeDpr) || canvas.height !== Math.round(globeHeight * globeDpr)) {
+        canvas.width = Math.round(globeWidth * globeDpr);
+        canvas.height = Math.round(globeHeight * globeDpr);
+      }
+    }
+
+    window.addEventListener('resize', resizeGlobe);
+    resizeGlobe();
+
+    function renderGlobe(now) {
+      requestAnimationFrame(renderGlobe);
+      if (globeWidth <= 0 || globeHeight <= 0) return;
+
+      var dt = Math.min(64, now - globePrevTime);
+      globePrevTime = now;
+
+      ctx.setTransform(globeDpr, 0, 0, globeDpr, 0, 0);
+      ctx.clearRect(0, 0, globeWidth, globeHeight);
+
+      globeSpin += (globeVel * dt) / 1000;
+
+      var R = Math.min(globeWidth, globeHeight) * 0.44;
+      var cx = globeWidth * 0.58;
+      var cy = globeHeight * 0.44;
+      var fs = R * 0.078;
+
+      var cs = Math.cos(globeSpin), sn = Math.sin(globeSpin);
+      var ct = Math.cos(globeTilt), st = Math.sin(globeTilt);
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      globeSea.length = 0;
+      globeSoil.length = 0;
+
+      for (var i = 0; i < globeNodes.length; i++) {
+        var nd = globeNodes[i];
+        var cl = Math.cos(nd.lat);
+        var x0 = cl * Math.cos(nd.lon), y0 = Math.sin(nd.lat), z0 = cl * Math.sin(nd.lon);
+        var x1 = x0 * cs - z0 * sn, z1 = x0 * sn + z0 * cs;
+        var y2 = y0 * ct - z1 * st, z2 = y0 * st + z1 * ct;
+        if (z2 <= 0.02) continue;
+
+        var px = cx + x1 * R, py = cy - y2 * R;
+        if (!nd.land) {
+          globeSea.push(px, py, Math.min(0.999, z2));
+          continue;
+        }
+        if (!nd.c) {
+          globeSoil.push(px, py, Math.min(0.999, z2));
+          continue;
+        }
+
+        var tx0 = -Math.sin(nd.lon), tz0 = Math.cos(nd.lon);
+        var tx1 = tx0 * cs - tz0 * sn, tz1 = tx0 * sn + tz0 * cs;
+        var ang = qang(Math.atan2(tz1 * st, tx1));
+        var b = Math.min(7, Math.max(0, ((Math.min(0.999, z2) * 7.99) | 0)));
+        (globeLand8[b] || (globeLand8[b] = [])).push(px, py, ang, nd.c);
+      }
+
+      var dmin = Math.max(0.7, R * 0.007);
+      function dots(list, base, gain, grow) {
+        for (var lvl = 0; lvl < 6; lvl++) {
+          var z = (lvl + 0.5) / 6, dsz = dmin * grow * (0.55 + 0.75 * z);
+          ctx.fillStyle = getInk(base + gain * z);
+          ctx.beginPath();
+          for (var q = 0; q < list.length; q += 3) {
+            var lv = list[q + 2] >= 1 ? 5 : (list[q + 2] * 6) | 0;
+            if (lv !== lvl) continue;
+            ctx.rect(list[q] - dsz / 2, list[q + 1] - dsz / 2, dsz, dsz);
+          }
+          ctx.fill();
+        }
+      }
+      dots(globeSea, 0.12, 0.25, 1.0);
+      dots(globeSoil, 0.38, 0.48, 1.7);
+
+      var FACE = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      for (var bi = 0; bi < 8; bi++) {
+        var arr = globeLand8[bi];
+        if (!arr || !arr.length) continue;
+        var zb = (bi + 0.5) / 8;
+        ctx.font = 'bold ' + (fs * (0.42 + 0.58 * zb)).toFixed(2) + 'px ' + FACE;
+        ctx.fillStyle = getInk(0.32 + 0.68 * Math.pow(zb, 0.6));
+        for (var t = 0; t < arr.length; t += 4) {
+          ctx.save();
+          ctx.translate(arr[t], arr[t + 1]);
+          ctx.rotate(arr[t + 2]);
+          ctx.fillText(arr[t + 3], 0, 0);
+          ctx.restore();
+        }
+        arr.length = 0;
+      }
+    }
+    requestAnimationFrame(renderGlobe);
+
+    // =========================================================================
+    // Interactive Handlers
+    // =========================================================================
+    let isSignUpMode = false;
+
+    function togglePasswordVisibility() {
+      const input = document.getElementById('portal-password');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    function toggleAuthMode(e) {
+      if (e) e.preventDefault();
+      isSignUpMode = !isSignUpMode;
+      const heading = document.getElementById('auth-heading');
+      const submitBtn = document.getElementById('portal-submit-btn');
+      const toggleLink = document.getElementById('toggle-auth-mode');
+
+      if (isSignUpMode) {
+        heading.textContent = 'Create your account';
+        submitBtn.textContent = 'Sign Up';
+        toggleLink.parentElement.innerHTML = 'Already have an account? <a href="#" class="portal-link" onclick="toggleAuthMode(event)">Sign in</a>';
+      } else {
+        heading.textContent = 'Sign in to Singularity';
+        submitBtn.textContent = 'Sign In';
+        toggleLink.parentElement.innerHTML = 'Don\'t have an account? <a href="#" class="portal-link" id="toggle-auth-mode" onclick="toggleAuthMode(event)">Sign up</a>';
+      }
+    }
+
+    function toggleSSOMode() {
+      const key = prompt('Enter your Singularity Gateway Key:', 'Insom-Singularity');
+      if (key) {
+        localStorage.setItem('singularity_gateway_key', key.trim());
+        alert('Authenticated with Gateway Key: ' + key.trim());
+        window.location.href = '/';
+      }
+    }
+
+    function triggerGoogleAuth() {
+      alert('Supabase Google OAuth:\nsupabase.auth.signInWithOAuth({ provider: "google" })');
+    }
+
+    function handleAuthSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('portal-email').value;
+      alert((isSignUpMode ? 'Registering' : 'Signing In') + ' as: ' + email);
+    }
+  </script>
+</body>
+</html>

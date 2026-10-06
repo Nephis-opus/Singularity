@@ -711,6 +711,11 @@ body[data-active-tab="tunnel"] .panel-viewport,
   flex-direction: column !important;
 }
 
+body[data-active-tab="connect"] .panel-viewport,
+.panel-viewport:has(#pane-connect.active) {
+  padding: 0 !important;
+}
+
 /* ===================================================================
    Universal Pitch Black Background (#000000 in Dark Mode)
    Across ALL Sections, Panes, Modals, Popovers & Notifications
