@@ -31,6 +31,8 @@
             access_token: at,
             refresh_token: rt
           }));
+          localStorage.setItem('singularity_cloud_authenticated', 'true');
+          localStorage.removeItem('singularity_cloud_in_oauth');
         }
       } catch (e) {}
       if (window.history && window.history.replaceState) {
@@ -84,11 +86,11 @@
         // Restore any captured OAuth tokens stripped from the URL
         const pendingSession = localStorage.getItem('singularity_pending_auth_session');
         if (pendingSession) {
-          localStorage.removeItem('singularity_pending_auth_session');
           try {
             const parsed = JSON.parse(pendingSession);
             if (parsed && parsed.access_token && parsed.refresh_token) {
               supabaseClient.auth.setSession(parsed).then(({ data, error }) => {
+                localStorage.removeItem('singularity_pending_auth_session');
                 if (!error && data && data.session) {
                   activeSession = data.session;
                   activeUser = data.session.user;
@@ -99,9 +101,15 @@
                   updateAccountModalUI();
                   syncDown();
                 }
+              }).catch(() => {
+                localStorage.removeItem('singularity_pending_auth_session');
               });
+            } else {
+              localStorage.removeItem('singularity_pending_auth_session');
             }
-          } catch (e) {}
+          } catch (e) {
+            localStorage.removeItem('singularity_pending_auth_session');
+          }
         }
 
         // Hook canonical Supabase Auth State Change (handles OAuth redirect hashes, email logins, token refreshes)
@@ -332,33 +340,39 @@
   }
 
   async function loginWithGoogle() {
-    const emailInput = document.getElementById('portal-email');
-    let email = (emailInput?.value || '').trim();
-
-    if (!email) {
-      const defaultEmail = localStorage.getItem('singularity_cloud_user_email') || '218.chatgpt.218@gmail.com';
-      email = prompt('Enter your Google email for instant direct sign-in:', defaultEmail);
-      if (!email) return;
-      email = email.trim();
-      if (emailInput) emailInput.value = email;
+    if (!supabaseClient) initClient();
+    if (!supabaseClient) {
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 80));
+        if (initClient()) break;
+      }
+    }
+    if (!supabaseClient) {
+      showPortalMsg('Connecting to authentication network...', 'error');
+      return;
     }
 
-    const success = await loginWithInstantAuth(email);
-    if (!success) {
-      showPortalMsg('Direct auth failed. Attempting browser OAuth...', 'info');
-      try {
-        if (!supabaseClient) initClient();
-        if (supabaseClient) {
-          await supabaseClient.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-              redirectTo: window.location.origin
-            }
-          });
+    const btn = document.getElementById('btn-portal-google');
+    if (btn) btn.disabled = true;
+    showPortalMsg('Connecting to Google Secure Sign-In...', 'success');
+
+    try {
+      localStorage.setItem('singularity_cloud_in_oauth', 'true');
+      const { data, error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
         }
-      } catch (e) {
-        showPortalMsg(e.message || 'OAuth error', 'error');
+      });
+      if (error) {
+        localStorage.removeItem('singularity_cloud_in_oauth');
+        showPortalMsg(error.message || 'Google sign-in failed', 'error');
+        if (btn) btn.disabled = false;
       }
+    } catch (err) {
+      localStorage.removeItem('singularity_cloud_in_oauth');
+      showPortalMsg(err.message || 'OAuth redirect error', 'error');
+      if (btn) btn.disabled = false;
     }
   }
 
@@ -1223,9 +1237,11 @@
   window.addEventListener('sunless-preloader-complete', async () => {
     const hasOAuthTokens = window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token'));
     const isExplicitlyAuthenticated = localStorage.getItem('singularity_cloud_authenticated') === 'true';
+    const hasPendingAuth = !!localStorage.getItem('singularity_pending_auth_session');
+    const isInOAuth = localStorage.getItem('singularity_cloud_in_oauth') === 'true';
     const hasGatewayAuth = !!localStorage.getItem('singularity_gateway_auth');
 
-    if (hasOAuthTokens || isExplicitlyAuthenticated || hasGatewayAuth || isAuthenticated()) {
+    if (hasOAuthTokens || isExplicitlyAuthenticated || hasPendingAuth || isInOAuth || hasGatewayAuth || isAuthenticated()) {
       // User is already logged in or in active OAuth handoff: KEEP PORTAL HIDDEN
       hideLoginPortal();
       await checkSession();

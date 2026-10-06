@@ -44,6 +44,8 @@
           var rt = p.get('refresh_token');
           if (at && rt) {
             localStorage.setItem('singularity_pending_auth_session', JSON.stringify({ access_token: at, refresh_token: rt }));
+            localStorage.setItem('singularity_cloud_authenticated', 'true');
+            localStorage.removeItem('singularity_cloud_in_oauth');
           }
           if (window.history && window.history.replaceState) {
             window.history.replaceState(null, '', window.location.pathname + window.location.search);

@@ -139,6 +139,8 @@ import httpx
 import uvicorn
 import logging
 
+logger = logging.getLogger("singularity.server")
+
 import tunnel
 import db
 import providers
@@ -3752,6 +3754,62 @@ def free_listening_ports(ports: List[int]):
     time.sleep(0.2)
 
 
+def start_oauth_redirect_bridge(target_port: int = 9000):
+    """Lightweight background HTTP bridge on port 3000 (Supabase default Site URL).
+    
+    If Supabase OAuth redirects to http://localhost:3000/#access_token=..., this bridge
+    immediately hands off the URL with all hash tokens to Singularity on port 9000.
+    """
+    import http.server
+    import socketserver
+    import threading
+
+    class OAuthRedirectHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Singularity Cloud Handshake</title>
+  <script>
+    var p = {target_port};
+    var h = window.location.hostname || 'localhost';
+    var target = 'http://' + h + ':' + p + '/' + window.location.search + window.location.hash;
+    window.location.replace(target);
+  </script>
+</head>
+<body style="background:#0a0a0f;color:#fff;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <div style="text-align:center;padding:24px;">
+    <h3 style="margin:0 0 8px 0;font-weight:600;">Authenticating with Singularity Cloud...</h3>
+    <p style="color:#888;font-size:14px;margin:0;">Transferring secure session to Singularity Gateway.</p>
+  </div>
+</body>
+</html>"""
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(html.encode("utf-8"))))
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+            except Exception:
+                pass
+
+        def log_message(self, format, *args):
+            pass
+
+    def run_bridge():
+        try:
+            socketserver.TCPServer.allow_reuse_address = True
+            with socketserver.TCPServer(("0.0.0.0", 3000), OAuthRedirectHandler) as httpd:
+                logger.info(f"Supabase OAuth redirect bridge active on port 3000 -> {target_port}")
+                httpd.serve_forever()
+        except Exception as e:
+            logger.debug(f"Port 3000 bridge not started: {e}")
+
+    t = threading.Thread(target=run_bridge, daemon=True)
+    t.start()
+
+
 def main():
     if "--lan" in sys.argv[1:]:
         os.environ["SINGULARITY_LAN"] = "1"
@@ -3759,8 +3817,9 @@ def main():
     host = os.getenv("HOST") or ("0.0.0.0" if lan_mode else "127.0.0.1")
     port = int(os.getenv("PORT", "9000"))
 
-    # Free port 9000 (gateway) and Tavern ports (5173, 3001) if occupied by stale processes
-    free_listening_ports([port, 5173, 3001])
+    # Free port 9000 (gateway), Tavern ports (5173, 3001), and port 3000 (OAuth bridge)
+    free_listening_ports([port, 5173, 3001, 3000])
+    start_oauth_redirect_bridge(target_port=port)
 
     try:
         db.init_db()
