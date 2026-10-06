@@ -26,7 +26,19 @@
         const params = new URLSearchParams(cleanHash);
         const at = params.get('access_token');
         const rt = params.get('refresh_token');
-        if (at && rt) {
+        if (at) {
+          try {
+            const pParts = at.split('.');
+            if (pParts.length >= 2) {
+              const payload = JSON.parse(atob(pParts[1].replace(/-/g, '+').replace(/_/g, '/')));
+              if (payload && payload.email) {
+                localStorage.setItem('singularity_cloud_user_email', payload.email);
+              }
+              if (payload && payload.sub) {
+                localStorage.setItem('singularity_cloud_user_id', payload.sub);
+              }
+            }
+          } catch (err) {}
           localStorage.setItem('singularity_pending_auth_session', JSON.stringify({
             access_token: at,
             refresh_token: rt
@@ -920,24 +932,137 @@
     }
   }
 
+  function decodeJwtPayload(token) {
+    if (!token || typeof token !== 'string') return null;
+    try {
+      const parts = token.split('.');
+      if (parts.length >= 2) {
+        const base64Url = parts[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function getStoredCloudUser() {
+    if (activeUser && activeUser.email && !activeUser.email.includes('operator@singularity.local')) {
+      return activeUser;
+    }
+
+    const savedEmail = localStorage.getItem('singularity_cloud_user_email') || '';
+    if (savedEmail && !savedEmail.includes('operator@singularity.local')) {
+      return {
+        email: savedEmail,
+        id: localStorage.getItem('singularity_cloud_user_id') || ''
+      };
+    }
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('sb-') && k.endsWith('-auth-token'))) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const user = parsed?.user || parsed?.session?.user;
+            if (user && user.email && !user.email.includes('operator@singularity.local')) {
+              localStorage.setItem('singularity_cloud_user_email', user.email);
+              if (user.id) localStorage.setItem('singularity_cloud_user_id', user.id);
+              localStorage.setItem('singularity_cloud_authenticated', 'true');
+              activeUser = user;
+              return user;
+            }
+            const token = parsed?.access_token || parsed?.session?.access_token;
+            if (token) {
+              const payload = decodeJwtPayload(token);
+              if (payload && payload.email && !payload.email.includes('operator@singularity.local')) {
+                const u = {
+                  id: payload.sub || '',
+                  email: payload.email,
+                  user_metadata: payload.user_metadata || {}
+                };
+                localStorage.setItem('singularity_cloud_user_email', u.email);
+                if (u.id) localStorage.setItem('singularity_cloud_user_id', u.id);
+                localStorage.setItem('singularity_cloud_authenticated', 'true');
+                activeUser = u;
+                return u;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {}
+
+    try {
+      const pendingRaw = localStorage.getItem('singularity_pending_auth_session');
+      if (pendingRaw) {
+        const parsed = JSON.parse(pendingRaw);
+        const token = parsed?.access_token;
+        if (token) {
+          const payload = decodeJwtPayload(token);
+          if (payload && payload.email && !payload.email.includes('operator@singularity.local')) {
+            const u = {
+              id: payload.sub || '',
+              email: payload.email,
+              user_metadata: payload.user_metadata || {}
+            };
+            localStorage.setItem('singularity_cloud_user_email', u.email);
+            if (u.id) localStorage.setItem('singularity_cloud_user_id', u.id);
+            localStorage.setItem('singularity_cloud_authenticated', 'true');
+            activeUser = u;
+            return u;
+          }
+        }
+      }
+    } catch (e) {}
+
+    return null;
+  }
+
   function updateAccountModalUI() {
     const emailDisplay = document.getElementById('cloud-user-email-display');
     const endpointDisplay = document.getElementById('cloud-endpoint-display');
-    let storedEmail = localStorage.getItem('singularity_cloud_user_email') || '';
-    if (storedEmail.includes('operator@singularity.local')) {
-      storedEmail = '';
-      localStorage.removeItem('singularity_cloud_user_email');
-    }
-    const email = activeUser?.email || storedEmail || '';
-    const displayEmail = email || 'Not signed in';
+    
+    const user = getStoredCloudUser();
+    const email = user?.email || '';
 
-    if (emailDisplay) {
-      emailDisplay.textContent = displayEmail;
-    }
-    if (endpointDisplay) {
-      endpointDisplay.innerHTML = email
-        ? '<code>ugbjziwpbdhgqovnlfvs.supabase.co</code> &bull; Auto-sync active'
-        : 'Connect your account to enable multi-device cloud synchronization';
+    if (email) {
+      if (emailDisplay) emailDisplay.textContent = email;
+      if (endpointDisplay) {
+        endpointDisplay.innerHTML = '<code>ugbjziwpbdhgqovnlfvs.supabase.co</code> &bull; Auto-sync active';
+      }
+    } else {
+      const isAuth = localStorage.getItem('singularity_cloud_authenticated') === 'true';
+      if (emailDisplay) {
+        emailDisplay.textContent = isAuth ? 'Resolving cloud account...' : 'Not signed in';
+      }
+      if (endpointDisplay) {
+        endpointDisplay.innerHTML = isAuth
+          ? '<code>ugbjziwpbdhgqovnlfvs.supabase.co</code> &bull; Synchronizing...'
+          : 'Connect your account to enable multi-device cloud synchronization';
+      }
+
+      fetch('/api/cloud/account').then(r => r.json()).then(data => {
+        if (data && data.authenticated && data.email) {
+          localStorage.setItem('singularity_cloud_user_email', data.email);
+          if (data.id) localStorage.setItem('singularity_cloud_user_id', data.id);
+          localStorage.setItem('singularity_cloud_authenticated', 'true');
+          activeUser = { email: data.email, id: data.id, user_metadata: data.user_metadata || {} };
+          if (emailDisplay) emailDisplay.textContent = data.email;
+          if (endpointDisplay) {
+            endpointDisplay.innerHTML = '<code>ugbjziwpbdhgqovnlfvs.supabase.co</code> &bull; Auto-sync active';
+          }
+        } else if (!isAuth) {
+          if (emailDisplay) emailDisplay.textContent = 'Not signed in';
+          if (endpointDisplay) {
+            endpointDisplay.innerHTML = 'Connect your account to enable multi-device cloud synchronization';
+          }
+        }
+      }).catch(() => {});
     }
   }
 

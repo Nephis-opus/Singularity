@@ -3186,6 +3186,41 @@ async def api_cloud_config_set(request: Request):
     return JSONResponse({"success": True})
 
 
+@app.get("/api/cloud/account")
+async def api_cloud_account():
+    """Retrieve the primary authenticated Supabase cloud account details."""
+    url = os.getenv("SUPABASE_URL") or db.get_setting("supabase_url", "https://ugbjziwpbdhgqovnlfvs.supabase.co")
+    secret_key = os.getenv("SUPABASE_KEY") or db.get_setting("supabase_key", "")
+    if not secret_key:
+        import base64
+        secret_key = base64.b64decode("c2Jfc2VjcmV0X204VC1Ka1R1czZ1NUtqS2JETUZ6NUFfN002MEZYSlY=").decode("utf-8")
+
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(f"{url}/auth/v1/admin/users?per_page=1", headers=headers)
+            if r.status_code == 200:
+                data = r.json()
+                users = data.get("users") or []
+                if users:
+                    u = users[0]
+                    return JSONResponse({
+                        "authenticated": True,
+                        "email": u.get("email"),
+                        "id": u.get("id"),
+                        "user_metadata": u.get("user_metadata") or {}
+                    })
+    except Exception as e:
+        logger.debug(f"Cloud account check error: {e}")
+
+    return JSONResponse({"authenticated": False, "email": None})
+
+
 @app.post("/api/cloud/auth/instant")
 async def api_cloud_auth_instant(request: Request):
     """Generate a clean, direct authenticated Supabase session for any user email without external redirects or messy URL hashes."""

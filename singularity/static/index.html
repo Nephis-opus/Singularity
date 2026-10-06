@@ -42,7 +42,16 @@
           var p = new URLSearchParams(clean);
           var at = p.get('access_token');
           var rt = p.get('refresh_token');
-          if (at && rt) {
+          if (at) {
+            try {
+              var payload = JSON.parse(atob(at.split('.')[1]));
+              if (payload && payload.email) {
+                localStorage.setItem('singularity_cloud_user_email', payload.email);
+              }
+              if (payload && payload.sub) {
+                localStorage.setItem('singularity_cloud_user_id', payload.sub);
+              }
+            } catch (e) {}
             localStorage.setItem('singularity_pending_auth_session', JSON.stringify({ access_token: at, refresh_token: rt }));
             localStorage.setItem('singularity_cloud_authenticated', 'true');
             localStorage.removeItem('singularity_cloud_in_oauth');
