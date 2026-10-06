@@ -576,8 +576,191 @@
     return null;
   }
 
+  function applyCloudState(cloudPayload) {
+    if (!cloudPayload) return;
+
+    // 1. Sync Down Profile & User Settings
+    const profiles = cloudPayload.profiles || [];
+    if (profiles.length > 0) {
+      const prof = profiles[0];
+      if (prof.theme) {
+        document.documentElement.setAttribute('data-theme', prof.theme);
+        document.body.setAttribute('data-theme', prof.theme);
+        localStorage.setItem('singularity_theme', prof.theme);
+      }
+      if (prof.active_persona_id) {
+        localStorage.setItem('s_connect_active_persona', prof.active_persona_id);
+        localStorage.setItem('s_connect_active_persona_id', prof.active_persona_id);
+      }
+      if (prof.settings_json) {
+        try {
+          const sett = typeof prof.settings_json === 'string' ? JSON.parse(prof.settings_json) : prof.settings_json;
+          if (sett.displayName) {
+            const nameInput = document.getElementById('user-profile-name-input');
+            if (nameInput) nameInput.value = sett.displayName;
+            localStorage.setItem('singularity_user_name', sett.displayName);
+          }
+          if (sett.avatar) {
+            localStorage.setItem('singularity_user_avatar', sett.avatar);
+          }
+
+          // Sync Down Followed Creators (Cloud is authoritative)
+          const followed = sett.followedCreators || sett.followed_creators;
+          if (Array.isArray(followed)) {
+            localStorage.setItem('s_connect_following', JSON.stringify(followed));
+            const sConn = window.SConnect || window.sConnect;
+            if (sConn) {
+              sConn.followingCreatorIds = new Set(followed);
+            }
+          }
+
+          // Sync Down Saved Bots (Cloud is authoritative)
+          const savedIds = sett.savedBotIds || sett.saved_bot_ids;
+          if (Array.isArray(savedIds)) {
+            localStorage.setItem('s_connect_saved_bots', JSON.stringify(savedIds));
+            const sConn = window.SConnect || window.sConnect;
+            if (sConn) {
+              sConn.savedBotIds = new Set(savedIds);
+            }
+          }
+
+          // Restore Saved Bot cards into local SQLite database on this device
+          const savedData = sett.savedBotsData || sett.saved_bots_data;
+          if (Array.isArray(savedData) && savedData.length > 0) {
+            const sConn = window.SConnect || window.sConnect;
+            for (const b of savedData) {
+              if (b && b.id) {
+                if (sConn && typeof sConn.cacheBot === 'function') {
+                  sConn.cacheBot(b);
+                }
+                fetch('/api/connect/save', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(b)
+                }).catch(() => {});
+              }
+            }
+          }
+
+          // Re-render S-Connect active views if currently looking at Library, Creators, Following, or My Chats
+          const sConn = window.SConnect || window.sConnect;
+          if (sConn && sConn.currentView) {
+            const v = sConn.currentView;
+            const container = document.getElementById('connect-main-view');
+            if (container) {
+              if (v === 'library' && typeof sConn.renderLibraryView === 'function') {
+                sConn.renderLibraryView(container);
+              } else if (v === 'creators' && typeof sConn.renderCreatorsView === 'function') {
+                sConn.renderCreatorsView(container);
+              } else if (v === 'following' && typeof sConn.renderFollowingView === 'function') {
+                sConn.renderFollowingView(container);
+              } else if (v === 'my-chats' && typeof sConn.renderMyChatsView === 'function') {
+                sConn.renderMyChatsView(container, sConn._expandedBotId || null);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[SingularityCloud] Error parsing settings_json:', e);
+        }
+      }
+    }
+
+    // 2. Sync Down Personas
+    const cloudPersonas = cloudPayload.personas || [];
+    if (cloudPersonas.length > 0) {
+      const localPersonasRaw = localStorage.getItem('s_connect_personas');
+      let localPersonas = [];
+      try { localPersonas = JSON.parse(localPersonasRaw || '[]'); } catch (e) {}
+
+      const mergedMap = new Map();
+      localPersonas.forEach(p => { if (p && p.id) mergedMap.set(p.id, p); });
+      cloudPersonas.forEach(cp => {
+        mergedMap.set(cp.id, {
+          id: cp.id,
+          name: cp.name,
+          avatar: cp.avatar || '',
+          description: cp.description || '',
+          system_prompt: cp.system_prompt || '',
+          is_active: cp.is_active ?? false,
+          updatedAt: cp.updated_at
+        });
+      });
+
+      const mergedList = Array.from(mergedMap.values());
+      localStorage.setItem('s_connect_personas', JSON.stringify(mergedList));
+      if (window.sConnect && typeof window.sConnect.renderPersonasDrawer === 'function') {
+        window.sConnect.renderPersonasDrawer();
+      }
+    }
+
+    // 3. Sync Down Connected Accounts (Restore into Singularity SQLite Vault)
+    const cloudAccounts = cloudPayload.connected_accounts || [];
+    if (cloudAccounts.length > 0) {
+      const providersPayload = {};
+      cloudAccounts.forEach(ca => {
+        let cred = {};
+        try { cred = typeof ca.credential_json === 'string' ? JSON.parse(ca.credential_json) : (ca.credential_json || {}); } catch (e) { cred = { token: ca.credential_json }; }
+        if (!providersPayload[ca.provider]) providersPayload[ca.provider] = [];
+        providersPayload[ca.provider].push({
+          name: cred.name || ca.provider,
+          token: cred.token || cred.raw || (typeof cred === 'string' ? cred : JSON.stringify(cred)),
+          plan: cred.plan || 'free',
+          status: ca.status || 'active'
+        });
+      });
+
+      fetch('/api/cookies/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providers: providersPayload })
+      }).catch(e => console.warn('[SingularityCloud] Failed to import cloud accounts locally:', e));
+    }
+
+    // 4. Sync Down S-Connect Chat Sessions
+    const cloudSessions = cloudPayload.connect_chat_sessions || [];
+    if (cloudSessions.length > 0) {
+      const localSessionsRaw = localStorage.getItem('s_connect_sessions_v2');
+      let localSessions = [];
+      try { localSessions = JSON.parse(localSessionsRaw || '[]'); } catch (e) {}
+
+      const sessionMap = new Map();
+      localSessions.forEach(s => { if (s && s.id) sessionMap.set(s.id, s); });
+
+      cloudSessions.forEach(cs => {
+        sessionMap.set(cs.id, {
+          id: cs.id,
+          botId: cs.bot_id,
+          botName: cs.bot_name,
+          botAvatar: cs.bot_avatar,
+          botDescription: cs.bot_description,
+          summary: cs.summary,
+          createdAt: cs.created_at,
+          updatedAt: cs.updated_at
+        });
+
+        if (cs.messages_json) {
+          localStorage.setItem(`s_connect_chat_msgs_${cs.id}`, typeof cs.messages_json === 'string' ? cs.messages_json : JSON.stringify(cs.messages_json));
+        }
+        if (cs.settings_json) {
+          localStorage.setItem(`s_connect_settings_${cs.id}`, typeof cs.settings_json === 'string' ? cs.settings_json : JSON.stringify(cs.settings_json));
+        }
+        if (typeof cs.greeting_idx === 'number') {
+          localStorage.setItem(`s_connect_greeting_idx_${cs.id}`, cs.greeting_idx);
+        }
+      });
+
+      localStorage.setItem('s_connect_sessions_v2', JSON.stringify(Array.from(sessionMap.values())));
+      const sConn = window.SConnect || window.sConnect;
+      if (sConn && sConn.currentView === 'my-chats') {
+        const container = document.getElementById('connect-main-view');
+        if (container && typeof sConn.renderMyChatsView === 'function') {
+          sConn.renderMyChatsView(container, sConn._expandedBotId || null);
+        }
+      }
+    }
+  }
+
   async function syncDown() {
-    if (!supabaseClient) return;
     const userId = await resolveCurrentUserId();
     if (!userId) {
       console.warn('[SingularityCloud] syncDown skipped: no authenticated cloud user');
@@ -587,208 +770,17 @@
     updateSyncBadge('Syncing...', '#f59e0b');
 
     try {
-      // 1. Sync Down Profile & User Settings
-      const { data: profiles, error: pErr } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .eq('id', userId);
-
-      if (pErr) throw pErr;
-
-      if (profiles && profiles.length > 0) {
-        const prof = profiles[0];
-        if (prof.theme) {
-          document.documentElement.setAttribute('data-theme', prof.theme);
-          document.body.setAttribute('data-theme', prof.theme);
-          localStorage.setItem('singularity_theme', prof.theme);
-        }
-        if (prof.active_persona_id) {
-          localStorage.setItem('s_connect_active_persona', prof.active_persona_id);
-          localStorage.setItem('s_connect_active_persona_id', prof.active_persona_id);
-        }
-        if (prof.settings_json) {
-          try {
-            const sett = typeof prof.settings_json === 'string' ? JSON.parse(prof.settings_json) : prof.settings_json;
-            if (sett.displayName) {
-              const nameInput = document.getElementById('user-profile-name-input');
-              if (nameInput) nameInput.value = sett.displayName;
-              localStorage.setItem('singularity_user_name', sett.displayName);
-            }
-            if (sett.avatar) {
-              localStorage.setItem('singularity_user_avatar', sett.avatar);
-            }
-
-            // Sync Down Followed Creators (Cloud is authoritative)
-            const followed = sett.followedCreators || sett.followed_creators;
-            if (Array.isArray(followed)) {
-              localStorage.setItem('s_connect_following', JSON.stringify(followed));
-              const sConn = window.SConnect || window.sConnect;
-              if (sConn) {
-                sConn.followingCreatorIds = new Set(followed);
-              }
-            }
-
-            // Sync Down Saved Bots (Cloud is authoritative)
-            const savedIds = sett.savedBotIds || sett.saved_bot_ids;
-            if (Array.isArray(savedIds)) {
-              localStorage.setItem('s_connect_saved_bots', JSON.stringify(savedIds));
-              const sConn = window.SConnect || window.sConnect;
-              if (sConn) {
-                sConn.savedBotIds = new Set(savedIds);
-              }
-            }
-
-            // Restore Saved Bot cards into local SQLite database on this device
-            const savedData = sett.savedBotsData || sett.saved_bots_data;
-            if (Array.isArray(savedData) && savedData.length > 0) {
-              const sConn = window.SConnect || window.sConnect;
-              for (const b of savedData) {
-                if (b && b.id) {
-                  if (sConn && typeof sConn.cacheBot === 'function') {
-                    sConn.cacheBot(b);
-                  }
-                  fetch('/api/connect/save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(b)
-                  }).catch(() => {});
-                }
-              }
-            }
-
-            // Re-render S-Connect active views if currently looking at Library, Creators, Following, or My Chats
-            const sConn = window.SConnect || window.sConnect;
-            if (sConn && sConn.currentView) {
-              const v = sConn.currentView;
-              const container = document.getElementById('connect-main-view');
-              if (container) {
-                if (v === 'library' && typeof sConn.renderLibraryView === 'function') {
-                  sConn.renderLibraryView(container);
-                } else if (v === 'creators' && typeof sConn.renderCreatorsView === 'function') {
-                  sConn.renderCreatorsView(container);
-                } else if (v === 'following' && typeof sConn.renderFollowingView === 'function') {
-                  sConn.renderFollowingView(container);
-                } else if (v === 'my-chats' && typeof sConn.renderMyChatsView === 'function') {
-                  sConn.renderMyChatsView(container, sConn._expandedBotId || null);
-                }
-              }
-            }
-          } catch (e) {
-            console.warn('[SingularityCloud] Error parsing settings_json:', e);
-          }
-        }
+      // 1. Primary: Fetch authoritative cloud state securely via backend gateway proxy
+      const pullRes = await fetch('/api/cloud/sync/pull?user_id=' + encodeURIComponent(userId));
+      if (!pullRes.ok) {
+        throw new Error('Sync pull returned status ' + pullRes.status);
+      }
+      const cloudPayload = await pullRes.json();
+      if (!cloudPayload.success) {
+        throw new Error(cloudPayload.error || 'Failed to pull cloud state');
       }
 
-      // 2. Sync Down Personas
-      const { data: cloudPersonas, error: perr } = await supabaseClient
-        .from('personas')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (!perr && cloudPersonas && cloudPersonas.length > 0) {
-        const localPersonasRaw = localStorage.getItem('s_connect_personas');
-        let localPersonas = [];
-        try { localPersonas = JSON.parse(localPersonasRaw || '[]'); } catch (e) {}
-
-        const mergedMap = new Map();
-        localPersonas.forEach(p => { if (p && p.id) mergedMap.set(p.id, p); });
-        cloudPersonas.forEach(cp => {
-          mergedMap.set(cp.id, {
-            id: cp.id,
-            name: cp.name,
-            avatar: cp.avatar || '',
-            description: cp.description || '',
-            system_prompt: cp.system_prompt || '',
-            is_active: cp.is_active ?? false,
-            updatedAt: cp.updated_at
-          });
-        });
-
-        const mergedList = Array.from(mergedMap.values());
-        localStorage.setItem('s_connect_personas', JSON.stringify(mergedList));
-        if (window.sConnect && typeof window.sConnect.renderPersonasDrawer === 'function') {
-          window.sConnect.renderPersonasDrawer();
-        }
-      }
-
-      // 3. Sync Down Connected Accounts (Restore into Singularity SQLite Vault)
-      const { data: cloudAccounts, error: accErr } = await supabaseClient
-        .from('connected_accounts')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (!accErr && cloudAccounts && cloudAccounts.length > 0) {
-        const providersPayload = {};
-        cloudAccounts.forEach(ca => {
-          let cred = {};
-          try { cred = typeof ca.credential_json === 'string' ? JSON.parse(ca.credential_json) : (ca.credential_json || {}); } catch (e) { cred = { token: ca.credential_json }; }
-          if (!providersPayload[ca.provider]) providersPayload[ca.provider] = [];
-          providersPayload[ca.provider].push({
-            name: cred.name || ca.provider,
-            token: cred.token || cred.raw || (typeof cred === 'string' ? cred : JSON.stringify(cred)),
-            plan: cred.plan || 'free',
-            status: ca.status || 'active'
-          });
-        });
-
-        try {
-          await fetch('/api/cookies/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ providers: providersPayload })
-          });
-        } catch (e) {
-          console.warn('[SingularityCloud] Failed to import cloud accounts locally:', e);
-        }
-      }
-
-      // 4. Sync Down S-Connect Chat Sessions
-      const { data: cloudSessions, error: sessErr } = await supabaseClient
-        .from('connect_chat_sessions')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (!sessErr && cloudSessions && cloudSessions.length > 0) {
-        const localSessionsRaw = localStorage.getItem('s_connect_sessions_v2');
-        let localSessions = [];
-        try { localSessions = JSON.parse(localSessionsRaw || '[]'); } catch (e) {}
-
-        const sessionMap = new Map();
-        localSessions.forEach(s => { if (s && s.id) sessionMap.set(s.id, s); });
-
-        cloudSessions.forEach(cs => {
-          sessionMap.set(cs.id, {
-            id: cs.id,
-            botId: cs.bot_id,
-            botName: cs.bot_name,
-            botAvatar: cs.bot_avatar,
-            botDescription: cs.bot_description,
-            summary: cs.summary,
-            createdAt: cs.created_at,
-            updatedAt: cs.updated_at
-          });
-
-          if (cs.messages_json) {
-            localStorage.setItem(`s_connect_chat_msgs_${cs.id}`, typeof cs.messages_json === 'string' ? cs.messages_json : JSON.stringify(cs.messages_json));
-          }
-          if (cs.settings_json) {
-            localStorage.setItem(`s_connect_settings_${cs.id}`, typeof cs.settings_json === 'string' ? cs.settings_json : JSON.stringify(cs.settings_json));
-          }
-          if (typeof cs.greeting_idx === 'number') {
-            localStorage.setItem(`s_connect_greeting_idx_${cs.id}`, cs.greeting_idx);
-          }
-        });
-
-        localStorage.setItem('s_connect_sessions_v2', JSON.stringify(Array.from(sessionMap.values())));
-        const sConn = window.SConnect || window.sConnect;
-        if (sConn && sConn.currentView === 'my-chats') {
-          const container = document.getElementById('connect-main-view');
-          if (container && typeof sConn.renderMyChatsView === 'function') {
-            sConn.renderMyChatsView(container, sConn._expandedBotId || null);
-          }
-        }
-      }
-
+      applyCloudState(cloudPayload);
       updateSyncBadge('Synced to Cloud', '#10b981');
     } catch (err) {
       console.error('[SingularityCloud] syncDown failed:', err);
@@ -799,7 +791,7 @@
   }
 
   async function syncUp() {
-    if (!supabaseClient || isSyncing) return;
+    if (isSyncing) return;
     const userId = await resolveCurrentUserId();
     if (!userId) {
       console.warn('[SingularityCloud] syncUp skipped: no authenticated cloud user');
@@ -812,14 +804,7 @@
     try {
       const now = new Date().toISOString();
 
-      // Trigger backend sync push in parallel so SQLite vault, saved bots & accounts are pushed
-      fetch('/api/cloud/sync/push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, email: activeUser?.email })
-      }).catch(e => console.warn('[SingularityCloud] Backend sync push notice:', e));
-
-      // 1. Gather Profile & Settings (including Followed Creators & Saved Bots)
+      // Gather profile & settings
       const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
       const activePersonaId = localStorage.getItem('s_connect_active_persona') || 'persona_default';
       const displayName = localStorage.getItem('singularity_user_name') || 'Operator';
@@ -837,7 +822,6 @@
         if (rawSaved) savedBotIds = JSON.parse(rawSaved);
       } catch (e) {}
 
-      // Fetch saved bot character details from local library
       let savedBotsData = [];
       try {
         const libRes = await fetch('/api/connect/library?limit=300');
@@ -847,14 +831,12 @@
         }
       } catch (e) {}
 
-      // Merge saved bot IDs from library
       savedBotsData.forEach(b => {
         if (b && b.id && !savedBotIds.includes(b.id)) {
           savedBotIds.push(b.id);
         }
       });
 
-      // Supplement with any bots in SConnect memory cache
       const sConnObj = window.SConnect || window.sConnect;
       if (sConnObj && sConnObj.botCache && Array.isArray(savedBotIds)) {
         const existingIds = new Set(savedBotsData.map(b => b && b.id));
@@ -866,7 +848,6 @@
         }
       }
 
-      // Extract creator profiles from saved bots and followed creators
       const creatorProfilesMap = new Map();
       for (const b of savedBotsData) {
         if (b && (b.creator_id || b.creator_name)) {
@@ -895,35 +876,6 @@
       }
       const creatorProfiles = Array.from(creatorProfilesMap.values());
 
-      const settingsPayload = {
-        displayName,
-        avatar: userAvatar,
-        followedCreators,
-        followed_creators: followedCreators,
-        creatorProfiles,
-        creator_profiles: creatorProfiles,
-        savedBotIds,
-        saved_bot_ids: savedBotIds,
-        savedBotsData,
-        saved_bots_data: savedBotsData
-      };
-
-      const userEmail = activeUser?.email || localStorage.getItem('singularity_cloud_user_email') || 'operator@singularity.local';
-
-      const { error: profErr } = await supabaseClient.from('profiles').upsert({
-        id: userId,
-        email: userEmail,
-        theme: currentTheme,
-        active_persona_id: activePersonaId,
-        settings_json: settingsPayload,
-        updated_at: now
-      });
-      if (profErr) {
-        console.error('[SingularityCloud] profiles upsert error:', profErr);
-        throw profErr;
-      }
-
-      // 2. Sync Up Personas
       let personasToSync = [];
       const localPersonasRaw = localStorage.getItem('s_connect_personas');
       if (localPersonasRaw) {
@@ -939,119 +891,80 @@
         }];
       }
 
-      for (const p of personasToSync) {
-        if (!p || !p.id) continue;
-        const { error: perr } = await supabaseClient.from('personas').upsert({
-          id: p.id,
-          user_id: userId,
-          name: p.name || 'Persona',
-          avatar: p.avatar || '',
-          description: p.description || '',
-          system_prompt: p.system_prompt || '',
-          is_active: !!p.is_active,
-          updated_at: now
-        });
-        if (perr) console.warn('[SingularityCloud] persona upsert error:', perr);
-      }
-
-      // 3. Sync Up Connected Accounts (Export from Local SQLite Vault)
-      try {
-        const expRes = await fetch('/api/cookies/export');
-        if (expRes.ok) {
-          const expData = await expRes.json();
-          const accountsToSync = [];
-          if (Array.isArray(expData.accounts)) {
-            accountsToSync.push(...expData.accounts);
-          } else if (expData.providers && typeof expData.providers === 'object') {
-            for (const [provider, list] of Object.entries(expData.providers)) {
-              if (Array.isArray(list)) {
-                for (const acc of list) {
-                  accountsToSync.push({
-                    id: acc.identifier || `${provider}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-                    provider: provider,
-                    credential: acc,
-                    status: acc.status || 'active'
-                  });
-                }
-              }
-            }
-          }
-
-          for (const acc of accountsToSync) {
-            const accId = acc.id || `${acc.provider}_${Date.now()}`;
-            const { error: accErr } = await supabaseClient.from('connected_accounts').upsert({
-              id: String(accId),
-              user_id: userId,
-              provider: acc.provider,
-              credential_json: JSON.stringify(acc.credential || {}),
-              status: acc.status || 'active',
-              updated_at: now
-            });
-            if (accErr) console.warn('[SingularityCloud] connected_account upsert error:', accErr);
-          }
-        }
-      } catch (e) {
-        console.warn('[SingularityCloud] Error exporting accounts for cloud:', e);
-      }
-
-      // 4. Sync Up S-Connect Chat Sessions & Messages
+      let sessionsToSync = [];
       const localSessionsRaw = localStorage.getItem('s_connect_sessions_v2');
       if (localSessionsRaw) {
         try {
-          const sessions = JSON.parse(localSessionsRaw);
-          for (const s of sessions) {
+          const parsedSessions = JSON.parse(localSessionsRaw);
+          for (const s of parsedSessions) {
             if (!s || !s.id) continue;
-            const msgsJson = localStorage.getItem(`s_connect_chat_msgs_${s.id}`) || '[]';
-            const settJson = localStorage.getItem(`s_connect_settings_${s.id}`) || '{}';
-            const greetIdx = parseInt(localStorage.getItem(`s_connect_greeting_idx_${s.id}`) || '0', 10);
-
-            const { error: sessErr } = await supabaseClient.from('connect_chat_sessions').upsert({
+            sessionsToSync.push({
               id: s.id,
-              user_id: userId,
-              bot_id: s.botId || s.id,
-              bot_name: s.botName || 'Chat',
-              bot_avatar: s.botAvatar || '',
-              bot_description: s.botDescription || '',
+              botId: s.botId || s.id,
+              botName: s.botName || 'Chat',
+              botAvatar: s.botAvatar || '',
+              botDescription: s.botDescription || '',
               summary: s.summary || '',
-              greeting_idx: isNaN(greetIdx) ? 0 : greetIdx,
-              persona_id: activePersonaId,
-              messages_json: msgsJson,
-              settings_json: settJson,
-              created_at: s.createdAt || now,
-              updated_at: now
+              greeting_idx: parseInt(localStorage.getItem(`s_connect_greeting_idx_${s.id}`) || '0', 10),
+              messages_json: localStorage.getItem(`s_connect_chat_msgs_${s.id}`) || '[]',
+              settings_json: localStorage.getItem(`s_connect_settings_${s.id}`) || '{}',
+              createdAt: s.createdAt || now
             });
-            if (sessErr) console.warn('[SingularityCloud] chat session upsert error:', sessErr);
           }
         } catch (e) {}
       }
 
-      // 5. Sync Up Playground Chats
+      let playgroundChatsToSync = [];
       try {
         const chatsRes = await fetch('/api/chats');
         if (chatsRes.ok) {
           const chatsData = await chatsRes.json();
-          const chatsList = chatsData.chats || [];
-          for (const c of chatsList) {
-            if (!c || !c.id) continue;
-            const { error: chatErr } = await supabaseClient.from('playground_chats').upsert({
-              id: c.id,
-              user_id: userId,
-              title: c.title || 'Chat',
-              model: c.model || 'gpt-5.6-sol',
-              messages_json: JSON.stringify(c.messages || []),
-              settings_json: JSON.stringify(c.settings || {}),
-              created_at: c.created_at || now,
-              updated_at: now
-            });
-            if (chatErr) console.warn('[SingularityCloud] playground chat upsert error:', chatErr);
-          }
+          playgroundChatsToSync = chatsData.chats || [];
         }
       } catch (e) {}
+
+      const userEmail = activeUser?.email || localStorage.getItem('singularity_cloud_user_email') || 'operator@singularity.local';
+
+      // Send complete push payload to backend gateway proxy
+      const pushRes = await fetch('/api/cloud/sync/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          email: userEmail,
+          theme: currentTheme,
+          active_persona_id: activePersonaId,
+          settings: {
+            displayName,
+            avatar: userAvatar,
+            followedCreators,
+            followed_creators: followedCreators,
+            creatorProfiles,
+            creator_profiles: creatorProfiles,
+            savedBotIds,
+            saved_bot_ids: savedBotIds,
+            savedBotsData,
+            saved_bots_data: savedBotsData
+          },
+          personas: personasToSync,
+          sessions: sessionsToSync,
+          playground_chats: playgroundChatsToSync
+        })
+      });
+
+      if (!pushRes.ok) {
+        throw new Error('Backend push failed with HTTP ' + pushRes.status);
+      }
+
+      const pushJson = await pushRes.json();
+      if (!pushJson.success) {
+        throw new Error(pushJson.error || 'Backend push failed');
+      }
 
       updateSyncBadge('Synced to Cloud', '#10b981');
     } catch (err) {
       console.error('[SingularityCloud] syncUp failed:', err);
-      updateSyncBadge('Sync Error: ' + (err.message || 'failed'), '#ef4444');
+      updateSyncBadge('Sync Warning', '#ef4444');
     } finally {
       isSyncing = false;
     }

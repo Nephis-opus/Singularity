@@ -3298,6 +3298,71 @@ async def api_cloud_auth_instant(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/cloud/sync/pull")
+async def api_cloud_sync_pull(request: Request):
+    """Retrieve full cloud state from Supabase securely via backend proxy using secret key."""
+    url = os.getenv("SUPABASE_URL") or db.get_setting("supabase_url", "https://ugbjziwpbdhgqovnlfvs.supabase.co")
+    secret_key = os.getenv("SUPABASE_KEY") or db.get_setting("supabase_key", "")
+    if not secret_key:
+        secret_key = base64.b64decode("c2Jfc2VjcmV0X204VC1Ka1R1czZ1NUtqS2JETUZ6NUFfN002MEZYSlY=").decode("utf-8")
+
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": "application/json"
+    }
+
+    user_id = request.query_params.get("user_id")
+    if not user_id:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.get(f"{url}/auth/v1/admin/users?per_page=1", headers=headers)
+                if r.status_code == 200:
+                    users = r.json().get("users") or []
+                    if users:
+                        user_id = users[0].get("id")
+        except Exception as e:
+            logger.debug(f"Failed to resolve user for sync pull: {e}")
+
+    if not user_id:
+        return JSONResponse({"success": False, "error": "No authenticated cloud user found"}, status_code=400)
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # 1. Profiles
+            p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+            profiles = p_res.json() if p_res.status_code == 200 else []
+
+            # 2. Personas
+            pers_res = await client.get(f"{url}/rest/v1/personas?user_id=eq.{user_id}&select=*", headers=headers)
+            personas = pers_res.json() if pers_res.status_code == 200 else []
+
+            # 3. Connected accounts
+            accs_res = await client.get(f"{url}/rest/v1/connected_accounts?user_id=eq.{user_id}&select=*", headers=headers)
+            connected_accounts = accs_res.json() if accs_res.status_code == 200 else []
+
+            # 4. Connect chat sessions
+            sess_res = await client.get(f"{url}/rest/v1/connect_chat_sessions?user_id=eq.{user_id}&select=*", headers=headers)
+            chat_sessions = sess_res.json() if sess_res.status_code == 200 else []
+
+            # 5. Playground chats
+            play_res = await client.get(f"{url}/rest/v1/playground_chats?user_id=eq.{user_id}&select=*", headers=headers)
+            playground_chats = play_res.json() if play_res.status_code == 200 else []
+
+            return JSONResponse({
+                "success": True,
+                "user_id": user_id,
+                "profiles": profiles,
+                "personas": personas,
+                "connected_accounts": connected_accounts,
+                "connect_chat_sessions": chat_sessions,
+                "playground_chats": playground_chats
+            })
+    except Exception as e:
+        logger.exception("Error during cloud sync pull")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
 @app.post("/api/cloud/sync/push")
 async def api_cloud_sync_push(request: Request):
     """Synchronize local SQLite vault, saved bots, creator profiles, and personas directly to Supabase."""
@@ -3340,9 +3405,22 @@ async def api_cloud_sync_push(request: Request):
     if not user_id:
         return JSONResponse({"success": False, "error": "No authenticated cloud user found"}, status_code=400)
 
-    # 2. Gather saved bots from SQLite
+    # 2. Gather saved bots from SQLite and client payload
     saved_cards = db.list_saved_connect_cards(limit=500)
     saved_bot_ids = [c["id"] for c in saved_cards if c.get("id")]
+
+    client_settings = body.get("settings") if isinstance(body.get("settings"), dict) else {}
+    client_saved_data = client_settings.get("savedBotsData") or body.get("savedBotsData") or []
+    if isinstance(client_saved_data, list):
+        for b in client_saved_data:
+            if isinstance(b, dict) and b.get("id"):
+                if b["id"] not in saved_bot_ids:
+                    saved_bot_ids.append(b["id"])
+                    saved_cards.append(b)
+                try:
+                    db.save_connect_card(b)
+                except Exception:
+                    pass
 
     vault_saved = db.get_connect_vault_val("saved_bots", [])
     if isinstance(vault_saved, list):
@@ -3350,9 +3428,20 @@ async def api_cloud_sync_push(request: Request):
             if bid and bid not in saved_bot_ids:
                 saved_bot_ids.append(bid)
 
+    client_saved_ids = client_settings.get("savedBotIds") or body.get("savedBotIds") or []
+    if isinstance(client_saved_ids, list):
+        for bid in client_saved_ids:
+            if bid and bid not in saved_bot_ids:
+                saved_bot_ids.append(bid)
+
     following = db.get_connect_vault_val("following", [])
     if not isinstance(following, list):
         following = []
+    client_following = client_settings.get("followedCreators") or body.get("followedCreators") or []
+    if isinstance(client_following, list):
+        for fid in client_following:
+            if fid and fid not in following:
+                following.append(fid)
 
     # 3. Extract creator profiles
     creator_profiles_map = {}
@@ -3375,12 +3464,24 @@ async def api_cloud_sync_push(request: Request):
                 "avatar": "",
                 "bio": "JanitorAI Creator"
             }
+    client_creators = client_settings.get("creatorProfiles") or body.get("creatorProfiles") or []
+    if isinstance(client_creators, list):
+        for cp in client_creators:
+            if isinstance(cp, dict) and (cp.get("id") or cp.get("name")):
+                cid = cp.get("id") or cp.get("name")
+                creator_profiles_map[cid] = cp
+
     creator_profiles = list(creator_profiles_map.values())
 
     # 4. Assemble settings payload
+    display_name = client_settings.get("displayName") or body.get("displayName") or "Operator"
+    avatar = client_settings.get("avatar") or body.get("avatar") or ""
+    theme = body.get("theme") or client_settings.get("theme") or "dark"
+    active_persona_id = body.get("active_persona_id") or client_settings.get("active_persona_id") or db.get_connect_vault_val("active_persona_id", "persona_default")
+
     settings_payload = {
-        "displayName": "Operator",
-        "avatar": "",
+        "displayName": display_name,
+        "avatar": avatar,
         "savedBotIds": saved_bot_ids,
         "saved_bot_ids": saved_bot_ids,
         "savedBotsData": saved_cards,
@@ -3394,13 +3495,13 @@ async def api_cloud_sync_push(request: Request):
     now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     results = {}
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    async with httpx.AsyncClient(timeout=25.0) as client:
         # A. Upsert profiles
         profile_row = {
             "id": user_id,
             "email": user_email or "operator@singularity.local",
-            "theme": "dark",
-            "active_persona_id": db.get_connect_vault_val("active_persona_id", "persona_default"),
+            "theme": theme,
+            "active_persona_id": active_persona_id,
             "settings_json": settings_payload,
             "updated_at": now_iso
         }
@@ -3425,19 +3526,79 @@ async def api_cloud_sync_push(request: Request):
                 acc_synced += 1
         results["connected_accounts"] = acc_synced
 
-        # C. Upsert default persona
-        persona_row = {
-            "id": "persona_default",
-            "user_id": user_id,
-            "name": "Ayame",
-            "avatar": "/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg",
-            "description": "Ayame is visiting the club tonight, dressed comfortably yet stylishly, with quiet curiosity.",
-            "system_prompt": "",
-            "is_active": True,
-            "updated_at": now_iso
-        }
-        per_res = await client.post(f"{url}/rest/v1/personas", headers=headers, json=persona_row)
-        results["personas"] = per_res.status_code in (200, 201)
+        # C. Upsert personas
+        client_personas = body.get("personas") or []
+        if not client_personas:
+            client_personas = [{
+                "id": "persona_default",
+                "name": "Ayame",
+                "avatar": "/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg",
+                "description": "Ayame is visiting the club tonight, dressed comfortably yet stylishly, with quiet curiosity.",
+                "system_prompt": "",
+                "is_active": True
+            }]
+        pers_synced = 0
+        for p in client_personas:
+            if isinstance(p, dict) and p.get("id"):
+                persona_row = {
+                    "id": p["id"],
+                    "user_id": user_id,
+                    "name": p.get("name", "Persona"),
+                    "avatar": p.get("avatar", ""),
+                    "description": p.get("description", ""),
+                    "system_prompt": p.get("system_prompt", ""),
+                    "is_active": bool(p.get("is_active", False)),
+                    "updated_at": now_iso
+                }
+                per_res = await client.post(f"{url}/rest/v1/personas", headers=headers, json=persona_row)
+                if per_res.status_code in (200, 201):
+                    pers_synced += 1
+        results["personas"] = pers_synced
+
+        # D. Upsert connect_chat_sessions if provided
+        client_sessions = body.get("sessions") or []
+        sess_synced = 0
+        for s in client_sessions:
+            if isinstance(s, dict) and s.get("id"):
+                sess_row = {
+                    "id": s["id"],
+                    "user_id": user_id,
+                    "bot_id": s.get("botId") or s.get("bot_id") or s["id"],
+                    "bot_name": s.get("botName") or s.get("bot_name") or "Chat",
+                    "bot_avatar": s.get("botAvatar") or s.get("bot_avatar") or "",
+                    "bot_description": s.get("botDescription") or s.get("bot_description") or "",
+                    "summary": s.get("summary") or "",
+                    "greeting_idx": int(s.get("greeting_idx") or 0),
+                    "persona_id": active_persona_id,
+                    "messages_json": s.get("messages_json") if isinstance(s.get("messages_json"), str) else json.dumps(s.get("messages_json") or []),
+                    "settings_json": s.get("settings_json") if isinstance(s.get("settings_json"), str) else json.dumps(s.get("settings_json") or {}),
+                    "created_at": s.get("createdAt") or s.get("created_at") or now_iso,
+                    "updated_at": now_iso
+                }
+                s_res = await client.post(f"{url}/rest/v1/connect_chat_sessions", headers=headers, json=sess_row)
+                if s_res.status_code in (200, 201):
+                    sess_synced += 1
+        results["connect_chat_sessions"] = sess_synced
+
+        # E. Upsert playground_chats if provided
+        client_chats = body.get("playground_chats") or []
+        chat_synced = 0
+        for c in client_chats:
+            if isinstance(c, dict) and c.get("id"):
+                chat_row = {
+                    "id": c["id"],
+                    "user_id": user_id,
+                    "title": c.get("title") or "Chat",
+                    "model": c.get("model") or "gpt-5.6-sol",
+                    "messages_json": c.get("messages_json") if isinstance(c.get("messages_json"), str) else json.dumps(c.get("messages") or []),
+                    "settings_json": c.get("settings_json") if isinstance(c.get("settings_json"), str) else json.dumps(c.get("settings") or {}),
+                    "created_at": c.get("created_at") or now_iso,
+                    "updated_at": now_iso
+                }
+                c_res = await client.post(f"{url}/rest/v1/playground_chats", headers=headers, json=chat_row)
+                if c_res.status_code in (200, 201):
+                    chat_synced += 1
+        results["playground_chats"] = chat_synced
 
     return JSONResponse({
         "success": True,
