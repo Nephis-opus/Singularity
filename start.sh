@@ -50,6 +50,13 @@ if [ "${SINGULARITY_NO_UPDATE:-0}" != "1" ] && [ "$1" != "--no-update" ]; then
             echo "  [🔄] Checking for Singularity updates..."
             # Fast network fetch of origin main without breaking shallow clone graphs
             git fetch --quiet origin main 2>/dev/null || git fetch --quiet origin 2>/dev/null || true
+            # Ensure local branch is main and tracks origin/main (fixes detached HEAD / master / missing tracking)
+            CUR_BRANCH="$(git branch --show-current 2>/dev/null || echo "")"
+            if [ "$CUR_BRANCH" != "main" ]; then
+                git checkout -B main origin/main 2>/dev/null || git branch -M main 2>/dev/null || true
+            fi
+            git branch --set-upstream-to=origin/main main 2>/dev/null || true
+
             LOCAL_REV="$(git rev-parse HEAD 2>/dev/null || echo "")"
             REMOTE_REV="$(git rev-parse FETCH_HEAD 2>/dev/null || git rev-parse origin/main 2>/dev/null || git rev-parse '@{u}' 2>/dev/null || echo "")"
             if [ -n "$LOCAL_REV" ] && [ -n "$REMOTE_REV" ] && [ "$LOCAL_REV" != "$REMOTE_REV" ]; then

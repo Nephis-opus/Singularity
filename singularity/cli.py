@@ -820,6 +820,14 @@ def cmd_update(args):
     print("  [*] Checking remote repository for latest commits...")
     try:
         subprocess.run(["git", "fetch", "--quiet", "origin", "main"], cwd=root_dir, check=False, timeout=15)
+        # Ensure local branch is main and tracks origin/main
+        try:
+            cur_branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=root_dir, text=True).strip()
+            if cur_branch != "main":
+                subprocess.run(["git", "checkout", "-B", "main", "origin/main"], cwd=root_dir, capture_output=True)
+            subprocess.run(["git", "branch", "--set-upstream-to=origin/main", "main"], cwd=root_dir, capture_output=True)
+        except Exception:
+            pass
         local_rev = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root_dir, text=True).strip()
         try:
             remote_rev = subprocess.check_output(["git", "rev-parse", "FETCH_HEAD"], cwd=root_dir, text=True).strip()
