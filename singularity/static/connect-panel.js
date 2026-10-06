@@ -1382,6 +1382,42 @@
           }
         }
 
+        // Auto-hydrate any missing saved bots in the background if not yet in SQLite/cache
+        const missingIds = savedIdsList.filter(id => !cardMap.has(id) && !this.botCache.has(id));
+        if (missingIds.length > 0) {
+          Promise.all(missingIds.map(id =>
+            fetch(`/api/connect/bot/${encodeURIComponent(id)}`)
+              .then(r => r.ok ? r.json() : null)
+              .catch(() => null)
+          )).then(fetched => {
+            let hasNew = false;
+            fetched.forEach(b => {
+              if (b && b.id) {
+                this.cacheBot(b);
+                hasNew = true;
+                fetch('/api/connect/save', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(b)
+                }).catch(() => {});
+              }
+            });
+            if (hasNew && this.currentView === 'library') {
+              const grid = document.getElementById('library-grid');
+              if (grid) {
+                const refreshed = [];
+                for (const id of savedIdsList) {
+                  if (cardMap.has(id)) refreshed.push(cardMap.get(id));
+                  else if (this.botCache.has(id)) refreshed.push(this.botCache.get(id));
+                }
+                if (refreshed.length > 0) {
+                  grid.innerHTML = refreshed.map((b, i) => this.renderBotCardHTML(b, i)).join('');
+                }
+              }
+            }
+          });
+        }
+
         const grid = document.getElementById('library-grid');
         if (grid) {
           if (finalCards.length > 0) {
@@ -1538,7 +1574,10 @@
           btn.innerHTML = `${ICONS.bookmarkFilled} <span>Saved</span>`;
         }
         // Save to SQLite
-        const bot = this.botCache.get(botId) || { id: botId };
+        const bot = this.botCache.get(botId) || (this.activeBot && this.activeBot.id === botId ? this.activeBot : null) || { id: botId };
+        if (bot && bot.name && !this.botCache.has(botId)) {
+          this.cacheBot(bot);
+        }
         fetch('/api/connect/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

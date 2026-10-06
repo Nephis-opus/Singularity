@@ -1431,24 +1431,36 @@
     }
   });
 
-  // Background auto-sync interval (every 45s if authenticated)
+  // Background auto-sync interval (pull updates every 30s if authenticated)
   setInterval(() => {
     if (isAuthenticated() && !document.hidden) {
-      syncUp();
+      syncDown();
     }
-  }, 45000);
+  }, 30000);
+
+  // Instant cross-device sync: trigger syncDown whenever laptop tab is focused or becomes visible
+  window.addEventListener('focus', () => {
+    if (isAuthenticated()) {
+      syncDown();
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && isAuthenticated()) {
+      syncDown();
+    }
+  });
 
   // Hook into S-Connect and Chat send events for reactive sync
   window.addEventListener('singularity-chat-updated', () => {
     if (isAuthenticated()) {
-      setTimeout(syncUp, 1500);
+      setTimeout(syncUp, 1000);
     }
   });
 
-  // Reactive sync when S-Connect followed creators or saved bots change
+  // Reactive sync when S-Connect followed creators or saved bots change (fast 250ms push)
   window.addEventListener('singularity-cloud-sync-needed', () => {
     if (isAuthenticated()) {
-      setTimeout(syncUp, 800);
+      setTimeout(syncUp, 250);
     }
   });
 
@@ -1474,5 +1486,10 @@
   initPortalUI();
   checkSession();
   updateAccountModalUI();
+
+  // Instant pull on startup/reload if already authenticated
+  if (localStorage.getItem('singularity_cloud_authenticated') === 'true') {
+    syncDown();
+  }
 
 })();
