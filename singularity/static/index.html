@@ -32,6 +32,26 @@
   <link rel="stylesheet" href="/static/updates.css?v=1" />
   <link rel="stylesheet" href="/static/connect.css?v=8" />
   <link rel="stylesheet" href="/static/login-portal.css?v=1" />
+  <!-- Immediate Auth URL Hash Cleaner: Instantly capture & strip #access_token hashes so they never linger in address bar -->
+  <script>
+    (function() {
+      try {
+        var h = window.location.hash || '';
+        if (h && (h.indexOf('access_token=') !== -1 || h.indexOf('refresh_token=') !== -1)) {
+          var clean = h.charAt(0) === '#' ? h.slice(1) : h;
+          var p = new URLSearchParams(clean);
+          var at = p.get('access_token');
+          var rt = p.get('refresh_token');
+          if (at && rt) {
+            localStorage.setItem('singularity_pending_auth_session', JSON.stringify({ access_token: at, refresh_token: rt }));
+          }
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 
 <body data-active-tab="playground">
@@ -134,7 +154,7 @@
                   type="password" 
                   id="portal-password" 
                   class="portal-input-field" 
-                  required 
+                  placeholder="Optional password / instant auth"
                   autocomplete="current-password"
                 />
                 <button type="button" class="portal-password-toggle" id="btn-portal-toggle-pw" aria-label="Toggle password view">
