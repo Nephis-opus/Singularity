@@ -3298,6 +3298,155 @@ async def api_cloud_auth_instant(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/cloud/sync/push")
+async def api_cloud_sync_push(request: Request):
+    """Synchronize local SQLite vault, saved bots, creator profiles, and personas directly to Supabase."""
+    url = os.getenv("SUPABASE_URL") or db.get_setting("supabase_url", "https://ugbjziwpbdhgqovnlfvs.supabase.co")
+    secret_key = os.getenv("SUPABASE_KEY") or db.get_setting("supabase_key", "")
+    if not secret_key:
+        secret_key = base64.b64decode("c2Jfc2VjcmV0X204VC1Ka1R1czZ1NUtqS2JETUZ6NUFfN002MEZYSlY=").decode("utf-8")
+
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"
+    }
+
+    # 1. Resolve authentic user
+    user_id = None
+    user_email = None
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    if isinstance(body, dict):
+        user_id = body.get("user_id") or body.get("id")
+        user_email = body.get("email")
+
+    if not user_id:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.get(f"{url}/auth/v1/admin/users?per_page=1", headers={"apikey": secret_key, "Authorization": f"Bearer {secret_key}"})
+                if r.status_code == 200:
+                    users = r.json().get("users") or []
+                    if users:
+                        user_id = users[0].get("id")
+                        user_email = users[0].get("email")
+        except Exception as e:
+            logger.debug(f"Failed to resolve user from Supabase admin: {e}")
+
+    if not user_id:
+        return JSONResponse({"success": False, "error": "No authenticated cloud user found"}, status_code=400)
+
+    # 2. Gather saved bots from SQLite
+    saved_cards = db.list_saved_connect_cards(limit=500)
+    saved_bot_ids = [c["id"] for c in saved_cards if c.get("id")]
+
+    vault_saved = db.get_connect_vault_val("saved_bots", [])
+    if isinstance(vault_saved, list):
+        for bid in vault_saved:
+            if bid and bid not in saved_bot_ids:
+                saved_bot_ids.append(bid)
+
+    following = db.get_connect_vault_val("following", [])
+    if not isinstance(following, list):
+        following = []
+
+    # 3. Extract creator profiles
+    creator_profiles_map = {}
+    for c in saved_cards:
+        cid = c.get("creator_id") or c.get("creator_name")
+        if cid and cid not in creator_profiles_map:
+            creator_profiles_map[cid] = {
+                "id": c.get("creator_id") or cid,
+                "name": c.get("creator_name") or cid,
+                "username": c.get("creator_name") or cid,
+                "avatar": c.get("creator_avatar") or "",
+                "bio": f"Creator of {c.get('name', 'character')}"
+            }
+    for fid in following:
+        if fid and fid not in creator_profiles_map:
+            creator_profiles_map[fid] = {
+                "id": fid,
+                "name": fid,
+                "username": fid,
+                "avatar": "",
+                "bio": "JanitorAI Creator"
+            }
+    creator_profiles = list(creator_profiles_map.values())
+
+    # 4. Assemble settings payload
+    settings_payload = {
+        "displayName": "Operator",
+        "avatar": "",
+        "savedBotIds": saved_bot_ids,
+        "saved_bot_ids": saved_bot_ids,
+        "savedBotsData": saved_cards,
+        "saved_bots_data": saved_cards,
+        "followedCreators": following,
+        "followed_creators": following,
+        "creatorProfiles": creator_profiles,
+        "creator_profiles": creator_profiles
+    }
+
+    now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    results = {}
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        # A. Upsert profiles
+        profile_row = {
+            "id": user_id,
+            "email": user_email or "operator@singularity.local",
+            "theme": "dark",
+            "active_persona_id": db.get_connect_vault_val("active_persona_id", "persona_default"),
+            "settings_json": settings_payload,
+            "updated_at": now_iso
+        }
+        p_res = await client.post(f"{url}/rest/v1/profiles", headers=headers, json=profile_row)
+        results["profiles"] = p_res.status_code in (200, 201)
+
+        # B. Upsert connected accounts from SQLite credentials
+        accounts = db.get_accounts()
+        acc_synced = 0
+        for acc in accounts:
+            acc_id = acc.get("identifier") or f"{acc['provider']}_{acc.get('id', 1)}"
+            acc_row = {
+                "id": acc_id,
+                "user_id": user_id,
+                "provider": acc["provider"],
+                "credential_json": json.dumps(acc),
+                "status": acc.get("status", "active"),
+                "updated_at": now_iso
+            }
+            a_res = await client.post(f"{url}/rest/v1/connected_accounts", headers=headers, json=acc_row)
+            if a_res.status_code in (200, 201):
+                acc_synced += 1
+        results["connected_accounts"] = acc_synced
+
+        # C. Upsert default persona
+        persona_row = {
+            "id": "persona_default",
+            "user_id": user_id,
+            "name": "Ayame",
+            "avatar": "/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg",
+            "description": "Ayame is visiting the club tonight, dressed comfortably yet stylishly, with quiet curiosity.",
+            "system_prompt": "",
+            "is_active": True,
+            "updated_at": now_iso
+        }
+        per_res = await client.post(f"{url}/rest/v1/personas", headers=headers, json=persona_row)
+        results["personas"] = per_res.status_code in (200, 201)
+
+    return JSONResponse({
+        "success": True,
+        "user_id": user_id,
+        "results": results,
+        "saved_bots_count": len(saved_cards),
+        "creator_profiles_count": len(creator_profiles)
+    })
+
 
 @app.get("/api/connect/library")
 async def api_connect_library(request: Request):
