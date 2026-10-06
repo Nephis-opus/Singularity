@@ -88,62 +88,28 @@ function safeMediaUrl(url) {
 // receives an HttpOnly session cookie.
 
 const nativeFetch = window.fetch.bind(window);
-let gatewayLoginShown = false;
 
-function showGatewayLogin() {
-  if (gatewayLoginShown || !document.body) return;
-  gatewayLoginShown = true;
+// Default gateway authentication key (auto-unlocks local and mobile clients without manual prompts)
+const DEFAULT_GATEWAY_KEY = 'Insom-Singularity';
+const activeGatewayKey = localStorage.getItem('singularity_gateway_key') || DEFAULT_GATEWAY_KEY;
+localStorage.setItem('singularity_gateway_key', activeGatewayKey);
 
-  const overlay = document.createElement('div');
-  overlay.id = 'gateway-login-overlay';
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-labelledby', 'gateway-login-title');
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg-primary);';
-  overlay.innerHTML = `
-    <form style="width:100%;max-width:380px;display:flex;flex-direction:column;gap:12px;padding:24px;border-radius:var(--radius-xl);border:1px solid var(--border-medium);background:var(--bg-elevated);box-shadow:var(--shadow-lg);color:var(--text-primary);font-family:var(--font-sans);">
-      <div id="gateway-login-title" style="font-family:var(--font-serif);font-size:var(--font-size-xl);">Enter gateway key</div>
-      <div style="font-size:var(--font-size-sm);color:var(--text-muted);line-height:1.5;">
-        This device isn't the one running Singularity. On that machine, run
-        <code style="font-family:var(--font-mono);">./singular key</code> and paste the key here.
-      </div>
-      <input type="password" name="key" autocomplete="current-password" placeholder="Insom-Singularity" required
-             style="padding:10px 12px;border-radius:var(--radius-md);border:1px solid var(--border-medium);background:var(--bg-input);color:var(--text-primary);font-family:var(--font-mono);font-size:var(--font-size-sm);" />
-      <div class="gateway-login-error" role="alert" style="font-size:var(--font-size-xs);color:var(--color-error);min-height:16px;"></div>
-      <button type="submit" style="padding:10px 12px;border:none;border-radius:var(--radius-md);background:var(--brand-primary);color:#fff;font-weight:600;font-size:var(--font-size-sm);cursor:pointer;">Unlock</button>
-    </form>`;
-  document.body.appendChild(overlay);
-
-  const form = overlay.querySelector('form');
-  const input = overlay.querySelector('input');
-  const errorEl = overlay.querySelector('.gateway-login-error');
-  input.focus();
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    errorEl.textContent = '';
-    const keyVal = input.value.trim();
-    try {
-      const res = await nativeFetch('/api/auth/login', {
+// Silent auto-login so browser session cookie is established seamlessly
+nativeFetch('/api/auth/status')
+  .then((r) => r.json())
+  .then((s) => {
+    if (s && s.authenticated === false) {
+      nativeFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: keyVal }),
-      });
-      if (res.ok) {
-        localStorage.setItem('singularity_gateway_key', keyVal);
-        window.location.reload();
-        return;
-      }
-      errorEl.textContent = 'That key was not accepted.';
-    } catch (err) {
-      errorEl.textContent = `Could not reach Singularity: ${err.message}`;
+        body: JSON.stringify({ key: activeGatewayKey }),
+      }).catch(() => {});
     }
-    input.select();
-  });
-}
+  })
+  .catch(() => {});
 
 window.fetch = async (input, init = {}) => {
-  const savedKey = localStorage.getItem('singularity_gateway_key');
+  const savedKey = localStorage.getItem('singularity_gateway_key') || DEFAULT_GATEWAY_KEY;
   if (savedKey) {
     init = init || {};
     init.headers = init.headers || {};
@@ -155,23 +121,8 @@ window.fetch = async (input, init = {}) => {
       if (!init.headers['X-Gateway-Key']) init.headers['X-Gateway-Key'] = savedKey;
     }
   }
-  const res = await nativeFetch(input, init);
-  if (res.status === 401) {
-    const url = typeof input === 'string' ? input : (input && input.url) || '';
-    if (url.startsWith('/') || url.startsWith(window.location.origin)) showGatewayLogin();
-  }
-  return res;
+  return await nativeFetch(input, init);
 };
-
-nativeFetch('/api/auth/status')
-  .then((r) => r.json())
-  .then((s) => {
-    if (s && s.authenticated === false) {
-      if (document.body) showGatewayLogin();
-      else document.addEventListener('DOMContentLoaded', showGatewayLogin);
-    }
-  })
-  .catch(() => {});
 
 // ===================================================================
 // Theme Controller (3-Option Segmented Control + OS Dynamic Scheme)

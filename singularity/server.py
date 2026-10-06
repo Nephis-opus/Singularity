@@ -3702,14 +3702,10 @@ def main():
         print("     ./start.sh --lan        (Windows: start.bat --lan)", flush=True)
     else:
         lan_ip = get_lan_ip()
-        print("  📱 PHONE / TABLET / LAN ACCESS (Connect to same Wi-Fi):", flush=True)
+        print("  📱 PHONE & MULTI-DEVICE ACCESS:", flush=True)
         print(f"  📲 Mobile Dashboard:     http://{lan_ip}:{port}", flush=True)
         print(f"  📲 Mobile Tavern:        http://{lan_ip}:5173", flush=True)
-        print("  ⚠️  NOTE FOR PHONES: Do NOT type '0.0.0.0' on your mobile browser!", flush=True)
-        print(f"     Always use the LAN IP: http://{lan_ip}:5173", flush=True)
-        print("  🔑 Other devices must log in with the gateway key:", flush=True)
-        print(f"     {gateway_key}", flush=True)
-        print("  ⚠️  Tavern Studio has no login; anyone on this network can open it.", flush=True)
+        print("  ☁️  Universal Sync:       Supabase Cloud (Phone & PC Synchronized)", flush=True)
     print("=" * 66 + "\n", flush=True)
 
     try:

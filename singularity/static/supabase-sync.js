@@ -1022,14 +1022,7 @@
       });
     }
 
-    const ssoBtn = document.getElementById('btn-portal-sso');
-    if (ssoBtn && !ssoBtn._bound) {
-      ssoBtn._bound = true;
-      ssoBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        loginWithGatewayKey();
-      });
-    }
+
 
     const togglePwBtn = document.getElementById('btn-portal-toggle-pw');
     if (togglePwBtn && !togglePwBtn._bound) {

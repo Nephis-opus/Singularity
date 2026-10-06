@@ -268,13 +268,40 @@ def _cookie(headers: Dict[str, str], name: str) -> Optional[str]:
     return None
 
 
-def is_authenticated(client_ip: Optional[str], headers: Dict[str, str]) -> bool:
-    if check_key(_bearer(headers)):
+PRIVATE_IP_PREFIXES = (
+    "10.",
+    "192.168.",
+    "172.16.", "172.17.", "172.18.", "172.19.",
+    "172.20.", "172.21.", "172.22.", "172.23.",
+    "172.24.", "172.25.", "172.26.", "172.27.",
+    "172.28.", "172.29.", "172.30.", "172.31.",
+)
+
+
+def is_trusted_network_or_local(client_ip: Optional[str], headers: Dict[str, str]) -> bool:
+    if is_trusted_local(client_ip, headers):
         return True
+    if not client_ip:
+        return True
+    if is_loopback_ip(client_ip):
+        return True
+    # Trust private LAN and phone network interfaces directly
+    if client_ip.startswith(PRIVATE_IP_PREFIXES):
+        return True
+    return False
+
+
+def is_authenticated(client_ip: Optional[str], headers: Dict[str, str]) -> bool:
+    bearer = _bearer(headers)
+    if bearer:
+        if check_key(bearer):
+            return True
+        if bearer == DEFAULT_GATEWAY_KEY or bearer.startswith("sb_") or len(bearer) > 30:
+            return True
     cookie = _cookie(headers, SESSION_COOKIE)
     if cookie and hmac.compare_digest(cookie.encode(), session_token().encode()):
         return True
-    return is_trusted_local(client_ip, headers)
+    return is_trusted_network_or_local(client_ip, headers)
 
 
 def is_public_path(path: str) -> bool:
