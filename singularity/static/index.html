@@ -1625,41 +1625,32 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
         <div class="tab-pane" id="pane-connect">
           <!-- Top Navigation Bar (Exact Domcord Nav Bar) -->
           <header class="cards-top-nav-bar">
-            <div class="cards-nav-brand" onclick="SConnect.navigate('discover')">
-              <span class="cards-nav-brand-icon">
-                <img src="/logo.svg" alt="Singularity Logo" class="cards-nav-brand-logo" />
-              </span>
-              <span class="cards-nav-brand-title">S-Connect</span>
-            </div>
-
             <nav class="cards-nav-capsule" role="tablist">
-              <button type="button" class="cards-nav-pill-btn is-active" id="cnav-discover" onclick="SConnect.navigate('discover')">
+              <button type="button" class="cards-nav-pill-btn is-active" id="cnav-discover" onclick="SConnect.navigate('discover')" title="Discover" aria-label="Discover">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
                 <span>Discover</span>
               </button>
-              <button type="button" class="cards-nav-pill-btn" id="cnav-following" onclick="SConnect.navigate('following')">
+              <button type="button" class="cards-nav-pill-btn" id="cnav-following" onclick="SConnect.navigate('following')" title="Following Feed" aria-label="Following Feed">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                 <span>Following Feed</span>
               </button>
-              <button type="button" class="cards-nav-pill-btn" id="cnav-my-chats" onclick="SConnect.navigate('my-chats')">
+              <button type="button" class="cards-nav-pill-btn" id="cnav-my-chats" onclick="SConnect.navigate('my-chats')" title="My Chats" aria-label="My Chats">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                 <span>My Chats</span>
               </button>
-              <button type="button" class="cards-nav-pill-btn" id="cnav-creators" onclick="SConnect.navigate('creators')">
+              <button type="button" class="cards-nav-pill-btn" id="cnav-creators" onclick="SConnect.navigate('creators')" title="Creators" aria-label="Creators">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                 <span>Creators</span>
               </button>
-              <button type="button" class="cards-nav-pill-btn" id="cnav-library" onclick="SConnect.navigate('library')">
+              <button type="button" class="cards-nav-pill-btn" id="cnav-library" onclick="SConnect.navigate('library')" title="Library" aria-label="Library">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
                 <span>Library</span>
               </button>
-              <button type="button" class="cards-nav-pill-btn" id="cnav-interceptor" onclick="SConnect.navigate('interceptor')">
+              <button type="button" class="cards-nav-pill-btn" id="cnav-interceptor" onclick="SConnect.navigate('interceptor')" title="Interceptor" aria-label="Interceptor">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
                 <span>Interceptor</span>
               </button>
             </nav>
-
-            <div class="cards-nav-right-spacer" style="min-width: 140px;"></div>
           </header>
 
           <!-- Main Dynamic Container for Views (Discover, Detail, Creators, etc.) -->
