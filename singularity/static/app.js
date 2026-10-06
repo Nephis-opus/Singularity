@@ -377,6 +377,9 @@ function initClaudeSettings() {
     if (defaultTab) {
       switchTab(defaultTab);
     }
+    if (window.SingularityCloud && typeof window.SingularityCloud.updateAccountModalUI === 'function') {
+      window.SingularityCloud.updateAccountModalUI();
+    }
     if (typeof initSmoothInputs === 'function') {
       setTimeout(() => initSmoothInputs(), 50);
     }
@@ -456,6 +459,10 @@ function initClaudeSettings() {
       const isMatch = p.id === `settings-panel-${tabId}`;
       p.classList.toggle('active', isMatch);
     });
+
+    if (tabId === 'account' && window.SingularityCloud && typeof window.SingularityCloud.updateAccountModalUI === 'function') {
+      window.SingularityCloud.updateAccountModalUI();
+    }
 
     if (searchInput && searchInput.value.trim()) {
       filterSettings(searchInput.value.trim());

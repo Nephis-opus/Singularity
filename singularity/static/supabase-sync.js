@@ -227,30 +227,10 @@
         return activeUser;
       }
 
-      // Check fallback gateway operator session in localStorage
-      const localGatewayAuth = localStorage.getItem('singularity_gateway_auth');
-      if (localGatewayAuth) {
-        try {
-          const parsed = JSON.parse(localGatewayAuth);
-          if (parsed && parsed.authenticated) {
-            // Re-authenticate silently with operator account
-            const signRes = await supabaseClient.auth.signInWithPassword({
-              email: OPERATOR_EMAIL,
-              password: OPERATOR_PASS
-            });
-            if (signRes.data && signRes.data.user) {
-              activeSession = signRes.data.session;
-              activeUser = signRes.data.user;
-              localStorage.setItem('singularity_cloud_authenticated', 'true');
-              localStorage.setItem('singularity_cloud_user_email', activeUser.email || '');
-              localStorage.setItem('singularity_cloud_user_id', activeUser.id || '');
-              updateAccountModalUI();
-              return activeUser;
-            }
-          }
-        } catch (e) {
-          console.error('[SingularityCloud] Error parsing local gateway auth:', e);
-        }
+      // Clear any legacy operator email placeholder from local storage
+      const cachedEmail = localStorage.getItem('singularity_cloud_user_email') || '';
+      if (cachedEmail.includes('operator@singularity.local')) {
+        localStorage.removeItem('singularity_cloud_user_email');
       }
     } catch (e) {
       console.error('[SingularityCloud] Error checking session:', e);
@@ -943,14 +923,19 @@
   function updateAccountModalUI() {
     const emailDisplay = document.getElementById('cloud-user-email-display');
     const endpointDisplay = document.getElementById('cloud-endpoint-display');
-    const storedEmail = localStorage.getItem('singularity_cloud_user_email');
-    const displayEmail = activeUser?.email || storedEmail || 'Not signed in';
+    let storedEmail = localStorage.getItem('singularity_cloud_user_email') || '';
+    if (storedEmail.includes('operator@singularity.local')) {
+      storedEmail = '';
+      localStorage.removeItem('singularity_cloud_user_email');
+    }
+    const email = activeUser?.email || storedEmail || '';
+    const displayEmail = email || 'Not signed in';
 
     if (emailDisplay) {
       emailDisplay.textContent = displayEmail;
     }
     if (endpointDisplay) {
-      endpointDisplay.innerHTML = (activeUser || storedEmail)
+      endpointDisplay.innerHTML = email
         ? '<code>ugbjziwpbdhgqovnlfvs.supabase.co</code> &bull; Auto-sync active'
         : 'Connect your account to enable multi-device cloud synchronization';
     }
@@ -1204,9 +1189,13 @@
         e.stopPropagation();
         const email = document.getElementById('portal-email')?.value;
         const pass = document.getElementById('portal-password')?.value;
-        if (!email || !pass) return;
+        if (!email) return;
 
         if (isSignUpMode) {
+          if (!pass) {
+            showPortalMsg('Please enter a password for new account signup', 'error');
+            return;
+          }
           await signupWithEmail(email, pass);
         } else {
           await loginWithEmail(email, pass);
@@ -1231,6 +1220,14 @@
       signOutBtn._bound = true;
       signOutBtn.onclick = () => logout();
     }
+
+    // Auto-refresh account modal display on settings gear or tab clicks
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.closest && e.target.closest('#btn-open-settings, .claude-settings-gear-btn, [data-tab="account"], .claude-avatar-btn')) {
+        updateAccountModalUI();
+      }
+    });
+    updateAccountModalUI();
   }
 
   // Preloader transition listener with anti-loop protection
@@ -1293,11 +1290,13 @@
     syncUp,
     showLoginPortal,
     hideLoginPortal,
-    applyPortalTheme
+    applyPortalTheme,
+    updateAccountModalUI
   };
 
   // Immediate init (script is at bottom of body)
   initPortalUI();
   checkSession();
+  updateAccountModalUI();
 
 })();
