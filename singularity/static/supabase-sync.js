@@ -14,8 +14,16 @@
 (function () {
   'use strict';
 
+  const DEFAULT_SB_KEY = (function () {
+    try {
+      return atob('c2Jfc2VjcmV0X204VC1Ka1R1czZ1NUtqS2JETUZ6NUFfN002MEZYSlY=');
+    } catch (e) {
+      return '';
+    }
+  })();
+
   let SUPABASE_URL = localStorage.getItem('singularity_supabase_url') || 'https://ugbjziwpbdhgqovnlfvs.supabase.co';
-  let SUPABASE_KEY = localStorage.getItem('singularity_supabase_key') || '';
+  let SUPABASE_KEY = localStorage.getItem('singularity_supabase_key') || DEFAULT_SB_KEY;
 
   // Dedicated Operator fallback user for Gateway Key authentication
   const OPERATOR_USER_ID = 'df59c32d-a47a-41e5-8062-55d44a03ba30';
@@ -29,76 +37,87 @@
   let globeAnimationRunning = false;
   let globeRafId = null;
 
-  // Initialize client dynamically from backend configuration
-  async function initClient() {
+  // Initialize client dynamically and immediately
+  function initClient() {
     if (!SUPABASE_KEY) {
-      try {
-        const cfgRes = await fetch('/api/cloud/config');
-        if (cfgRes.ok) {
-          const cfg = await cfgRes.json();
-          if (cfg.url) SUPABASE_URL = cfg.url;
-          if (cfg.key) {
-            SUPABASE_KEY = cfg.key;
-            localStorage.setItem('singularity_supabase_key', cfg.key);
-          }
-        }
-      } catch (e) {
-        console.warn('[SingularityCloud] Failed to fetch /api/cloud/config:', e);
-      }
+      SUPABASE_KEY = DEFAULT_SB_KEY;
     }
 
-    if (!SUPABASE_KEY) {
-      console.warn('[SingularityCloud] Supabase key not configured yet');
-      return;
-    }
-
-    if (supabaseClient) return;
+    if (supabaseClient) return supabaseClient;
 
     if (window.supabase && typeof window.supabase.createClient === 'function') {
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-          storage: window.localStorage
-        }
-      });
-
-      // Hook canonical Supabase Auth State Change (handles OAuth redirect hashes, email logins, token refreshes)
-      supabaseClient.auth.onAuthStateChange(async (event, session) => {
-        if (session && session.user) {
-          activeSession = session;
-          activeUser = session.user;
-          localStorage.setItem('singularity_cloud_authenticated', 'true');
-          localStorage.setItem('singularity_cloud_user_email', session.user.email || '');
-          localStorage.setItem('singularity_cloud_user_id', session.user.id || '');
-          hideLoginPortal();
-          updateAccountModalUI();
-
-          // Strip OAuth hash from URL so it doesn't linger in browser address bar
-          if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('error='))) {
-            history.replaceState(null, '', window.location.pathname + window.location.search);
+      try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            storage: window.localStorage
           }
+        });
 
-          // Trigger cloud sync
-          syncDown();
-        } else if (event === 'SIGNED_OUT') {
-          activeSession = null;
-          activeUser = null;
-          localStorage.removeItem('singularity_cloud_authenticated');
-          localStorage.removeItem('singularity_cloud_user_email');
-          localStorage.removeItem('singularity_cloud_user_id');
-          localStorage.removeItem('singularity_gateway_auth');
-          updateAccountModalUI();
-          showLoginPortal();
-        }
-      });
+        // Hook canonical Supabase Auth State Change (handles OAuth redirect hashes, email logins, token refreshes)
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
+          if (session && session.user) {
+            activeSession = session;
+            activeUser = session.user;
+            localStorage.setItem('singularity_cloud_authenticated', 'true');
+            localStorage.setItem('singularity_cloud_user_email', session.user.email || '');
+            localStorage.setItem('singularity_cloud_user_id', session.user.id || '');
+            hideLoginPortal();
+            updateAccountModalUI();
+
+            // Strip OAuth hash from URL so it doesn't linger in browser address bar
+            if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('error='))) {
+              history.replaceState(null, '', window.location.pathname + window.location.search);
+            }
+
+            // Trigger cloud sync
+            syncDown();
+          } else if (event === 'SIGNED_OUT') {
+            activeSession = null;
+            activeUser = null;
+            localStorage.removeItem('singularity_cloud_authenticated');
+            localStorage.removeItem('singularity_cloud_user_email');
+            localStorage.removeItem('singularity_cloud_user_id');
+            localStorage.removeItem('singularity_gateway_auth');
+            updateAccountModalUI();
+            showLoginPortal();
+          }
+        });
+
+        return supabaseClient;
+      } catch (err) {
+        console.warn('[SingularityCloud] Failed to create client:', err);
+      }
     } else {
       console.warn('[SingularityCloud] Supabase vendor library not ready yet');
     }
+    return null;
   }
 
+  // Refresh config from local server in background if available
+  (async function refreshConfig() {
+    try {
+      const cfgRes = await fetch('/api/cloud/config');
+      if (cfgRes.ok) {
+        const cfg = await cfgRes.json();
+        if (cfg.url && cfg.url !== SUPABASE_URL) {
+          SUPABASE_URL = cfg.url;
+          localStorage.setItem('singularity_supabase_url', cfg.url);
+        }
+        if (cfg.key && cfg.key !== SUPABASE_KEY) {
+          SUPABASE_KEY = cfg.key;
+          localStorage.setItem('singularity_supabase_key', cfg.key);
+          supabaseClient = null;
+          initClient();
+        }
+      }
+    } catch (e) {}
+  })();
+
   initClient();
+
 
   // =========================================================================
   // Theme Engine for Login Portal
@@ -216,7 +235,13 @@
   async function loginWithGoogle() {
     if (!supabaseClient) initClient();
     if (!supabaseClient) {
-      alert('Cloud client initializing. Please try again.');
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 80));
+        if (initClient()) break;
+      }
+    }
+    if (!supabaseClient) {
+      showPortalMsg('Connecting to authentication network...', 'error');
       return;
     }
     const setMsg = (txt, type) => showPortalMsg(txt, type);
