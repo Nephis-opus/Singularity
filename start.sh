@@ -15,12 +15,28 @@ else
     DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
 fi
 
-# Fallback path search if DIR/singularity is missing (handles complex Termux symlinks)
+# Fallback path search if DIR/singularity is missing (handles complex Termux symlinks and varied clone locations)
 if [ ! -d "$DIR/singularity" ]; then
-    if [ -d "$HOME/Singularity/singularity" ]; then
+    if [ -d "$PWD/singularity" ]; then
+        DIR="$PWD"
+    elif [ -d "$HOME/Singularity/singularity" ]; then
         DIR="$HOME/Singularity"
+    elif [ -d "$HOME/singularity/singularity" ]; then
+        DIR="$HOME/singularity"
+    elif [ -d "$HOME/Desktop/Janitor/singularity" ]; then
+        DIR="$HOME/Desktop/Janitor"
     elif [ -n "$PREFIX" ] && [ -d "$PREFIX/../home/Singularity/singularity" ]; then
         DIR="$PREFIX/../home/Singularity"
+    elif [ -n "$PREFIX" ] && [ -d "$PREFIX/../home/singularity/singularity" ]; then
+        DIR="$PREFIX/../home/singularity"
+    fi
+fi
+
+# Ensure DIR points to the Git root if .git is elsewhere in tree
+if [ ! -d "$DIR/.git" ] && command -v git >/dev/null 2>&1; then
+    GIT_ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || echo "")"
+    if [ -n "$GIT_ROOT" ] && [ -d "$GIT_ROOT/.git" ]; then
+        DIR="$GIT_ROOT"
     fi
 fi
 
@@ -31,14 +47,36 @@ if [ "${SINGULARITY_NO_UPDATE:-0}" != "1" ] && [ "$1" != "--no-update" ]; then
     if command -v git >/dev/null 2>&1 && [ -d "$DIR/.git" ]; then
         (
             cd "$DIR"
-            # Fast shallow fetch of origin with silent fallback
-            git fetch --quiet --depth=1 origin main 2>/dev/null || git fetch --quiet origin 2>/dev/null || true
+            echo "  [🔄] Checking for Singularity updates..."
+            # Fast network fetch of origin main without breaking shallow clone graphs
+            git fetch --quiet origin main 2>/dev/null || git fetch --quiet origin 2>/dev/null || true
             LOCAL_REV="$(git rev-parse HEAD 2>/dev/null || echo "")"
-            REMOTE_REV="$(git rev-parse origin/main 2>/dev/null || git rev-parse '@{u}' 2>/dev/null || echo "")"
+            REMOTE_REV="$(git rev-parse FETCH_HEAD 2>/dev/null || git rev-parse origin/main 2>/dev/null || git rev-parse '@{u}' 2>/dev/null || echo "")"
             if [ -n "$LOCAL_REV" ] && [ -n "$REMOTE_REV" ] && [ "$LOCAL_REV" != "$REMOTE_REV" ]; then
-                echo "  [🔄] New update found! Updating Singularity to latest version..."
-                if git pull --ff-only 2>/dev/null || git pull 2>/dev/null; then
-                    echo "  [✨] Successfully updated Singularity to latest version!"
+                echo "  [🔄] New update found (${LOCAL_REV:0:7} -> ${REMOTE_REV:0:7})! Updating Singularity..."
+                UPDATE_SUCCESS=0
+                if git pull --ff-only origin main 2>/dev/null; then
+                    UPDATE_SUCCESS=1
+                elif git pull origin main 2>/dev/null; then
+                    UPDATE_SUCCESS=1
+                else
+                    # Stash uncommitted changes and retry clean pull
+                    git stash -q 2>/dev/null || true
+                    if git pull origin main 2>/dev/null || git reset --hard origin/main 2>/dev/null; then
+                        git stash pop -q 2>/dev/null || true
+                        UPDATE_SUCCESS=1
+                    fi
+                fi
+
+                if [ "$UPDATE_SUCCESS" = "1" ]; then
+                    NEW_REV="$(git rev-parse HEAD 2>/dev/null || echo "$REMOTE_REV")"
+                    echo "  [✨] Successfully updated Singularity to latest version (${NEW_REV:0:7})!"
+                else
+                    echo "  [!] Auto-update could not auto-merge. Run 'git pull' in Singularity directory."
+                fi
+            else
+                if [ -n "$LOCAL_REV" ]; then
+                    echo "  [✓] Singularity is up to date (${LOCAL_REV:0:7})."
                 fi
             fi
         ) || true
@@ -51,6 +89,12 @@ if [ -n "$PREFIX" ] && [ -d "$PREFIX/bin" ]; then
     ln -sf "$DIR/start.sh" "$PREFIX/bin/singularity" 2>/dev/null || true
     ln -sf "$DIR/start.sh" "$PREFIX/bin/c2a" 2>/dev/null || true
     chmod +x "$PREFIX/bin/singular" "$PREFIX/bin/singularity" "$PREFIX/bin/c2a" 2>/dev/null || true
+    if [ -f "$HOME/.bashrc" ]; then
+        if ! grep -q "alias singularity=" "$HOME/.bashrc" 2>/dev/null; then
+            echo "alias singular=\"$DIR/start.sh\"" >> "$HOME/.bashrc" 2>/dev/null || true
+            echo "alias singularity=\"$DIR/start.sh\"" >> "$HOME/.bashrc" 2>/dev/null || true
+        fi
+    fi
 fi
 
 # Auto-link into ~/.local/bin for standard Linux/macOS users

@@ -819,27 +819,37 @@ def cmd_update(args):
 
     print("  [*] Checking remote repository for latest commits...")
     try:
-        subprocess.run(["git", "fetch", "--quiet", "--depth=1", "origin", "main"], cwd=root_dir, check=False, timeout=12)
+        subprocess.run(["git", "fetch", "--quiet", "origin", "main"], cwd=root_dir, check=False, timeout=15)
         local_rev = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root_dir, text=True).strip()
         try:
-            remote_rev = subprocess.check_output(["git", "rev-parse", "origin/main"], cwd=root_dir, text=True).strip()
+            remote_rev = subprocess.check_output(["git", "rev-parse", "FETCH_HEAD"], cwd=root_dir, text=True).strip()
         except Exception:
-            remote_rev = subprocess.check_output(["git", "rev-parse", "@{u}"], cwd=root_dir, text=True).strip()
+            try:
+                remote_rev = subprocess.check_output(["git", "rev-parse", "origin/main"], cwd=root_dir, text=True).strip()
+            except Exception:
+                remote_rev = subprocess.check_output(["git", "rev-parse", "@{u}"], cwd=root_dir, text=True).strip()
 
         if local_rev == remote_rev:
             print(f"  [✓] Singularity is already up to date! (commit {local_rev[:8]})")
             return
 
         print(f"  [🔄] Updating from {local_rev[:8]} -> {remote_rev[:8]}...")
-        res = subprocess.run(["git", "pull", "--ff-only"], cwd=root_dir, text=True, capture_output=True)
+        res = subprocess.run(["git", "pull", "--ff-only", "origin", "main"], cwd=root_dir, text=True, capture_output=True)
         if res.returncode == 0:
             print("  [✨] Singularity successfully updated to the latest version!")
         else:
-            res = subprocess.run(["git", "pull"], cwd=root_dir, text=True, capture_output=True)
+            res = subprocess.run(["git", "pull", "origin", "main"], cwd=root_dir, text=True, capture_output=True)
             if res.returncode == 0:
                 print("  [✨] Singularity successfully updated!")
             else:
-                print(f"  [!] Git pull failed: {res.stderr.strip()}")
+                # Stash uncommitted changes and retry clean pull
+                subprocess.run(["git", "stash", "-q"], cwd=root_dir, capture_output=True)
+                retry = subprocess.run(["git", "pull", "origin", "main"], cwd=root_dir, text=True, capture_output=True)
+                subprocess.run(["git", "stash", "pop", "-q"], cwd=root_dir, capture_output=True)
+                if retry.returncode == 0:
+                    print("  [✨] Singularity successfully updated to the latest version!")
+                else:
+                    print(f"  [!] Git pull failed: {retry.stderr.strip() or res.stderr.strip()}")
     except Exception as e:
         print(f"  [!] Auto-update error: {e}")
 

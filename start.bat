@@ -13,14 +13,20 @@ if not "%SINGULARITY_NO_UPDATE%"=="1" (
         if !errorlevel! equ 0 (
             if exist "%ROOT_DIR%.git" (
                 pushd "%ROOT_DIR%"
-                git fetch --quiet --depth=1 origin main >nul 2>&1
+                echo   [*] Checking for updates...
+                git fetch --quiet origin main >nul 2>&1
                 for /f "delims=" %%i in ('git rev-parse HEAD 2^>nul') do set "LOCAL_HASH=%%i"
-                for /f "delims=" %%i in ('git rev-parse origin/main 2^>nul') do set "REMOTE_HASH=%%i"
+                for /f "delims=" %%i in ('git rev-parse FETCH_HEAD 2^>nul') do set "REMOTE_HASH=%%i"
+                if not defined REMOTE_HASH (
+                    for /f "delims=" %%i in ('git rev-parse origin/main 2^>nul') do set "REMOTE_HASH=%%i"
+                )
                 if defined LOCAL_HASH if defined REMOTE_HASH (
                     if not "!LOCAL_HASH!"=="!REMOTE_HASH!" (
                         echo   [+] Updating Singularity to latest version...
-                        git pull --ff-only >nul 2>&1 || git pull >nul 2>&1
+                        git pull --ff-only origin main >nul 2>&1 || git pull origin main >nul 2>&1
                         echo   [*] Successfully updated Singularity!
+                    ) else (
+                        echo   [✓] Singularity is up to date!
                     )
                 )
                 popd
