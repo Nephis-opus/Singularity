@@ -579,32 +579,120 @@
   function applyCloudState(cloudPayload) {
     if (!cloudPayload) return;
 
-    // 1. Sync Down Profile & User Settings
+    // 1. Sync Down Profile & User System Settings (Overall, not particular to S-connect)
     const profiles = cloudPayload.profiles || [];
     if (profiles.length > 0) {
       const prof = profiles[0];
-      if (prof.theme) {
-        document.documentElement.setAttribute('data-theme', prof.theme);
-        document.body.setAttribute('data-theme', prof.theme);
-        localStorage.setItem('singularity_theme', prof.theme);
-      }
+      const activeTheme = prof.theme || 'dark';
+
+      // Apply active persona ID if present
       if (prof.active_persona_id) {
         localStorage.setItem('s_connect_active_persona', prof.active_persona_id);
         localStorage.setItem('s_connect_active_persona_id', prof.active_persona_id);
+        const sConn = window.SConnect || window.sConnect;
+        if (sConn && typeof sConn.setActivePersona === 'function') {
+          sConn.setActivePersona(prof.active_persona_id);
+        }
       }
+
       if (prof.settings_json) {
         try {
           const sett = typeof prof.settings_json === 'string' ? JSON.parse(prof.settings_json) : prof.settings_json;
+
+          // 1a. User Profile (Display Name & Avatar)
           if (sett.displayName) {
             const nameInput = document.getElementById('user-profile-name-input');
             if (nameInput) nameInput.value = sett.displayName;
             localStorage.setItem('singularity_user_name', sett.displayName);
           }
-          if (sett.avatar) {
-            localStorage.setItem('singularity_user_avatar', sett.avatar);
+          if (sett.avatar !== undefined) {
+            if (sett.avatar) {
+              localStorage.setItem('singularity_user_avatar', sett.avatar);
+            } else {
+              localStorage.removeItem('singularity_user_avatar');
+            }
+            if (typeof window.renderUserAvatar === 'function') {
+              window.renderUserAvatar(sett.avatar || null);
+            }
           }
 
-          // Sync Down Followed Creators (Cloud is authoritative)
+          // 1b. Overall System Settings (Theme, Font, Motion, Chime, Temperature, GenUI, Custom Instructions, Identity, Model)
+          const targetThemePref = sett.themePref || sett.theme_pref || 'system';
+          localStorage.setItem('singularity_theme_pref', targetThemePref);
+          const effectiveTheme = sett.theme || activeTheme;
+          localStorage.setItem('singularity_theme', effectiveTheme);
+          document.documentElement.setAttribute('data-theme', effectiveTheme);
+          document.body.setAttribute('data-theme', effectiveTheme);
+          if (typeof window.applyThemePref === 'function') {
+            window.applyThemePref(targetThemePref, false);
+          }
+
+          if (sett.chatFont) {
+            localStorage.setItem('singularity_chat_font', sett.chatFont);
+            if (typeof window.applyChatFont === 'function') {
+              window.applyChatFont(sett.chatFont, false);
+            } else {
+              document.documentElement.style.setProperty('--chat-font', sett.chatFont);
+            }
+          }
+
+          if (sett.reduceMotion !== undefined) {
+            const val = String(sett.reduceMotion) === 'true';
+            localStorage.setItem('singularity_reduce_motion', String(val));
+            const toggle = document.getElementById('toggle-reduce-motion');
+            if (toggle) toggle.checked = val;
+            document.documentElement.setAttribute('data-reduce-motion', String(val));
+          }
+
+          if (sett.responseChime !== undefined) {
+            const val = String(sett.responseChime) === 'true';
+            localStorage.setItem('singularity_response_chime', String(val));
+            const toggle = document.getElementById('toggle-response-chime');
+            if (toggle) toggle.checked = val;
+          }
+
+          if (sett.defaultTemp) {
+            localStorage.setItem('singularity_default_temp', String(sett.defaultTemp));
+            const slider = document.getElementById('settings-temperature-slider');
+            const label = document.getElementById('settings-temperature-val');
+            if (slider) slider.value = sett.defaultTemp;
+            if (label) label.textContent = parseFloat(sett.defaultTemp).toFixed(2);
+          }
+
+          if (sett.genuiEnabled !== undefined) {
+            const val = String(sett.genuiEnabled) !== 'false';
+            localStorage.setItem('singularity_genui_enabled', String(val));
+            const toggle = document.getElementById('toggle-genui-artifacts');
+            if (toggle) toggle.checked = val;
+          }
+
+          if (sett.customInstructions !== undefined) {
+            localStorage.setItem('singularity_custom_instructions', sett.customInstructions);
+            const area = document.getElementById('settings-custom-instructions');
+            if (area) area.value = sett.customInstructions;
+          }
+
+          if (sett.identityAwareness !== undefined) {
+            const val = String(sett.identityAwareness) !== 'false';
+            localStorage.setItem('singularity_identity_awareness', String(val));
+            const toggle = document.getElementById('toggle-identity-awareness');
+            if (toggle) toggle.checked = val;
+          }
+
+          if (sett.selectedModel) {
+            localStorage.setItem('singularity_selected_model', sett.selectedModel);
+            if (window.state) window.state.selectedModel = sett.selectedModel;
+            const modelLabel = document.getElementById('model-select-label');
+            if (modelLabel) {
+              modelLabel.textContent = typeof formatModelDisplayName === 'function' ? formatModelDisplayName(sett.selectedModel) : sett.selectedModel;
+            }
+          }
+
+          if (sett.portalTheme) {
+            applyPortalTheme(sett.portalTheme);
+          }
+
+          // 1c. Sync Down Followed Creators (Cloud is authoritative)
           const followed = sett.followedCreators || sett.followed_creators;
           if (Array.isArray(followed)) {
             localStorage.setItem('s_connect_following', JSON.stringify(followed));
@@ -614,7 +702,21 @@
             }
           }
 
-          // Sync Down Saved Bots (Cloud is authoritative)
+          // 1d. Sync Down Creator Profiles Cache
+          const creatorProfiles = sett.creatorProfiles || sett.creator_profiles;
+          if (Array.isArray(creatorProfiles) && creatorProfiles.length > 0) {
+            const sConn = window.SConnect || window.sConnect;
+            if (sConn) {
+              if (!sConn.creatorCache) sConn.creatorCache = new Map();
+              creatorProfiles.forEach(cp => {
+                if (cp && (cp.id || cp.name)) {
+                  sConn.creatorCache.set(cp.id || cp.name, cp);
+                }
+              });
+            }
+          }
+
+          // 1e. Sync Down Saved Bots (Cloud is authoritative)
           const savedIds = sett.savedBotIds || sett.saved_bot_ids;
           if (Array.isArray(savedIds)) {
             localStorage.setItem('s_connect_saved_bots', JSON.stringify(savedIds));
@@ -688,8 +790,15 @@
 
       const mergedList = Array.from(mergedMap.values());
       localStorage.setItem('s_connect_personas', JSON.stringify(mergedList));
-      if (window.sConnect && typeof window.sConnect.renderPersonasDrawer === 'function') {
-        window.sConnect.renderPersonasDrawer();
+      const sConn = window.SConnect || window.sConnect;
+      if (sConn) {
+        if (typeof sConn.renderPersonasDrawer === 'function') {
+          sConn.renderPersonasDrawer();
+        }
+        const activeId = localStorage.getItem('s_connect_active_persona_id') || localStorage.getItem('s_connect_active_persona');
+        if (activeId && typeof sConn.setActivePersona === 'function') {
+          sConn.setActivePersona(activeId);
+        }
       }
     }
 
@@ -716,7 +825,7 @@
       }).catch(e => console.warn('[SingularityCloud] Failed to import cloud accounts locally:', e));
     }
 
-    // 4. Sync Down S-Connect Chat Sessions
+    // 4. Sync Down S-Connect Chat Sessions & Messages
     const cloudSessions = cloudPayload.connect_chat_sessions || [];
     if (cloudSessions.length > 0) {
       const localSessionsRaw = localStorage.getItem('s_connect_sessions_v2');
@@ -727,34 +836,76 @@
       localSessions.forEach(s => { if (s && s.id) sessionMap.set(s.id, s); });
 
       cloudSessions.forEach(cs => {
-        sessionMap.set(cs.id, {
-          id: cs.id,
-          botId: cs.bot_id,
-          botName: cs.bot_name,
-          botAvatar: cs.bot_avatar,
-          botDescription: cs.bot_description,
-          summary: cs.summary,
-          createdAt: cs.created_at,
-          updatedAt: cs.updated_at
-        });
+        const localSess = sessionMap.get(cs.id);
+        const cloudTime = new Date(cs.updated_at || cs.created_at || 0).getTime();
+        const localTime = Number(localSess?.updatedAt || localSess?.createdAt || 0);
 
-        if (cs.messages_json) {
-          localStorage.setItem(`s_connect_chat_msgs_${cs.id}`, typeof cs.messages_json === 'string' ? cs.messages_json : JSON.stringify(cs.messages_json));
-        }
-        if (cs.settings_json) {
-          localStorage.setItem(`s_connect_settings_${cs.id}`, typeof cs.settings_json === 'string' ? cs.settings_json : JSON.stringify(cs.settings_json));
-        }
-        if (typeof cs.greeting_idx === 'number') {
-          localStorage.setItem(`s_connect_greeting_idx_${cs.id}`, cs.greeting_idx);
+        if (!localSess || cloudTime >= localTime) {
+          sessionMap.set(cs.id, {
+            id: cs.id,
+            botId: cs.bot_id,
+            botName: cs.bot_name,
+            botAvatar: cs.bot_avatar,
+            botDescription: cs.bot_description,
+            summary: cs.summary,
+            createdAt: cs.created_at,
+            updatedAt: cs.updated_at
+          });
+
+          if (cs.messages_json) {
+            localStorage.setItem(`s_connect_chat_msgs_${cs.id}`, typeof cs.messages_json === 'string' ? cs.messages_json : JSON.stringify(cs.messages_json));
+          }
+          if (cs.settings_json) {
+            localStorage.setItem(`s_connect_settings_${cs.id}`, typeof cs.settings_json === 'string' ? cs.settings_json : JSON.stringify(cs.settings_json));
+          }
+          if (typeof cs.greeting_idx === 'number') {
+            localStorage.setItem(`s_connect_greeting_idx_${cs.id}`, cs.greeting_idx);
+          }
         }
       });
 
-      localStorage.setItem('s_connect_sessions_v2', JSON.stringify(Array.from(sessionMap.values())));
+      const updatedSessions = Array.from(sessionMap.values()).sort((a, b) => {
+        const tA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const tB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return tB - tA;
+      });
+      localStorage.setItem('s_connect_sessions_v2', JSON.stringify(updatedSessions));
+
       const sConn = window.SConnect || window.sConnect;
-      if (sConn && sConn.currentView === 'my-chats') {
-        const container = document.getElementById('connect-main-view');
-        if (container && typeof sConn.renderMyChatsView === 'function') {
-          sConn.renderMyChatsView(container, sConn._expandedBotId || null);
+      if (sConn) {
+        if (sConn.currentView === 'my-chats') {
+          const container = document.getElementById('connect-main-view');
+          if (container && typeof sConn.renderMyChatsView === 'function') {
+            sConn.renderMyChatsView(container, sConn._expandedBotId || null);
+          }
+        } else if (sConn.currentView === 'chat' && sConn.activeChatSession) {
+          const activeId = sConn.activeChatSession.id;
+          const freshMsgs = localStorage.getItem(`s_connect_chat_msgs_${activeId}`);
+          if (freshMsgs) {
+            try {
+              const parsed = JSON.parse(freshMsgs);
+              if (Array.isArray(parsed) && typeof sConn.renderChatMessages === 'function') {
+                sConn.renderChatMessages(parsed);
+              }
+            } catch (e) {}
+          }
+        }
+      }
+    }
+
+    // 5. Sync Down Playground Chats (Restore into local SQLite server database)
+    const cloudPlaygroundChats = cloudPayload.playground_chats || [];
+    if (cloudPlaygroundChats.length > 0) {
+      for (const pc of cloudPlaygroundChats) {
+        if (pc && pc.id) {
+          fetch(`/api/chats/${encodeURIComponent(pc.id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: pc.title || 'Chat',
+              settings: typeof pc.settings_json === 'string' ? JSON.parse(pc.settings_json || '{}') : (pc.settings_json || {})
+            })
+          }).catch(() => {});
         }
       }
     }
@@ -804,17 +955,34 @@
     try {
       const now = new Date().toISOString();
 
-      // Gather profile & settings
+      // Gather profile & system settings (overall, not particular to S-connect)
       const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-      const activePersonaId = localStorage.getItem('s_connect_active_persona') || 'persona_default';
-      const displayName = localStorage.getItem('singularity_user_name') || 'Operator';
+      const themePref = localStorage.getItem('singularity_theme_pref') || 'system';
+      const chatFont = localStorage.getItem('singularity_chat_font') || 'sans';
+      const reduceMotion = localStorage.getItem('singularity_reduce_motion') === 'true';
+      const responseChime = localStorage.getItem('singularity_response_chime') === 'true';
+      const displayName = (localStorage.getItem('singularity_user_name') || 'Operator').trim();
       const userAvatar = localStorage.getItem('singularity_user_avatar') || '';
+      const defaultTemp = localStorage.getItem('singularity_default_temp') || '0.7';
+      const genuiEnabled = localStorage.getItem('singularity_genui_enabled') !== 'false';
+      const customInstructions = localStorage.getItem('singularity_custom_instructions') || '';
+      const identityAwareness = localStorage.getItem('singularity_identity_awareness') !== 'false';
+      const selectedModel = (window.state && window.state.selectedModel) || localStorage.getItem('singularity_selected_model') || localStorage.getItem('c2a_selected_model') || 'gpt-5-6-mini';
+      const portalTheme = localStorage.getItem('singularity_portal_theme') || currentTheme;
+      const activePersonaId = localStorage.getItem('s_connect_active_persona_id') || localStorage.getItem('s_connect_active_persona') || 'persona_default';
 
       let followedCreators = [];
       try {
         const rawFollowing = localStorage.getItem('s_connect_following');
         if (rawFollowing) followedCreators = JSON.parse(rawFollowing);
       } catch (e) {}
+
+      const sConnObj = window.SConnect || window.sConnect;
+      if (sConnObj && sConnObj.followingCreatorIds) {
+        sConnObj.followingCreatorIds.forEach(id => {
+          if (id && !followedCreators.includes(id)) followedCreators.push(id);
+        });
+      }
 
       let savedBotIds = [];
       try {
@@ -837,7 +1005,6 @@
         }
       });
 
-      const sConnObj = window.SConnect || window.sConnect;
       if (sConnObj && sConnObj.botCache && Array.isArray(savedBotIds)) {
         const existingIds = new Set(savedBotsData.map(b => b && b.id));
         for (const id of savedBotIds) {
@@ -849,6 +1016,11 @@
       }
 
       const creatorProfilesMap = new Map();
+      if (sConnObj && sConnObj.creatorCache) {
+        sConnObj.creatorCache.forEach((cp, cid) => {
+          if (cp && cid) creatorProfilesMap.set(cid, cp);
+        });
+      }
       for (const b of savedBotsData) {
         if (b && (b.creator_id || b.creator_name)) {
           const cId = b.creator_id || b.creator_name;
@@ -908,7 +1080,8 @@
               greeting_idx: parseInt(localStorage.getItem(`s_connect_greeting_idx_${s.id}`) || '0', 10),
               messages_json: localStorage.getItem(`s_connect_chat_msgs_${s.id}`) || '[]',
               settings_json: localStorage.getItem(`s_connect_settings_${s.id}`) || '{}',
-              createdAt: s.createdAt || now
+              createdAt: s.createdAt || now,
+              updatedAt: s.updatedAt || s.createdAt || now
             });
           }
         } catch (e) {}
@@ -923,6 +1096,24 @@
         }
       } catch (e) {}
 
+      // If active playground chat has messages in window.state.chatMessages, include it
+      if (window.state && Array.isArray(window.state.chatMessages) && window.state.chatMessages.length > 0) {
+        const activePlaygroundId = window.state.activeChatId || 'playground_main_session';
+        const existingIdx = playgroundChatsToSync.findIndex(c => c && c.id === activePlaygroundId);
+        const playItem = {
+          id: activePlaygroundId,
+          title: window.state.chatTitle || (window.state.chatMessages[0]?.content?.slice(0, 36) || 'Chat Session'),
+          model: window.state.selectedModel || 'gpt-5-6-mini',
+          messages: window.state.chatMessages,
+          updated_at: now
+        };
+        if (existingIdx !== -1) {
+          playgroundChatsToSync[existingIdx] = { ...playgroundChatsToSync[existingIdx], ...playItem };
+        } else {
+          playgroundChatsToSync.unshift(playItem);
+        }
+      }
+
       const userEmail = activeUser?.email || localStorage.getItem('singularity_cloud_user_email') || 'operator@singularity.local';
 
       // Send complete push payload to backend gateway proxy
@@ -935,8 +1126,22 @@
           theme: currentTheme,
           active_persona_id: activePersonaId,
           settings: {
+            // Profile
             displayName,
             avatar: userAvatar,
+            // Overall System Settings
+            theme: currentTheme,
+            themePref,
+            chatFont,
+            reduceMotion,
+            responseChime,
+            defaultTemp,
+            genuiEnabled,
+            customInstructions,
+            identityAwareness,
+            selectedModel,
+            portalTheme,
+            // S-Connect & Library
             followedCreators,
             followed_creators: followedCreators,
             creatorProfiles,
@@ -944,7 +1149,9 @@
             savedBotIds,
             saved_bot_ids: savedBotIds,
             savedBotsData,
-            saved_bots_data: savedBotsData
+            saved_bots_data: savedBotsData,
+            activePersonaId,
+            active_persona_id: activePersonaId
           },
           personas: personasToSync,
           sessions: sessionsToSync,
@@ -1461,6 +1668,13 @@
   window.addEventListener('singularity-cloud-sync-needed', () => {
     if (isAuthenticated()) {
       setTimeout(syncUp, 250);
+    }
+  });
+
+  // Reactive sync when overall system settings change (fast 300ms push)
+  window.addEventListener('singularity-settings-updated', () => {
+    if (isAuthenticated()) {
+      setTimeout(syncUp, 300);
     }
   });
 

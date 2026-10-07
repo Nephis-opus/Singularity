@@ -1658,6 +1658,7 @@
 
     setActivePersona(id) {
       localStorage.setItem('s_connect_active_persona_id', id);
+      localStorage.setItem('s_connect_active_persona', id);
       const capsule = document.getElementById('janitor-persona-capsule-btn');
       if (capsule) {
         const active = this.getActivePersona();
@@ -1667,6 +1668,7 @@
           <span class="janitor-chevron">${ICONS.chevronDown}</span>
         `;
       }
+      window.dispatchEvent(new CustomEvent('singularity-cloud-sync-needed'));
     },
 
     // -------------------------------------------------------------------------
@@ -3136,6 +3138,7 @@
       personas.push(newP);
       localStorage.setItem('s_connect_personas', JSON.stringify(personas));
       window.dispatchEvent(new CustomEvent('singularity-chat-updated'));
+      window.dispatchEvent(new CustomEvent('singularity-cloud-sync-needed'));
       this.choosePersona(newP.id, botId);
     },
 

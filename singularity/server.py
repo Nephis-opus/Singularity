@@ -3349,6 +3349,65 @@ async def api_cloud_sync_pull(request: Request):
             play_res = await client.get(f"{url}/rest/v1/playground_chats?user_id=eq.{user_id}&select=*", headers=headers)
             playground_chats = play_res.json() if play_res.status_code == 200 else []
 
+            # Automatically hydrate local SQLite database with pulled cloud state
+            if profiles:
+                prof0 = profiles[0]
+                sett = prof0.get("settings_json")
+                if isinstance(sett, str):
+                    try:
+                        sett = json.loads(sett)
+                    except Exception:
+                        sett = {}
+                if isinstance(sett, dict):
+                    # 1. Restore followed creators
+                    following = sett.get("followedCreators") or sett.get("followed_creators")
+                    if isinstance(following, list):
+                        db.set_connect_vault_val("following", following)
+                    # 2. Restore saved bot IDs
+                    saved_ids = sett.get("savedBotIds") or sett.get("saved_bot_ids")
+                    if isinstance(saved_ids, list):
+                        db.set_connect_vault_val("saved_bots", saved_ids)
+                    # 3. Restore saved bot card metadata
+                    saved_cards = sett.get("savedBotsData") or sett.get("saved_bots_data")
+                    if isinstance(saved_cards, list):
+                        for c in saved_cards:
+                            if isinstance(c, dict) and c.get("id"):
+                                try:
+                                    db.save_connect_card(c)
+                                except Exception:
+                                    pass
+                    # 4. Restore active persona ID
+                    act_p = prof0.get("active_persona_id") or sett.get("activePersonaId") or sett.get("active_persona_id")
+                    if act_p:
+                        db.set_connect_vault_val("active_persona_id", act_p)
+
+            # 5. Restore personas into SQLite vault
+            if personas:
+                pers_list = []
+                for p in personas:
+                    if isinstance(p, dict) and p.get("id"):
+                        pers_list.append({
+                            "id": p["id"],
+                            "name": p.get("name", "Persona"),
+                            "avatar": p.get("avatar", ""),
+                            "description": p.get("description", ""),
+                            "system_prompt": p.get("system_prompt", ""),
+                            "is_active": bool(p.get("is_active", False))
+                        })
+                if pers_list:
+                    db.set_connect_vault_val("personas", pers_list)
+
+            # 6. Restore connected accounts into SQLite vault
+            if connected_accounts:
+                for ca in connected_accounts:
+                    if isinstance(ca, dict) and ca.get("provider") and ca.get("credential_json"):
+                        try:
+                            cred = json.loads(ca["credential_json"]) if isinstance(ca["credential_json"], str) else ca["credential_json"]
+                            token = cred.get("token") or cred.get("raw") or (cred if isinstance(cred, str) else json.dumps(cred))
+                            db.save_account(ca["provider"], token, name=cred.get("name"), plan=cred.get("plan", "free"))
+                        except Exception:
+                            pass
+
             return JSONResponse({
                 "success": True,
                 "user_id": user_id,
@@ -3434,14 +3493,19 @@ async def api_cloud_sync_push(request: Request):
             if bid and bid not in saved_bot_ids:
                 saved_bot_ids.append(bid)
 
-    following = db.get_connect_vault_val("following", [])
-    if not isinstance(following, list):
-        following = []
-    client_following = client_settings.get("followedCreators") or body.get("followedCreators") or []
+    # Persist saved bots into SQLite
+    db.set_connect_vault_val("saved_bots", saved_bot_ids)
+
+    # Followed creators (authoritative from client or SQLite)
+    client_following = client_settings.get("followedCreators") or body.get("followedCreators")
     if isinstance(client_following, list):
-        for fid in client_following:
-            if fid and fid not in following:
-                following.append(fid)
+        following = client_following
+    else:
+        following = db.get_connect_vault_val("following", [])
+        if not isinstance(following, list):
+            following = []
+    # Persist following into SQLite
+    db.set_connect_vault_val("following", following)
 
     # 3. Extract creator profiles
     creator_profiles_map = {}
@@ -3473,15 +3537,24 @@ async def api_cloud_sync_push(request: Request):
 
     creator_profiles = list(creator_profiles_map.values())
 
-    # 4. Assemble settings payload
+    # 4. Assemble settings payload with full system settings merged
     display_name = client_settings.get("displayName") or body.get("displayName") or "Operator"
     avatar = client_settings.get("avatar") or body.get("avatar") or ""
     theme = body.get("theme") or client_settings.get("theme") or "dark"
     active_persona_id = body.get("active_persona_id") or client_settings.get("active_persona_id") or db.get_connect_vault_val("active_persona_id", "persona_default")
+    db.set_connect_vault_val("active_persona_id", active_persona_id)
+
+    # Persist personas to local SQLite vault
+    client_personas = body.get("personas") or []
+    if client_personas:
+        db.set_connect_vault_val("personas", client_personas)
 
     settings_payload = {
+        **client_settings,
         "displayName": display_name,
         "avatar": avatar,
+        "theme": theme,
+        "active_persona_id": active_persona_id,
         "savedBotIds": saved_bot_ids,
         "saved_bot_ids": saved_bot_ids,
         "savedBotsData": saved_cards,

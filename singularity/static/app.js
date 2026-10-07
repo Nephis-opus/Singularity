@@ -179,7 +179,12 @@ function applyThemePref(pref, animate = true) {
     var isOnline = state.tunnel && state.tunnel.status === 'online';
     syncGlobeTheme(isOnline);
   }
+
+  if (animate) {
+    window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
+  }
 }
+window.applyThemePref = applyThemePref;
 
 function setAppTheme(theme) {
   applyThemePref(theme, true);
@@ -527,8 +532,10 @@ function initClaudeSettings() {
     if (save) {
       localStorage.setItem('singularity_chat_font', fontKey);
       showToast(`Chat font set to ${config.label}`, 'info', 1600);
+      window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
     }
   };
+  window.applyChatFont = applyChatFont;
 
   const savedFont = localStorage.getItem('singularity_chat_font') || 'sans';
   applyChatFont(savedFont, false);
@@ -673,6 +680,7 @@ function initClaudeSettings() {
       document.documentElement.classList.toggle('reduce-motion', reduced);
       localStorage.setItem('singularity_reduce_motion', reduced ? 'true' : 'false');
       showToast(reduced ? 'Reduced motion enabled' : 'Smooth animations restored', 'info', 1800);
+      window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
     });
   }
 
@@ -682,6 +690,7 @@ function initClaudeSettings() {
     chimeToggle.checked = localStorage.getItem('singularity_response_chime') === 'true';
     chimeToggle.addEventListener('change', (e) => {
       localStorage.setItem('singularity_response_chime', e.target.checked ? 'true' : 'false');
+      window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
       if (e.target.checked) {
         playCompletionChime();
         showToast('Completion chime enabled', 'info', 1800);
@@ -708,6 +717,7 @@ function initClaudeSettings() {
       if (removeAvatarBtn) removeAvatarBtn.style.display = 'none';
     }
   };
+  window.renderUserAvatar = renderUserAvatar;
 
   const storedAvatar = localStorage.getItem('singularity_user_avatar');
   renderUserAvatar(storedAvatar);
@@ -722,6 +732,7 @@ function initClaudeSettings() {
     const name = raw || 'Operator';
     if (nameInput) nameInput.value = name;
     localStorage.setItem('singularity_user_name', name);
+    window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
 
     if (saveNameBtn) {
       saveNameBtn.classList.remove('visible');
@@ -786,6 +797,7 @@ function initClaudeSettings() {
         localStorage.setItem('singularity_user_avatar', dataUrl);
         renderUserAvatar(dataUrl);
         showToast('Profile picture updated', 'success', 2200);
+        window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
       } catch (err) {
         showToast(err.message || 'Failed to process picture', 'error', 3000);
       } finally {
@@ -800,6 +812,7 @@ function initClaudeSettings() {
       localStorage.removeItem('singularity_user_avatar');
       renderUserAvatar(null);
       showToast('Profile picture removed', 'info', 2000);
+      window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
     });
   }
 
@@ -1128,7 +1141,10 @@ function initClaudeSettings() {
     'singularity_reasoning_effort',
     'medium',
     (val, save) => {
-      if (save) showToast(`Reasoning effort set to ${val}`, 'info', 1600);
+      if (save) {
+        showToast(`Reasoning effort set to ${val}`, 'info', 1600);
+        window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
+      }
     }
   );
 
@@ -1143,6 +1159,7 @@ function initClaudeSettings() {
       const val = parseFloat(e.target.value).toFixed(2);
       tempVal.textContent = val;
       localStorage.setItem('singularity_default_temp', val);
+      window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
     });
   }
 
@@ -1151,6 +1168,7 @@ function initClaudeSettings() {
     genuiToggle.checked = localStorage.getItem('singularity_genui_enabled') !== 'false';
     genuiToggle.addEventListener('change', (e) => {
       localStorage.setItem('singularity_genui_enabled', e.target.checked ? 'true' : 'false');
+      window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
     });
   }
 
@@ -1168,6 +1186,7 @@ function initClaudeSettings() {
       const instructions = customInstructionsArea.value.trim();
       localStorage.setItem('singularity_custom_instructions', instructions);
       showToast('Custom instructions saved for AI models', 'success', 2200);
+      window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
     });
   }
 
@@ -1175,6 +1194,7 @@ function initClaudeSettings() {
     identityToggle.checked = localStorage.getItem('singularity_identity_awareness') !== 'false';
     identityToggle.addEventListener('change', (e) => {
       localStorage.setItem('singularity_identity_awareness', e.target.checked ? 'true' : 'false');
+      window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
     });
   }
 
@@ -3041,6 +3061,8 @@ function renderCustomSelectOptions(query = '') {
     opt.addEventListener('click', () => {
       const modelId = opt.dataset.id;
       state.selectedModel = modelId;
+      localStorage.setItem('singularity_selected_model', modelId);
+      window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
       const label = document.getElementById('model-select-label');
       if (label) label.textContent = formatModelDisplayName(modelId);
       const inputModel = document.getElementById('input-model-name');
@@ -3058,6 +3080,8 @@ function renderCustomSelectOptions(query = '') {
 function selectModelFromParamsModal(modelId) {
   if (!modelId) return;
   state.selectedModel = modelId;
+  localStorage.setItem('singularity_selected_model', modelId);
+  window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
 
   // 1. Update Parameters Modal display
   const paramLabel = document.getElementById('param-model-selected-label');
