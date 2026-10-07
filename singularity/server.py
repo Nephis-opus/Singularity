@@ -3139,6 +3139,169 @@ async def api_connect_download_json(bot_id: str):
     )
 
 
+def _get_cloud_supabase_context():
+    url = os.getenv("SUPABASE_URL") or db.get_setting("supabase_url", "https://ugbjziwpbdhgqovnlfvs.supabase.co")
+    secret_key = os.getenv("SUPABASE_KEY") or db.get_setting("supabase_key", "")
+    if not secret_key:
+        secret_key = base64.b64decode("c2Jfc2VjcmV0X204VC1Ka1R1czZ1NUtqS2JETUZ6NUFfN002MEZYSlY=").decode("utf-8")
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"
+    }
+    return url, secret_key, headers
+
+
+async def _resolve_cloud_user_id(client: httpx.AsyncClient, url: str, headers: dict, requested_user_id: Optional[str] = None) -> Optional[str]:
+    if requested_user_id:
+        return str(requested_user_id)
+    try:
+        r = await client.get(f"{url}/auth/v1/admin/users?per_page=1", headers={"apikey": headers["apikey"], "Authorization": headers["Authorization"]})
+        if r.status_code == 200:
+            users = r.json().get("users") or []
+            if users:
+                return users[0].get("id")
+    except Exception as e:
+        logger.debug(f"Failed to resolve cloud user id: {e}")
+    return None
+
+
+@app.get("/api/connect/following")
+async def api_connect_get_following(request: Request):
+    """Retrieve all followed creators, unifying local SQLite and cloud vault."""
+    following = [str(x) for x in db.get_connect_vault_val("following", []) if x]
+    try:
+        url, secret_key, headers = _get_cloud_supabase_context()
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            user_id = await _resolve_cloud_user_id(client, url, headers, request.query_params.get("user_id"))
+            if user_id:
+                p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=settings_json", headers=headers)
+                if p_res.status_code == 200 and p_res.json():
+                    prof = p_res.json()[0]
+                    sett = prof.get("settings_json") or {}
+                    if isinstance(sett, str):
+                        try:
+                            sett = json.loads(sett)
+                        except Exception:
+                            sett = {}
+                    cloud_following = sett.get("followedCreators") or sett.get("followed_creators") or []
+                    if isinstance(cloud_following, list):
+                        merged = list(dict.fromkeys(following + [str(x) for x in cloud_following if x]))
+                        if merged != following:
+                            following = merged
+                            db.set_connect_vault_val("following", following)
+    except Exception as e:
+        logger.debug(f"Could not reach cloud following: {e}")
+    return JSONResponse({"success": True, "following": following})
+
+
+@app.post("/api/connect/creators/{creator_id}/follow")
+async def api_connect_creator_follow(creator_id: str, request: Request):
+    """Explicitly follow a creator. Adds to local SQLite and immediately updates cloud profile."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    creator_id = str(creator_id).strip()
+    if not creator_id:
+        raise HTTPException(status_code=400, detail="Invalid creator_id")
+
+    # 1. Update SQLite
+    following = list(dict.fromkeys([str(x) for x in db.get_connect_vault_val("following", []) if x] + [creator_id]))
+    db.set_connect_vault_val("following", following)
+
+    # 2. Update Supabase cloud profile immediately
+    try:
+        url, secret_key, headers = _get_cloud_supabase_context()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            user_id = await _resolve_cloud_user_id(client, url, headers, body.get("user_id") or request.query_params.get("user_id"))
+            if user_id:
+                p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+                if p_res.status_code == 200 and p_res.json():
+                    prof = p_res.json()[0]
+                    sett = prof.get("settings_json") or {}
+                    if isinstance(sett, str):
+                        try:
+                            sett = json.loads(sett)
+                        except Exception:
+                            sett = {}
+                    cloud_following = sett.get("followedCreators") or sett.get("followed_creators") or []
+                    merged = list(dict.fromkeys([str(x) for x in cloud_following if x] + [creator_id]))
+                    sett["followedCreators"] = merged
+                    sett["followed_creators"] = merged
+
+                    if body.get("name") or body.get("avatar") or body.get("bio") or body.get("username"):
+                        cp_list = sett.get("creatorProfiles") or sett.get("creator_profiles") or []
+                        cp_map = {cp.get("id", ""): cp for cp in cp_list if isinstance(cp, dict)}
+                        cp_map[creator_id] = {
+                            "id": creator_id,
+                            "name": body.get("name") or body.get("displayName") or creator_id,
+                            "username": body.get("username") or creator_id,
+                            "avatar": body.get("avatar") or "",
+                            "bio": body.get("bio") or ""
+                        }
+                        sett["creatorProfiles"] = list(cp_map.values())
+                        sett["creator_profiles"] = list(cp_map.values())
+
+                    await client.patch(
+                        f"{url}/rest/v1/profiles?id=eq.{user_id}",
+                        headers=headers,
+                        json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                    )
+    except Exception as e:
+        logger.warning(f"Error persisting follow to cloud: {e}")
+
+    return JSONResponse({"success": True, "following": following, "creator_id": creator_id})
+
+
+@app.delete("/api/connect/creators/{creator_id}/follow")
+@app.post("/api/connect/creators/{creator_id}/unfollow")
+async def api_connect_creator_unfollow(creator_id: str, request: Request):
+    """Explicitly unfollow a creator. Removes from local SQLite and immediately updates cloud profile."""
+    creator_id = str(creator_id).strip()
+    user_id_override = request.query_params.get("user_id")
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            user_id_override = body.get("user_id") or user_id_override
+        except Exception:
+            pass
+
+    # 1. Update SQLite
+    following = [str(x) for x in db.get_connect_vault_val("following", []) if str(x) != creator_id]
+    db.set_connect_vault_val("following", following)
+
+    # 2. Update Supabase cloud profile immediately
+    try:
+        url, secret_key, headers = _get_cloud_supabase_context()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            user_id = await _resolve_cloud_user_id(client, url, headers, user_id_override)
+            if user_id:
+                p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+                if p_res.status_code == 200 and p_res.json():
+                    prof = p_res.json()[0]
+                    sett = prof.get("settings_json") or {}
+                    if isinstance(sett, str):
+                        try:
+                            sett = json.loads(sett)
+                        except Exception:
+                            sett = {}
+                    cloud_following = sett.get("followedCreators") or sett.get("followed_creators") or []
+                    updated_cloud = [str(x) for x in cloud_following if str(x) != creator_id]
+                    sett["followedCreators"] = updated_cloud
+                    sett["followed_creators"] = updated_cloud
+                    await client.patch(
+                        f"{url}/rest/v1/profiles?id=eq.{user_id}",
+                        headers=headers,
+                        json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                    )
+    except Exception as e:
+        logger.warning(f"Error persisting unfollow to cloud: {e}")
+
+    return JSONResponse({"success": True, "following": following, "unfollowed": creator_id})
+
+
 @app.post("/api/connect/save")
 async def api_connect_save_card(request: Request):
     try:
@@ -3149,12 +3312,87 @@ async def api_connect_save_card(request: Request):
     norm = connect.normalize_card_payload(card)
     bot_id = norm.get("id") or str(card.get("id") or "")
     db.save_connect_bookmark(bot_id, norm)
+    db.save_connect_card(norm)
+
+    # Persist saved_bots list in SQLite
+    saved_bots = list(dict.fromkeys([str(x) for x in db.get_connect_vault_val("saved_bots", []) if x] + [str(bot_id)]))
+    db.set_connect_vault_val("saved_bots", saved_bots)
+
+    # Persist immediately to Supabase cloud
+    try:
+        url, secret_key, headers = _get_cloud_supabase_context()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            user_id = await _resolve_cloud_user_id(client, url, headers, card.get("user_id") or request.query_params.get("user_id"))
+            if user_id:
+                p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+                if p_res.status_code == 200 and p_res.json():
+                    prof = p_res.json()[0]
+                    sett = prof.get("settings_json") or {}
+                    if isinstance(sett, str):
+                        try:
+                            sett = json.loads(sett)
+                        except Exception:
+                            sett = {}
+                    cloud_saved = sett.get("savedBotIds") or sett.get("saved_bot_ids") or []
+                    merged_saved = list(dict.fromkeys([str(x) for x in cloud_saved if x] + [str(bot_id)]))
+                    sett["savedBotIds"] = merged_saved
+                    sett["saved_bot_ids"] = merged_saved
+
+                    cloud_cards = sett.get("savedBotsData") or sett.get("saved_bots_data") or []
+                    c_map = {c.get("id"): c for c in cloud_cards if isinstance(c, dict) and c.get("id")}
+                    c_map[bot_id] = norm
+                    sett["savedBotsData"] = list(c_map.values())
+                    sett["saved_bots_data"] = list(c_map.values())
+
+                    await client.patch(
+                        f"{url}/rest/v1/profiles?id=eq.{user_id}",
+                        headers=headers,
+                        json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                    )
+    except Exception as e:
+        logger.warning(f"Error syncing saved card to cloud: {e}")
+
     return JSONResponse({"success": True, "saved": True, "id": bot_id})
 
 
 @app.delete("/api/connect/save/{bot_id}")
-async def api_connect_unsave_card(bot_id: str):
+async def api_connect_unsave_card(bot_id: str, request: Request):
+    bot_id = str(bot_id).strip()
     deleted = db.delete_connect_bookmark(bot_id)
+    saved_bots = [str(x) for x in db.get_connect_vault_val("saved_bots", []) if str(x) != bot_id]
+    db.set_connect_vault_val("saved_bots", saved_bots)
+
+    # Persist removal immediately to Supabase cloud
+    try:
+        url, secret_key, headers = _get_cloud_supabase_context()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            user_id = await _resolve_cloud_user_id(client, url, headers, request.query_params.get("user_id"))
+            if user_id:
+                p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+                if p_res.status_code == 200 and p_res.json():
+                    prof = p_res.json()[0]
+                    sett = prof.get("settings_json") or {}
+                    if isinstance(sett, str):
+                        try:
+                            sett = json.loads(sett)
+                        except Exception:
+                            sett = {}
+                    cloud_saved = sett.get("savedBotIds") or sett.get("saved_bot_ids") or []
+                    sett["savedBotIds"] = [str(x) for x in cloud_saved if str(x) != bot_id]
+                    sett["saved_bot_ids"] = sett["savedBotIds"]
+
+                    cloud_cards = sett.get("savedBotsData") or sett.get("saved_bots_data") or []
+                    sett["savedBotsData"] = [c for c in cloud_cards if isinstance(c, dict) and str(c.get("id")) != bot_id]
+                    sett["saved_bots_data"] = sett["savedBotsData"]
+
+                    await client.patch(
+                        f"{url}/rest/v1/profiles?id=eq.{user_id}",
+                        headers=headers,
+                        json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                    )
+    except Exception as e:
+        logger.warning(f"Error syncing unsave to cloud: {e}")
+
     return JSONResponse({"success": True, "unsaved": deleted, "id": bot_id})
 
 
@@ -3359,14 +3597,18 @@ async def api_cloud_sync_pull(request: Request):
                     except Exception:
                         sett = {}
                 if isinstance(sett, dict):
-                    # 1. Restore followed creators
+                    # 1. Restore followed creators (UNION WITH LOCAL SQLITE, DO NOT WIPE)
                     following = sett.get("followedCreators") or sett.get("followed_creators")
                     if isinstance(following, list):
-                        db.set_connect_vault_val("following", following)
-                    # 2. Restore saved bot IDs
+                        local_following = db.get_connect_vault_val("following", []) or []
+                        merged_f = list(dict.fromkeys([str(x) for x in local_following if x] + [str(x) for x in following if x]))
+                        db.set_connect_vault_val("following", merged_f)
+                    # 2. Restore saved bot IDs (UNION WITH LOCAL SQLITE, DO NOT WIPE)
                     saved_ids = sett.get("savedBotIds") or sett.get("saved_bot_ids")
                     if isinstance(saved_ids, list):
-                        db.set_connect_vault_val("saved_bots", saved_ids)
+                        local_saved = db.get_connect_vault_val("saved_bots", []) or []
+                        merged_s = list(dict.fromkeys([str(x) for x in local_saved if x] + [str(x) for x in saved_ids if x]))
+                        db.set_connect_vault_val("saved_bots", merged_s)
                     # 3. Restore saved bot card metadata
                     saved_cards = sett.get("savedBotsData") or sett.get("saved_bots_data")
                     if isinstance(saved_cards, list):
@@ -3381,21 +3623,22 @@ async def api_cloud_sync_pull(request: Request):
                     if act_p:
                         db.set_connect_vault_val("active_persona_id", act_p)
 
-            # 5. Restore personas into SQLite vault
+            # 5. Restore personas into SQLite vault (UNION WITH LOCAL SQLITE, DO NOT WIPE)
             if personas:
-                pers_list = []
+                local_personas = db.get_connect_vault_val("personas", []) or []
+                pers_map = {p["id"]: p for p in local_personas if isinstance(p, dict) and p.get("id")}
                 for p in personas:
                     if isinstance(p, dict) and p.get("id"):
-                        pers_list.append({
+                        pers_map[p["id"]] = {
                             "id": p["id"],
                             "name": p.get("name", "Persona"),
                             "avatar": p.get("avatar", ""),
                             "description": p.get("description", ""),
                             "system_prompt": p.get("system_prompt", ""),
                             "is_active": bool(p.get("is_active", False))
-                        })
-                if pers_list:
-                    db.set_connect_vault_val("personas", pers_list)
+                        }
+                if pers_map:
+                    db.set_connect_vault_val("personas", list(pers_map.values()))
 
             # 6. Restore connected accounts into SQLite vault
             if connected_accounts:
@@ -3424,18 +3667,10 @@ async def api_cloud_sync_pull(request: Request):
 
 @app.post("/api/cloud/sync/push")
 async def api_cloud_sync_push(request: Request):
-    """Synchronize local SQLite vault, saved bots, creator profiles, and personas directly to Supabase."""
-    url = os.getenv("SUPABASE_URL") or db.get_setting("supabase_url", "https://ugbjziwpbdhgqovnlfvs.supabase.co")
-    secret_key = os.getenv("SUPABASE_KEY") or db.get_setting("supabase_key", "")
-    if not secret_key:
-        secret_key = base64.b64decode("c2Jfc2VjcmV0X204VC1Ka1R1czZ1NUtqS2JETUZ6NUFfN002MEZYSlY=").decode("utf-8")
-
-    headers = {
-        "apikey": secret_key,
-        "Authorization": f"Bearer {secret_key}",
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates"
-    }
+    """Synchronize local SQLite vault, saved bots, creator profiles, and personas directly to Supabase.
+    CRITICAL: Cloud acts as a persistent non-destructive vault. Never clobbers cloud state with empty/cold client data.
+    """
+    url, secret_key, headers = _get_cloud_supabase_context()
 
     # 1. Resolve authentic user
     user_id = None
@@ -3464,112 +3699,129 @@ async def api_cloud_sync_push(request: Request):
     if not user_id:
         return JSONResponse({"success": False, "error": "No authenticated cloud user found"}, status_code=400)
 
-    # 2. Gather saved bots from SQLite and client payload
-    saved_cards = db.list_saved_connect_cards(limit=500)
-    saved_bot_ids = [c["id"] for c in saved_cards if c.get("id")]
-
-    client_settings = body.get("settings") if isinstance(body.get("settings"), dict) else {}
-    client_saved_data = client_settings.get("savedBotsData") or body.get("savedBotsData") or []
-    if isinstance(client_saved_data, list):
-        for b in client_saved_data:
-            if isinstance(b, dict) and b.get("id"):
-                if b["id"] not in saved_bot_ids:
-                    saved_bot_ids.append(b["id"])
-                    saved_cards.append(b)
-                try:
-                    db.save_connect_card(b)
-                except Exception:
-                    pass
-
-    vault_saved = db.get_connect_vault_val("saved_bots", [])
-    if isinstance(vault_saved, list):
-        for bid in vault_saved:
-            if bid and bid not in saved_bot_ids:
-                saved_bot_ids.append(bid)
-
-    client_saved_ids = client_settings.get("savedBotIds") or body.get("savedBotIds") or []
-    if isinstance(client_saved_ids, list):
-        for bid in client_saved_ids:
-            if bid and bid not in saved_bot_ids:
-                saved_bot_ids.append(bid)
-
-    # Persist saved bots into SQLite
-    db.set_connect_vault_val("saved_bots", saved_bot_ids)
-
-    # Followed creators (authoritative from client or SQLite)
-    client_following = client_settings.get("followedCreators") or body.get("followedCreators")
-    if isinstance(client_following, list):
-        following = client_following
-    else:
-        following = db.get_connect_vault_val("following", [])
-        if not isinstance(following, list):
-            following = []
-    # Persist following into SQLite
-    db.set_connect_vault_val("following", following)
-
-    # 3. Extract creator profiles
-    creator_profiles_map = {}
-    for c in saved_cards:
-        cid = c.get("creator_id") or c.get("creator_name")
-        if cid and cid not in creator_profiles_map:
-            creator_profiles_map[cid] = {
-                "id": c.get("creator_id") or cid,
-                "name": c.get("creator_name") or cid,
-                "username": c.get("creator_name") or cid,
-                "avatar": c.get("creator_avatar") or "",
-                "bio": f"Creator of {c.get('name', 'character')}"
-            }
-    for fid in following:
-        if fid and fid not in creator_profiles_map:
-            creator_profiles_map[fid] = {
-                "id": fid,
-                "name": fid,
-                "username": fid,
-                "avatar": "",
-                "bio": "JanitorAI Creator"
-            }
-    client_creators = client_settings.get("creatorProfiles") or body.get("creatorProfiles") or []
-    if isinstance(client_creators, list):
-        for cp in client_creators:
-            if isinstance(cp, dict) and (cp.get("id") or cp.get("name")):
-                cid = cp.get("id") or cp.get("name")
-                creator_profiles_map[cid] = cp
-
-    creator_profiles = list(creator_profiles_map.values())
-
-    # 4. Assemble settings payload with full system settings merged
-    display_name = client_settings.get("displayName") or body.get("displayName") or "Operator"
-    avatar = client_settings.get("avatar") or body.get("avatar") or ""
-    theme = body.get("theme") or client_settings.get("theme") or "dark"
-    active_persona_id = body.get("active_persona_id") or client_settings.get("active_persona_id") or db.get_connect_vault_val("active_persona_id", "persona_default")
-    db.set_connect_vault_val("active_persona_id", active_persona_id)
-
-    # Persist personas to local SQLite vault
-    client_personas = body.get("personas") or []
-    if client_personas:
-        db.set_connect_vault_val("personas", client_personas)
-
-    settings_payload = {
-        **client_settings,
-        "displayName": display_name,
-        "avatar": avatar,
-        "theme": theme,
-        "active_persona_id": active_persona_id,
-        "savedBotIds": saved_bot_ids,
-        "saved_bot_ids": saved_bot_ids,
-        "savedBotsData": saved_cards,
-        "saved_bots_data": saved_cards,
-        "followedCreators": following,
-        "followed_creators": following,
-        "creatorProfiles": creator_profiles,
-        "creator_profiles": creator_profiles
-    }
-
     now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     results = {}
 
     async with httpx.AsyncClient(timeout=25.0) as client:
-        # A. Upsert profiles
+        # A. Fetch existing profile from Supabase first
+        cloud_sett = {}
+        existing_profile = None
+        try:
+            p_get = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+            if p_get.status_code == 200 and p_get.json():
+                existing_profile = p_get.json()[0]
+                cloud_sett = existing_profile.get("settings_json") or {}
+                if isinstance(cloud_sett, str):
+                    try:
+                        cloud_sett = json.loads(cloud_sett)
+                    except Exception:
+                        cloud_sett = {}
+        except Exception as e:
+            logger.debug(f"Could not fetch existing cloud profile: {e}")
+
+        client_settings = body.get("settings") if isinstance(body.get("settings"), dict) else {}
+
+        # B. Non-destructive Union for Followed Creators (Never wipe cloud if client sends empty)
+        cloud_following = cloud_sett.get("followedCreators") or cloud_sett.get("followed_creators") or []
+        sqlite_following = db.get_connect_vault_val("following", []) or []
+        client_following = client_settings.get("followedCreators") or body.get("followedCreators") or []
+        merged_following = list(dict.fromkeys(
+            [str(x) for x in cloud_following if x] +
+            [str(x) for x in sqlite_following if x] +
+            [str(x) for x in client_following if x]
+        ))
+        db.set_connect_vault_val("following", merged_following)
+
+        # C. Non-destructive Union for Saved Bots & Cards (Never wipe cloud if client sends empty)
+        cloud_saved_ids = cloud_sett.get("savedBotIds") or cloud_sett.get("saved_bot_ids") or []
+        sqlite_saved_ids = [c["id"] for c in db.list_saved_connect_cards(limit=500)] + (db.get_connect_vault_val("saved_bots", []) or [])
+        client_saved_ids = client_settings.get("savedBotIds") or body.get("savedBotIds") or []
+        merged_saved_ids = list(dict.fromkeys(
+            [str(x) for x in cloud_saved_ids if x] +
+            [str(x) for x in sqlite_saved_ids if x] +
+            [str(x) for x in client_saved_ids if x]
+        ))
+        db.set_connect_vault_val("saved_bots", merged_saved_ids)
+
+        # Union cards by ID
+        cards_map = {}
+        for c in (cloud_sett.get("savedBotsData", []) or cloud_sett.get("saved_bots_data", []) or []):
+            if isinstance(c, dict) and c.get("id"):
+                cards_map[c["id"]] = c
+        for c in db.list_saved_connect_cards(limit=500):
+            if isinstance(c, dict) and c.get("id"):
+                cards_map[c["id"]] = c
+        client_saved_data = client_settings.get("savedBotsData") or body.get("savedBotsData") or []
+        if isinstance(client_saved_data, list):
+            for c in client_saved_data:
+                if isinstance(c, dict) and c.get("id"):
+                    cards_map[c["id"]] = c
+                    try:
+                        db.save_connect_card(c)
+                    except Exception:
+                        pass
+        merged_cards = list(cards_map.values())
+
+        # D. Creator Profiles Map
+        creator_profiles_map = {}
+        for cp in (cloud_sett.get("creatorProfiles", []) or cloud_sett.get("creator_profiles", []) or []):
+            if isinstance(cp, dict) and (cp.get("id") or cp.get("name")):
+                cid = cp.get("id") or cp.get("name")
+                creator_profiles_map[cid] = cp
+        for c in merged_cards:
+            cid = c.get("creator_id") or c.get("creator_name")
+            if cid and cid not in creator_profiles_map:
+                creator_profiles_map[cid] = {
+                    "id": c.get("creator_id") or cid,
+                    "name": c.get("creator_name") or cid,
+                    "username": c.get("creator_name") or cid,
+                    "avatar": c.get("creator_avatar") or "",
+                    "bio": f"Creator of {c.get('name', 'character')}"
+                }
+        for fid in merged_following:
+            if fid and fid not in creator_profiles_map:
+                creator_profiles_map[fid] = {
+                    "id": fid,
+                    "name": fid,
+                    "username": fid,
+                    "avatar": "",
+                    "bio": "JanitorAI Creator"
+                }
+        client_creators = client_settings.get("creatorProfiles") or body.get("creatorProfiles") or []
+        if isinstance(client_creators, list):
+            for cp in client_creators:
+                if isinstance(cp, dict) and (cp.get("id") or cp.get("name")):
+                    cid = cp.get("id") or cp.get("name")
+                    creator_profiles_map[cid] = cp
+
+        # E. Assemble settings payload (baseline is cloud_sett so cold client defaults NEVER clobber cloud customizations)
+        settings_payload = dict(cloud_sett)
+        for k, v in client_settings.items():
+            if v is not None and v != "":
+                settings_payload[k] = v
+            elif k not in settings_payload:
+                settings_payload[k] = v
+
+        display_name = client_settings.get("displayName") or body.get("displayName") or cloud_sett.get("displayName") or "Operator"
+        avatar = client_settings.get("avatar") or body.get("avatar") or cloud_sett.get("avatar") or ""
+        theme = body.get("theme") or client_settings.get("theme") or cloud_sett.get("theme") or "dark"
+        active_persona_id = body.get("active_persona_id") or client_settings.get("active_persona_id") or cloud_sett.get("active_persona_id") or db.get_connect_vault_val("active_persona_id", "persona_default")
+        db.set_connect_vault_val("active_persona_id", active_persona_id)
+
+        settings_payload["displayName"] = display_name
+        settings_payload["avatar"] = avatar
+        settings_payload["theme"] = theme
+        settings_payload["active_persona_id"] = active_persona_id
+        settings_payload["savedBotIds"] = merged_saved_ids
+        settings_payload["saved_bot_ids"] = merged_saved_ids
+        settings_payload["savedBotsData"] = merged_cards
+        settings_payload["saved_bots_data"] = merged_cards
+        settings_payload["followedCreators"] = merged_following
+        settings_payload["followed_creators"] = merged_following
+        settings_payload["creatorProfiles"] = list(creator_profiles_map.values())
+        settings_payload["creator_profiles"] = list(creator_profiles_map.values())
+
+        # F. Upsert profile
         profile_row = {
             "id": user_id,
             "email": user_email or "operator@singularity.local",
@@ -3581,7 +3833,7 @@ async def api_cloud_sync_push(request: Request):
         p_res = await client.post(f"{url}/rest/v1/profiles", headers=headers, json=profile_row)
         results["profiles"] = p_res.status_code in (200, 201)
 
-        # B. Upsert connected accounts from SQLite credentials
+        # G. Upsert connected accounts from SQLite credentials
         accounts = db.get_accounts()
         acc_synced = 0
         for acc in accounts:
@@ -3599,19 +3851,39 @@ async def api_cloud_sync_push(request: Request):
                 acc_synced += 1
         results["connected_accounts"] = acc_synced
 
-        # C. Upsert personas
-        client_personas = body.get("personas") or []
-        if not client_personas:
-            client_personas = [{
+        # H. Non-destructive Union for Personas
+        cloud_personas = []
+        try:
+            pers_res = await client.get(f"{url}/rest/v1/personas?user_id=eq.{user_id}&select=*", headers=headers)
+            if pers_res.status_code == 200:
+                cloud_personas = pers_res.json() or []
+        except Exception:
+            pass
+
+        personas_map = {p["id"]: p for p in cloud_personas if isinstance(p, dict) and p.get("id")}
+        for p in (db.get_connect_vault_val("personas", []) or []):
+            if isinstance(p, dict) and p.get("id"):
+                if p["id"] not in personas_map:
+                    personas_map[p["id"]] = p
+        for p in (body.get("personas") or []):
+            if isinstance(p, dict) and p.get("id"):
+                personas_map[p["id"]] = p
+
+        if not personas_map:
+            personas_map["persona_default"] = {
                 "id": "persona_default",
                 "name": "Ayame",
                 "avatar": "/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg",
                 "description": "Ayame is visiting the club tonight, dressed comfortably yet stylishly, with quiet curiosity.",
                 "system_prompt": "",
                 "is_active": True
-            }]
+            }
+
+        merged_personas = list(personas_map.values())
+        db.set_connect_vault_val("personas", merged_personas)
+
         pers_synced = 0
-        for p in client_personas:
+        for p in merged_personas:
             if isinstance(p, dict) and p.get("id"):
                 persona_row = {
                     "id": p["id"],
@@ -3677,8 +3949,8 @@ async def api_cloud_sync_push(request: Request):
         "success": True,
         "user_id": user_id,
         "results": results,
-        "saved_bots_count": len(saved_cards),
-        "creator_profiles_count": len(creator_profiles)
+        "saved_bots_count": len(merged_cards),
+        "creator_profiles_count": len(creator_profiles_map)
     })
 
 

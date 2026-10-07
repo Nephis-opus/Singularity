@@ -73,6 +73,7 @@
   let activeUser = null;
   let activeSession = null;
   let isSyncing = false;
+  let hasInitialPullCompleted = false;
   let globeAnimationRunning = false;
   let globeRafId = null;
 
@@ -692,13 +693,19 @@
             applyPortalTheme(sett.portalTheme);
           }
 
-          // 1c. Sync Down Followed Creators (Cloud is authoritative)
+          // 1c. Sync Down Followed Creators (Non-destructive Union with local state)
           const followed = sett.followedCreators || sett.followed_creators;
           if (Array.isArray(followed)) {
-            localStorage.setItem('s_connect_following', JSON.stringify(followed));
+            let localFollowed = [];
+            try { localFollowed = JSON.parse(localStorage.getItem('s_connect_following') || '[]'); } catch (e) {}
+            const mergedFollowed = Array.from(new Set([
+              ...(Array.isArray(localFollowed) ? localFollowed : []),
+              ...followed
+            ]));
+            localStorage.setItem('s_connect_following', JSON.stringify(mergedFollowed));
             const sConn = window.SConnect || window.sConnect;
             if (sConn) {
-              sConn.followingCreatorIds = new Set(followed);
+              sConn.followingCreatorIds = new Set(mergedFollowed);
             }
           }
 
@@ -716,13 +723,19 @@
             }
           }
 
-          // 1e. Sync Down Saved Bots (Cloud is authoritative)
+          // 1e. Sync Down Saved Bots (Non-destructive Union with local state)
           const savedIds = sett.savedBotIds || sett.saved_bot_ids;
           if (Array.isArray(savedIds)) {
-            localStorage.setItem('s_connect_saved_bots', JSON.stringify(savedIds));
+            let localSaved = [];
+            try { localSaved = JSON.parse(localStorage.getItem('s_connect_saved_bots') || '[]'); } catch (e) {}
+            const mergedSaved = Array.from(new Set([
+              ...(Array.isArray(localSaved) ? localSaved : []),
+              ...savedIds
+            ]));
+            localStorage.setItem('s_connect_saved_bots', JSON.stringify(mergedSaved));
             const sConn = window.SConnect || window.sConnect;
             if (sConn) {
-              sConn.savedBotIds = new Set(savedIds);
+              sConn.savedBotIds = new Set(mergedSaved);
             }
           }
 
@@ -932,6 +945,7 @@
       }
 
       applyCloudState(cloudPayload);
+      hasInitialPullCompleted = true;
       updateSyncBadge('Synced to Cloud', '#10b981');
     } catch (err) {
       console.error('[SingularityCloud] syncDown failed:', err);
@@ -943,6 +957,10 @@
 
   async function syncUp() {
     if (isSyncing) return;
+    if (!hasInitialPullCompleted) {
+      console.log('[SingularityCloud] syncUp deferred: initial pull from cloud not yet completed');
+      return;
+    }
     const userId = await resolveCurrentUserId();
     if (!userId) {
       console.warn('[SingularityCloud] syncUp skipped: no authenticated cloud user');

@@ -70,6 +70,17 @@
       this.migrateLegacyChats();
       this.syncWithServer();
 
+      // Asynchronously hydrate followed creators from server/cloud vault
+      fetch('/api/connect/following')
+        .then(r => r.json())
+        .then(d => {
+          if (d && Array.isArray(d.following)) {
+            d.following.forEach(id => { if (id) this.followingCreatorIds.add(String(id)); });
+            localStorage.setItem('s_connect_following', JSON.stringify(Array.from(this.followingCreatorIds)));
+          }
+        })
+        .catch(() => {});
+
       // Native-like tab coordination for <details name="..."> across all browsers
       if (!this._tabsListenerBound) {
         this._tabsListenerBound = true;
@@ -809,7 +820,19 @@
     // -------------------------------------------------------------------------
     // 3. FOLLOWING VIEW (Mixed / Interleaved Across Creators)
     // -------------------------------------------------------------------------
-    renderFollowingView(container) {
+    async renderFollowingView(container) {
+      if (this.followingCreatorIds.size === 0) {
+        try {
+          const r = await fetch('/api/connect/following');
+          if (r.ok) {
+            const d = await r.json();
+            if (Array.isArray(d.following) && d.following.length > 0) {
+              d.following.forEach(id => { if (id) this.followingCreatorIds.add(String(id)); });
+              localStorage.setItem('s_connect_following', JSON.stringify(Array.from(this.followingCreatorIds)));
+            }
+          }
+        } catch (e) {}
+      }
       const followingList = Array.from(this.followingCreatorIds);
       container.innerHTML = `
         <div style="padding: var(--c-space-6) 0;">
@@ -1597,18 +1620,41 @@
 
     toggleFollowCreator(creatorId, btn) {
       const isFollowing = this.followingCreatorIds.has(creatorId);
+      let creatorMeta = {};
+      if (this.creatorCache && this.creatorCache.has(creatorId)) {
+        creatorMeta = this.creatorCache.get(creatorId);
+      } else if (this.activeCreator && this.activeCreator.id === creatorId) {
+        creatorMeta = this.activeCreator;
+      }
+
       if (isFollowing) {
         this.followingCreatorIds.delete(creatorId);
         if (btn) {
           btn.classList.remove('is-following');
           btn.innerHTML = `+ <span>Follow</span>`;
         }
+        // Explicit atomic delete in cloud and SQLite
+        fetch(`/api/connect/creators/${encodeURIComponent(creatorId)}/follow`, {
+          method: 'DELETE'
+        }).catch(() => {});
       } else {
         this.followingCreatorIds.add(creatorId);
         if (btn) {
           btn.classList.add('is-following');
           btn.innerHTML = `${ICONS.check} <span>Following</span>`;
         }
+        // Explicit atomic save in cloud and SQLite
+        fetch(`/api/connect/creators/${encodeURIComponent(creatorId)}/follow`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: creatorId,
+            name: creatorMeta.name || creatorMeta.displayName || creatorId,
+            username: creatorMeta.username || creatorId,
+            avatar: creatorMeta.avatar || '',
+            bio: creatorMeta.bio || ''
+          })
+        }).catch(() => {});
       }
       localStorage.setItem('s_connect_following', JSON.stringify(Array.from(this.followingCreatorIds)));
 
