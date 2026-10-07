@@ -142,6 +142,185 @@
     updateActiveDockTab();
   }
 
+  // ===================================================================
+  // Phone-only Sidebar (replaces the dock at <=768px; dock hidden via CSS)
+  // ===================================================================
+  const MOBILE_MQ = window.matchMedia('(max-width: 768px)');
+  let sbEl = null;
+  let sbScrim = null;
+  let sbToggle = null;
+  let sbOpen = false;
+  let sbWidth = 300;
+
+  function sbSetProgress(p) {
+    p = Math.max(0, Math.min(1, p));
+    sbEl.style.setProperty('--p', p);
+    sbScrim.style.setProperty('--p', p);
+    sbScrim.classList.toggle('visible', p > 0.001);
+  }
+
+  function sbSetOpen(open) {
+    sbOpen = !!open;
+    sbEl.classList.remove('dragging');
+    sbScrim.classList.remove('dragging');
+    sbSetProgress(sbOpen ? 1 : 0);
+    sbEl.classList.toggle('open', sbOpen);
+    sbToggle.classList.toggle('open', sbOpen);
+    sbToggle.setAttribute('aria-expanded', String(sbOpen));
+    sbToggle.setAttribute('aria-label', sbOpen ? 'Close navigation' : 'Open navigation');
+    sbEl.setAttribute('aria-hidden', String(!sbOpen));
+    document.body.classList.toggle('m-sidebar-open', sbOpen);
+    if (sbOpen) {
+      const active = sbEl.querySelector('.m-sidebar-item.active');
+      if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function createMobileSidebar() {
+    if (document.getElementById('singularity-mobile-sidebar')) return;
+
+    // Toggle button with morphing three-bar -> X icon
+    sbToggle = document.createElement('button');
+    sbToggle.type = 'button';
+    sbToggle.id = 'singularity-sidebar-toggle';
+    sbToggle.className = 'm-sidebar-toggle';
+    sbToggle.setAttribute('aria-label', 'Open navigation');
+    sbToggle.setAttribute('aria-controls', 'singularity-mobile-sidebar');
+    sbToggle.setAttribute('aria-expanded', 'false');
+    sbToggle.innerHTML = `
+      <span class="m-burger" aria-hidden="true">
+        <span class="m-burger-bar b1"></span>
+        <span class="m-burger-bar b2"></span>
+        <span class="m-burger-bar b3"></span>
+      </span>`;
+    sbToggle.addEventListener('click', () => sbSetOpen(!sbOpen));
+
+    sbScrim = document.createElement('div');
+    sbScrim.className = 'm-sidebar-scrim';
+    sbScrim.addEventListener('click', () => sbSetOpen(false));
+
+    sbEl = document.createElement('aside');
+    sbEl.id = 'singularity-mobile-sidebar';
+    sbEl.className = 'm-sidebar';
+    sbEl.setAttribute('aria-label', 'Main navigation');
+    sbEl.setAttribute('aria-hidden', 'true');
+
+    const head = document.createElement('div');
+    head.className = 'm-sidebar-head';
+    head.innerHTML = `
+      <img class="m-sidebar-logo" src="/static/logo.svg" alt="" />
+      <div class="m-sidebar-brand"><span class="m-sidebar-title">Singularity</span><span class="m-sidebar-sub">Unified AI Gateway</span></div>`;
+    sbEl.appendChild(head);
+
+    const list = document.createElement('nav');
+    list.className = 'm-sidebar-list';
+    NAV_ITEMS.forEach((item) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'm-sidebar-item';
+      b.dataset.dockId = item.id;
+      if (item.type === 'tab') b.dataset.tab = item.id;
+      const label = item.id === 'tavern' ? 'Tavern Studio' : item.title;
+      b.innerHTML = `<span class="m-sidebar-icon">${item.icon}</span><span class="m-sidebar-label">${label}</span>` +
+        (item.id === 'tavern' ? `<span class="m-sidebar-ext" aria-hidden="true">↗</span>` : '');
+      b.addEventListener('click', () => {
+        handleItemClick(item, b);
+        sbSetOpen(false);
+      });
+      list.appendChild(b);
+    });
+    sbEl.appendChild(list);
+
+    const foot = document.createElement('div');
+    foot.className = 'm-sidebar-foot';
+    const settingsBtn = document.createElement('button');
+    settingsBtn.type = 'button';
+    settingsBtn.className = 'm-sidebar-item m-sidebar-settings';
+    settingsBtn.innerHTML = `<span class="m-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></span><span class="m-sidebar-label">Settings</span>`;
+    settingsBtn.addEventListener('click', () => {
+      sbSetOpen(false);
+      const gear = document.getElementById('btn-open-settings');
+      if (gear) setTimeout(() => gear.click(), 220);
+    });
+    foot.appendChild(settingsBtn);
+    sbEl.appendChild(foot);
+
+    document.body.appendChild(sbScrim);
+    document.body.appendChild(sbEl);
+    document.body.appendChild(sbToggle);
+    sbSetProgress(0);
+
+    // Esc closes
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && sbOpen) sbSetOpen(false);
+    });
+
+    // Close if viewport grows past phone breakpoint
+    const onMq = () => { if (!MOBILE_MQ.matches && sbOpen) sbSetOpen(false); };
+    if (MOBILE_MQ.addEventListener) MOBILE_MQ.addEventListener('change', onMq);
+    else if (MOBILE_MQ.addListener) MOBILE_MQ.addListener(onMq);
+
+    bindSidebarGestures();
+    updateActiveDockTab();
+  }
+
+  // Edge-swipe to open, drag-to-close, finger-following drawer
+  function bindSidebarGestures() {
+    let tracking = null; // { mode:'open'|'close', startX, startY, lastX, lastT, vx, locked }
+    const EDGE = 22;
+
+    function width() { return sbEl.offsetWidth || sbWidth; }
+
+    document.addEventListener('touchstart', (e) => {
+      if (!MOBILE_MQ.matches || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      if (!sbOpen && t.clientX <= EDGE) {
+        tracking = { mode: 'open', startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: Date.now(), vx: 0, locked: false };
+      } else if (sbOpen) {
+        tracking = { mode: 'close', startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: Date.now(), vx: 0, locked: false };
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      const dx = t.clientX - tracking.startX;
+      const dy = t.clientY - tracking.startY;
+      if (!tracking.locked) {
+        if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) { tracking = null; return; }
+        if (Math.abs(dx) > 8) {
+          tracking.locked = true;
+          sbEl.classList.add('dragging');
+          sbScrim.classList.add('dragging');
+        } else return;
+      }
+      const now = Date.now();
+      const dt = Math.max(1, now - tracking.lastT);
+      tracking.vx = (t.clientX - tracking.lastX) / dt;
+      tracking.lastX = t.clientX;
+      tracking.lastT = now;
+      const w = width();
+      const p = tracking.mode === 'open' ? dx / w : 1 + dx / w;
+      sbSetProgress(p);
+    }, { passive: true });
+
+    function end() {
+      if (!tracking) return;
+      const wasLocked = tracking.locked;
+      const vx = tracking.vx;
+      const mode = tracking.mode;
+      tracking = null;
+      if (!wasLocked) return;
+      const cur = parseFloat(sbEl.style.getPropertyValue('--p')) || 0;
+      let open;
+      if (Math.abs(vx) > 0.4) open = vx > 0;
+      else open = cur > 0.5;
+      sbSetOpen(open);
+    }
+    document.addEventListener('touchend', end, { passive: true });
+    document.addEventListener('touchcancel', end, { passive: true });
+  }
+
   function handleMouseEnter(itemEl, dockEl) {
     try {
       const idx = parseInt(itemEl.dataset.index, 10);
@@ -228,7 +407,7 @@
 
   function updateActiveDockTab() {
     const activeTab = document.body.dataset.activeTab || 'playground';
-    document.querySelectorAll('.glass-dock-item[data-tab]').forEach((el) => {
+    document.querySelectorAll('.glass-dock-item[data-tab], .m-sidebar-item[data-tab]').forEach((el) => {
       el.classList.toggle('active', el.dataset.tab === activeTab);
     });
   }
@@ -262,6 +441,7 @@
 
   function init() {
     createGlassDock();
+    createMobileSidebar();
     updateDockMode();
 
     // Observe data-active-tab only (NOT class on body to avoid feedback loops)
