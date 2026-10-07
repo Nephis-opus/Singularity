@@ -53,23 +53,33 @@ select {
   font-family: var(--font-sans);
 }
 
-/* Scrollbars */
+/* Scrollbars: Auto-disappearing in 0.5s when idle (Janitor UX) */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: transparent !important;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-medium);
-  border-radius: var(--radius-xs);
+  background: transparent !important;
+  border-radius: 9999px;
+  transition: background-color 0.5s ease;
 }
 
+html.is-scrolling ::-webkit-scrollbar-thumb,
+body.is-scrolling ::-webkit-scrollbar-thumb,
+.is-scrolling::-webkit-scrollbar-thumb,
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: var(--border-medium, rgba(255, 255, 255, 0.3)) !important;
+  transition: background-color 0.1s ease;
+}
+
+[data-theme="light"] html.is-scrolling ::-webkit-scrollbar-thumb,
+[data-theme="light"] body.is-scrolling ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.28) !important;
 }
 
 ::-webkit-scrollbar-corner {
@@ -1293,7 +1303,108 @@ html[data-theme="dark"],
   flex-shrink: 0;
   margin-bottom: 0;
   padding: 16px 20px;
-  gap: 12px;
+  gap: 14px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+#tunnel-hero .gateway-hero-header {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+
+.tunnel-title-wrap {
+  width: 100%;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#tunnel-status-title {
+  text-align: center !important;
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--text-primary) !important;
+  margin: 0 auto !important;
+}
+
+.tunnel-actions-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  width: 100% !important;
+}
+
+/* Remove boxed/bordering effect from all buttons in tunnel area */
+#tunnel-hero .btn {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  transition: all 0.18s ease !important;
+}
+
+#tunnel-hero .btn-primary {
+  background: var(--brand-primary, #d97757) !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+}
+
+#tunnel-hero .btn-secondary {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-primary) !important;
+  border-radius: 10px !important;
+}
+
+[data-theme="light"] #tunnel-hero .btn-secondary {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+
+#tunnel-hero .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+[data-theme="light"] #tunnel-hero .btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Remove boxed border from endpoint copy row */
+#tunnel-hero .endpoint-copy-row {
+  border: none !important;
+  box-shadow: none !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-radius: 12px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+[data-theme="light"] #tunnel-hero .endpoint-copy-row {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Remove boxed border from authtoken input */
+#tunnel-hero #input-ngrok-authtoken {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-radius: 12px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] #tunnel-hero #input-ngrok-authtoken {
+  background: rgba(0, 0, 0, 0.04) !important;
 }
 
 .tunnel-globe-wrapper {
@@ -1307,6 +1418,17 @@ html[data-theme="dark"],
   align-items: center;
   justify-content: center;
   margin: 0 auto;
+  pointer-events: none;
+}
+
+.tunnel-globe-canvas-wrap {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
 }
 
@@ -1429,33 +1551,175 @@ html[data-theme="dark"],
 }
 
 @media (max-width: 768px) {
+  /* Phone User-Friendly Singularity-Access Architecture */
+  #pane-tunnel {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    height: 100% !important;
+  }
+
+  #pane-tunnel.active {
+    display: block !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    height: 100% !important;
+    padding-bottom: 120px !important;
+  }
+
+  .tunnel-container {
+    height: auto !important;
+    min-height: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    padding: 8px 12px 100px 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  #tunnel-hero {
+    padding: 8px 4px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .tunnel-globe-wrapper {
+    position: relative !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    pointer-events: auto !important;
+    gap: 18px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+  }
+
+  /* 1. UPTIME TIMER: ABOVE the rotating globe */
   .tunnel-uptime-card {
-    position: relative;
-    left: auto;
-    top: auto;
-    width: 100%;
-    margin-bottom: 12px;
-    padding: 0;
+    order: 1 !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    margin: 4px auto 0 auto !important;
+    padding: 0 !important;
+    pointer-events: auto !important;
   }
+
   .tunnel-uptime-header {
-    font-size: 19px;
+    text-align: center !important;
+    font-size: 17px !important;
+    margin-bottom: 4px !important;
+    width: 100% !important;
   }
+
+  .skiper37-timer {
+    justify-content: center !important;
+    margin: 0 auto !important;
+  }
+
   .skiper37-digit-col {
     width: 20px;
     height: 34px;
   }
+
   .skiper37-digit-track span {
     height: 34px;
     line-height: 34px;
     font-size: 30px;
   }
+
   .skiper37-colon {
     font-size: 20px;
     padding-bottom: 3px;
   }
+
   .skiper37-unit-label {
     font-size: 10px;
     padding-bottom: 4px;
+  }
+
+  /* 2. ROTATING GLOBE: Centered in middle */
+  .tunnel-globe-canvas-wrap {
+    order: 2 !important;
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: 320px !important;
+    height: 320px !important;
+    min-height: 320px !important;
+    margin: 0 auto !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: none !important;
+  }
+
+  #tunnel-globe-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+    margin: 0 auto !important;
+  }
+
+  /* 3. GUIDE COLLECTION: BELOW the rotating globe */
+  .tunnel-guide-deck {
+    order: 3 !important;
+    position: static !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 380px !important;
+    margin: 8px auto 30px auto !important;
+    pointer-events: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  .guide-deck-inner {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
+
+  .guide-card-stack {
+    margin: 0 auto !important;
+  }
+
+  .guide-deck-content {
+    align-items: center !important;
+    text-align: center !important;
+    width: 100% !important;
+  }
+
+  .guide-deck-meta {
+    justify-content: center !important;
+    width: 100% !important;
+  }
+
+  .guide-deck-text {
+    text-align: center !important;
+  }
+
+  .guide-deck-nav {
+    justify-content: center !important;
+    margin-top: 10px !important;
   }
 }
 
@@ -1644,7 +1908,7 @@ html[data-theme="dark"],
   pointer-events: none;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 900px) and (min-width: 769px) {
   .tunnel-guide-deck {
     position: relative;
     right: auto;
@@ -1656,12 +1920,14 @@ html[data-theme="dark"],
 
 @media (max-width: 520px) {
   .guide-deck-inner {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
   }
   .guide-card-stack {
     width: 130px;
     height: 130px;
+    margin: 0 auto !important;
   }
 }
 
@@ -5592,6 +5858,44 @@ body:not([data-theme="dark"]) .chat-md-inline-code {
     flex-direction: column !important;
     align-items: flex-start !important;
     gap: 8px !important;
+  }
+
+  #tunnel-hero {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 8px 4px !important;
+  }
+
+  #tunnel-hero .gateway-hero-header {
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  #tunnel-hero .tunnel-title-wrap {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+    width: 100% !important;
+  }
+
+  #tunnel-hero #tunnel-status-title {
+    text-align: center !important;
+    margin: 0 auto !important;
+  }
+
+  #tunnel-hero .tunnel-actions-wrap {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    width: 100% !important;
   }
 
   .endpoint-copy-row {

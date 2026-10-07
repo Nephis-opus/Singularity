@@ -67,6 +67,12 @@
         console.warn('Failed to load connect preferences:', e);
       }
 
+      // Ensure bottom capsule is attached directly to document.body on mobile so it is NEVER trapped by scroll containers
+      const capsule = document.querySelector('.cards-nav-capsule');
+      if (capsule && capsule.parentElement !== document.body) {
+        document.body.appendChild(capsule);
+      }
+
       this.migrateLegacyChats();
       this.syncWithServer();
 
@@ -138,12 +144,47 @@
         });
       }
 
+      // Close open custom dropdowns on outside click
+      if (!this._selectListenerBound) {
+        this._selectListenerBound = true;
+        document.addEventListener('click', (e) => {
+          if (!e.target.closest('.claude-custom-select-wrap')) {
+            document.querySelectorAll('.claude-custom-select-wrap.open').forEach(el => {
+              el.classList.remove('open');
+            });
+            document.querySelectorAll('.claude-custom-select-menu.open').forEach(el => {
+              el.classList.remove('open');
+            });
+          }
+        });
+      }
+
+      // Auto-disappearing scrollbar (Janitor UX: disappears smoothly in 0.5s when not scrolling)
+      if (!this._scrollListenerBound) {
+        this._scrollListenerBound = true;
+        let _sbTimer = null;
+        window.addEventListener('scroll', () => {
+          document.documentElement.classList.add('is-scrolling');
+          document.body.classList.add('is-scrolling');
+          clearTimeout(_sbTimer);
+          _sbTimer = setTimeout(() => {
+            document.documentElement.classList.remove('is-scrolling');
+            document.body.classList.remove('is-scrolling');
+          }, 500);
+        }, { passive: true, capture: true });
+      }
+
       if (!this._popstateBound) {
         this._popstateBound = true;
         window.addEventListener('popstate', () => {
           this.handleHashRoute();
         });
       }
+
+      // Top header user avatar sync
+      this.updateTopAvatar();
+      window.addEventListener('singularity-settings-updated', () => this.updateTopAvatar());
+      window.addEventListener('storage', () => this.updateTopAvatar());
 
       const hash = (window.location.hash || '').replace('#', '');
       if (hash.startsWith('connect/')) {
@@ -159,6 +200,71 @@
       } else {
         this.navigate('discover', {}, false);
       }
+    },
+
+    updateTopAvatar() {
+      const box = document.getElementById('cards-top-avatar-box');
+      if (!box) return;
+      let avatar = (localStorage.getItem('singularity_user_avatar') || '').trim();
+      let name = (localStorage.getItem('singularity_user_name') || '').trim();
+
+      if (!avatar) {
+        try {
+          const activePersonaId = localStorage.getItem('s_connect_active_persona_id') || localStorage.getItem('s_connect_active_persona');
+          const rawPersonas = localStorage.getItem('s_connect_personas');
+          if (rawPersonas) {
+            const personas = JSON.parse(rawPersonas);
+            const active = (Array.isArray(personas) && personas.find(p => p.id === activePersonaId)) || (Array.isArray(personas) && personas[0]);
+            if (active && active.avatar) avatar = active.avatar.trim();
+            if (!name && active && active.name) name = active.name.trim();
+          }
+        } catch (_) {}
+      }
+      if (!avatar) {
+        avatar = (localStorage.getItem('singularity_user_avatar_url') || '').trim();
+      }
+
+      if (avatar) {
+        box.innerHTML = `<img src="${avatar}" class="cards-top-avatar-img" alt="${this.escapeHTML(name || 'User')}" />`;
+      } else {
+        box.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+      }
+    },
+
+    toggleUserMenu(e) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const dropdown = document.getElementById('cards-top-user-dropdown');
+      const btn = document.getElementById('cards-top-avatar-btn');
+      if (!dropdown) return;
+      const isOpen = dropdown.classList.toggle('is-open');
+      if (btn) btn.setAttribute('aria-expanded', String(isOpen));
+
+      if (isOpen) {
+        this.updateTopAvatar();
+        const closeHandler = (evt) => {
+          if (!dropdown.contains(evt.target) && !btn?.contains(evt.target)) {
+            dropdown.classList.remove('is-open');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+            document.removeEventListener('click', closeHandler);
+          }
+        };
+        setTimeout(() => document.addEventListener('click', closeHandler), 10);
+      }
+    },
+
+    closeUserMenu() {
+      const dropdown = document.getElementById('cards-top-user-dropdown');
+      const btn = document.getElementById('cards-top-avatar-btn');
+      if (dropdown) dropdown.classList.remove('is-open');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    },
+
+    selectUserMenuItem(view) {
+      this.closeUserMenu();
+      this.navigate(view);
     },
 
     handleHashRoute() {
@@ -215,6 +321,8 @@
         this.prevView = this.currentView;
       }
       this.currentView = view;
+      this.closeUserMenu();
+      this.updateTopAvatar();
 
       // Update Nav Capsule Pill States
       document.querySelectorAll('.cards-nav-pill-btn').forEach(btn => btn.classList.remove('is-active'));
@@ -238,9 +346,27 @@
       if (view === 'chat') {
         document.body.classList.add('is-janitor-chat-active');
         document.documentElement.classList.add('is-janitor-chat-active');
+        const mToggle = document.getElementById('singularity-sidebar-toggle');
+        if (mToggle) mToggle.style.setProperty('display', 'none', 'important');
+        const deskToggle = document.getElementById('sidebar-toggle-btn');
+        if (deskToggle) deskToggle.style.setProperty('display', 'none', 'important');
       } else {
         document.body.classList.remove('is-janitor-chat-active');
         document.documentElement.classList.remove('is-janitor-chat-active');
+        const mToggle = document.getElementById('singularity-sidebar-toggle');
+        if (mToggle) mToggle.style.removeProperty('display');
+        const deskToggle = document.getElementById('sidebar-toggle-btn');
+        if (deskToggle) deskToggle.style.removeProperty('display');
+      }
+
+      // Toggle top header back button and detail state
+      const topBackBtn = document.getElementById('cards-top-back-btn');
+      if (view === 'bot' || view === 'creator' || view === 'personas') {
+        document.body.classList.add('is-sconnect-detail-view');
+        if (topBackBtn) topBackBtn.style.display = 'inline-flex';
+      } else {
+        document.body.classList.remove('is-sconnect-detail-view');
+        if (topBackBtn) topBackBtn.style.display = 'none';
       }
 
       // Hide or show top nav bar depending on chat view
@@ -264,8 +390,8 @@
         this.renderCreatorsView(container);
       } else if (view === 'library') {
         this.renderLibraryView(container);
-      } else if (view === 'interceptor') {
-        this.renderInterceptorView(container);
+      } else if (view === 'personas' || view === 'interceptor') {
+        this.renderPersonasView(container);
       } else if (view === 'bot') {
         this.renderBotDetailView(container, params.id);
       } else if (view === 'creator') {
@@ -280,6 +406,13 @@
     navigateBack() {
       document.body.classList.remove('is-janitor-chat-active');
       document.documentElement.classList.remove('is-janitor-chat-active');
+      const mToggle = document.getElementById('singularity-sidebar-toggle');
+      if (mToggle) mToggle.style.removeProperty('display');
+      const deskToggle = document.getElementById('sidebar-toggle-btn');
+      if (deskToggle) deskToggle.style.removeProperty('display');
+      document.body.classList.remove('is-sconnect-detail-view');
+      const topBackBtn = document.getElementById('cards-top-back-btn');
+      if (topBackBtn) topBackBtn.style.display = 'none';
       if (window.history.length > 1) {
         window.history.back();
       } else {
@@ -979,11 +1112,26 @@
                 />
               </div>
 
-              <select class="my-chats-sort-select" id="my-chats-sort-select" onchange="SConnect.sortMyChats(this.value)">
-                <option value="latest" ${sortCriterion === 'latest' ? 'selected' : ''}>Latest</option>
-                <option value="chats" ${sortCriterion === 'chats' ? 'selected' : ''}>Most Chats</option>
-                <option value="name" ${sortCriterion === 'name' ? 'selected' : ''}>Alphabetical</option>
-              </select>
+              <div class="claude-custom-select-wrap my-chats-custom-select-wrap" id="my-chats-top-sort-wrap">
+                <button type="button" class="claude-custom-select-btn" onclick="SConnect.toggleCustomSelect('my-chats-top-sort-wrap', event)">
+                  <span class="claude-custom-select-text">${sortCriterion === 'chats' ? 'Most Chats' : (sortCriterion === 'name' ? 'Alphabetical' : 'Latest')}</span>
+                  <span class="claude-select-chevron">${ICONS.chevronDown}</span>
+                </button>
+                <div class="claude-custom-select-menu">
+                  <div class="claude-select-option ${sortCriterion === 'latest' ? 'active' : ''}" onclick="SConnect.sortMyChats('latest')">
+                    <span>Latest</span>
+                    <span class="option-check">${ICONS.check}</span>
+                  </div>
+                  <div class="claude-select-option ${sortCriterion === 'chats' ? 'active' : ''}" onclick="SConnect.sortMyChats('chats')">
+                    <span>Most Chats</span>
+                    <span class="option-check">${ICONS.check}</span>
+                  </div>
+                  <div class="claude-select-option ${sortCriterion === 'name' ? 'active' : ''}" onclick="SConnect.sortMyChats('name')">
+                    <span>Alphabetical</span>
+                    <span class="option-check">${ICONS.check}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1011,8 +1159,18 @@
       const { botId, bot, sessions } = entry;
       const isExpanded = (this._expandedBotId && String(this._expandedBotId) === String(botId));
       const activeTab = this._myChatsTab || 'chats';
-      const visibleSessions = activeTab === 'published' ? sessions.filter(s => s.isPublished) : sessions;
+      const visibleSessions = activeTab === 'published' ? sessions.filter(s => s.isPublished) : [...sessions];
       const isUnpublished = bot.is_unmasked === false || bot.is_unpublished || false;
+
+      // Sort sessions for this specific bot drawer
+      const drawerSort = (this._drawerSorts && this._drawerSorts[botId]) || 'latest';
+      if (drawerSort === 'oldest') {
+        visibleSessions.sort((a, b) => (a.updatedAt || a.createdAt || 0) - (b.updatedAt || b.createdAt || 0));
+      } else if (drawerSort === 'count') {
+        visibleSessions.sort((a, b) => (b.messageCount || 1) - (a.messageCount || 1));
+      } else {
+        visibleSessions.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+      }
 
       // Group visible sessions by time
       const grouped = {};
@@ -1030,13 +1188,13 @@
               <img src="${bot.avatar || DEFAULT_AVATAR}" class="my-chats-char-avatar" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
               <div class="my-chats-char-meta">
                 <span class="my-chats-char-name">${this.escapeHTML(bot.name)}</span>
-                <span class="my-chats-count-text">chats: ${visibleSessions.length}</span>
+                <span class="my-chats-count-text">chats: <span class="my-chats-count-num">${visibleSessions.length}</span></span>
               </div>
             </div>
 
             <div class="my-chats-char-right">
               ${isUnpublished ? `<span class="my-chats-unpub-badge">Unpublished</span>` : ''}
-              <span class="my-chats-accordion-arrow">${ICONS.chevronDown}</span>
+              <span class="my-chats-accordion-arrow">▼</span>
             </div>
           </div>
 
@@ -1045,20 +1203,38 @@
             <!-- Character Dossier Card -->
             <div class="my-chats-dossier-box">
               <div class="my-chats-dossier-desc">
-                ${this.escapeHTML(bot.description || bot.personality || 'Welcome to this roleplay scenario. Chat with this character and shape the unfolding story together.')}
+                ${this.renderDossierSnippet(bot.description || bot.personality || 'Welcome to this roleplay scenario. Chat with this character and shape the unfolding story together.', bot.id)}
               </div>
               <div class="my-chats-dossier-actions">
-                <button class="my-chats-action-pill-btn" onclick="SConnect.navigate('bot', { id: '${bot.id}' })">Character Page</button>
-                <button class="my-chats-action-pill-btn" onclick="SConnect.navigate('creator', { id: '${bot.creator_id || 'creator'}' })">Creator Profile</button>
-                <button class="my-chats-new-chat-btn" onclick="SConnect.triggerNewChatFromDrawer('${bot.id}')">+ New Chat</button>
+                <div class="my-chats-nav-btns-group">
+                  <button class="my-chats-action-pill-btn" onclick="SConnect.navigate('bot', { id: '${bot.id}' })">Character Page</button>
+                  <button class="my-chats-action-pill-btn" onclick="SConnect.navigate('creator', { id: '${bot.creator_id || 'creator'}' })">Creator Profile</button>
+                </div>
               </div>
             </div>
 
-            <div style="display:flex; justify-content:flex-end; margin: 12px 0 6px 0;">
-              <select class="my-chats-sort-select" style="font-size:0.82rem; padding: 4px 10px;" onchange="SConnect.sortDrawerSessions('${bot.id}', this.value)">
-                <option value="latest">Latest</option>
-                <option value="oldest">Oldest</option>
-              </select>
+            <!-- Drawer Sort Dropdown with Latest, Oldest, Count (Screenshot 3 Reference) -->
+            <div class="my-chats-drawer-sort-row">
+              <div class="claude-custom-select-wrap my-chats-drawer-select-wrap" id="drawer-sort-wrap-${botId}">
+                <button type="button" class="claude-custom-select-btn my-chats-drawer-select-btn" onclick="SConnect.toggleCustomSelect('drawer-sort-wrap-${botId}', event)">
+                  <span class="claude-custom-select-text">${drawerSort === 'oldest' ? 'Oldest' : (drawerSort === 'count' ? 'Count' : 'Latest')}</span>
+                  <span class="claude-select-chevron">${ICONS.chevronDown}</span>
+                </button>
+                <div class="claude-custom-select-menu">
+                  <div class="claude-select-option ${drawerSort === 'latest' ? 'active' : ''}" onclick="SConnect.sortDrawerSessions('${bot.id}', 'latest')">
+                    <span>Latest</span>
+                    <span class="option-check">${ICONS.check}</span>
+                  </div>
+                  <div class="claude-select-option ${drawerSort === 'oldest' ? 'active' : ''}" onclick="SConnect.sortDrawerSessions('${bot.id}', 'oldest')">
+                    <span>Oldest</span>
+                    <span class="option-check">${ICONS.check}</span>
+                  </div>
+                  <div class="claude-select-option ${drawerSort === 'count' ? 'active' : ''}" onclick="SConnect.sortDrawerSessions('${bot.id}', 'count')">
+                    <span>Count</span>
+                    <span class="option-check">${ICONS.check}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Sessions List grouped by Time Tag (Screenshot 3) -->
@@ -1117,13 +1293,9 @@
     },
 
     sortDrawerSessions(botId, criteria) {
-      const all = this.getAllChatSessions();
-      const sessions = all.filter(s => String(s.botId) === String(botId));
-      if (criteria === 'latest') {
-        sessions.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
-      } else {
-        sessions.sort((a, b) => (a.updatedAt || a.createdAt || 0) - (b.updatedAt || b.createdAt || 0));
-      }
+      this._drawerSorts = this._drawerSorts || {};
+      this._drawerSorts[botId] = criteria;
+      this._expandedBotId = botId;
       const container = document.getElementById('connect-main-view');
       if (container) this.renderMyChatsView(container, botId);
     },
@@ -1462,106 +1634,738 @@
     },
 
     // -------------------------------------------------------------------------
-    // 7. PROMPT INTERCEPTOR VIEW (Janitor Custom LLM Proxy Exploit)
+    // 7. MY PERSONAS ARCHITECTURE (JanitorAI Style Multi-Persona Matrix)
     // -------------------------------------------------------------------------
-    async renderInterceptorView(container) {
-      let lanIp = '127.0.0.1';
-      try {
-        const info = await fetch('/api/connect/proxy/info').then(r => r.json());
-        lanIp = info.lan_url || 'http://127.0.0.1:9000/v1';
-      } catch (e) {}
+    _personasTab: 'all',
+    _personasSort: 'default',
+    _personasSearchQuery: '',
+    _expandedPersonaIds: new Set(['persona_default']),
+    _personaGlobalListenersBound: false,
 
-      container.innerHTML = `
-        <div style="padding: var(--c-space-6) 0;">
-          <!-- Banner Card -->
-          <div class="interceptor-banner-card">
-            <div>
-              <h2 style="font-size: 1.5rem; font-weight: 800; margin: 0 0 6px; color: var(--c-text-primary);">JanitorAI Custom LLM Prompt Interceptor</h2>
-              <p style="font-size: 0.875rem; color: var(--c-text-secondary); margin: 0; line-height: 1.6;">
-                Unmask hidden character definitions and private system prompts in real-time. By configuring JanitorAI's chat settings to route through Singularity, you can automatically capture and compile full SillyTavern character cards.
-              </p>
-            </div>
-
-            <!-- Configuration Endpoints Box -->
-            <div class="interceptor-config-box">
-              <div>
-                <span style="color:var(--c-text-muted); font-size:0.75rem; display:block;">REVERSE PROXY / CUSTOM LLM ENDPOINT:</span>
-                <code>${lanIp}</code>
-              </div>
-              <button class="panel-copy-btn" onclick="SConnect.copyText(this, '${lanIp}')">
-                ${ICONS.copy}
-                <span>Copy URL</span>
-              </button>
-            </div>
-
-            <div class="interceptor-config-box">
-              <div>
-                <span style="color:var(--c-text-muted); font-size:0.75rem; display:block;">MODEL ID (OPENAI OR CUSTOM):</span>
-                <code>s-connect-proxy</code>
-              </div>
-              <button class="panel-copy-btn" onclick="SConnect.copyText(this, 's-connect-proxy')">
-                ${ICONS.copy}
-                <span>Copy Model</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Live Captures Header -->
-          <div class="section-header">
-            <div class="section-title-wrap">
-              <h3 class="section-title" style="font-size: 1.25rem;">Live Captured Prompts</h3>
-              <span class="section-subtitle">Real-time hidden prompts extracted from active Janitor chat sessions</span>
-            </div>
-            <button class="panel-copy-btn" onclick="SConnect.clearIntercepts()">
-              <span>Clear Log</span>
-            </button>
-          </div>
-
-          <div id="intercepts-list-grid" class="intercept-list-grid">
-            <div style="padding: 40px; text-align: center; color: var(--c-text-muted);">Listening for chat completions on port 9000...</div>
-          </div>
-        </div>
-      `;
-
-      this.loadIntercepts();
+    _initPersonaGlobalListeners() {
+      if (this._personaGlobalListenersBound) return;
+      this._personaGlobalListenersBound = true;
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#personas-sort-dropdown')) {
+          const sortWrap = document.getElementById('personas-sort-dropdown');
+          if (sortWrap) sortWrap.classList.remove('is-open');
+        }
+        if (!e.target.closest('.persona-custom-select-wrap')) {
+          document.querySelectorAll('.persona-custom-select-wrap.is-open').forEach(el => el.classList.remove('is-open'));
+        }
+        if (!e.target.closest('.persona-dots-wrap')) {
+          document.querySelectorAll('.persona-dots-wrap.is-open').forEach(el => el.classList.remove('is-open'));
+        }
+      });
     },
 
-    async loadIntercepts() {
+    formatPersonaDate(ts) {
+      if (!ts) return 'Recently';
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return 'Recently';
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    },
+
+    getPersonaGroups() {
       try {
-        const res = await fetch('/api/connect/proxy/intercepts?limit=30').then(r => r.json());
-        const list = res.intercepts || [];
-        this.interceptedPrompts = list;
-        const grid = document.getElementById('intercepts-list-grid');
-        if (grid) {
-          if (list.length > 0) {
-            grid.innerHTML = list.map((item, idx) => `
-              <div class="intercept-card">
-                <div class="intercept-header">
-                  <div class="intercept-title">${this.escapeHTML(item.bot_name || 'Captured Character')} (${item.token_count || 0} tokens)</div>
-                  <span style="font-size: 0.75rem; color: var(--c-text-muted);">${item.timestamp ? String(item.timestamp).slice(0, 19) : 'Just now'}</span>
-                </div>
-                <div class="intercept-prompt-preview">${this.escapeHTML(item.system_prompt || '')}</div>
-                <div style="display:flex; justify-content:flex-end; gap:8px;">
-                  <button class="panel-copy-btn" onclick="SConnect.copyInterceptPrompt(this, ${idx})">
-                    ${ICONS.copy} <span>Copy Prompt</span>
-                  </button>
-                </div>
-              </div>
-            `).join('');
-          } else {
-            grid.innerHTML = `<div style="padding: 50px; text-align: center; color: var(--c-text-muted); background: var(--c-surface-1); border-radius: var(--c-radius-lg); border: 1px solid var(--c-border);">No intercepted prompts captured yet. Send 1 message in JanitorAI using the proxy URL to capture.</div>`;
+        const raw = localStorage.getItem('s_connect_persona_groups');
+        if (raw) {
+          const groups = JSON.parse(raw);
+          if (Array.isArray(groups)) {
+            // Filter out old seed/mock groups
+            const cleaned = groups.filter(g => g && !['new-age', 'sex', 'anime', 'all'].includes(g.toLowerCase()));
+            return cleaned;
           }
         }
-      } catch (e) {
-        console.warn('Failed to load intercepts:', e);
+      } catch (e) {}
+      return [];
+    },
+
+    showInlineNewGroupInput() {
+      const container = document.getElementById('persona-new-group-container');
+      if (!container) return;
+      container.innerHTML = `
+        <div class="persona-new-group-box">
+          <input type="text" class="persona-new-group-input" id="persona-new-group-input" placeholder="Group name" maxlength="24" onkeydown="SConnect.onNewGroupInputKey(event)" onblur="SConnect.commitInlineNewGroup(false)" />
+        </div>
+      `;
+      const input = document.getElementById('persona-new-group-input');
+      if (input) {
+        input.focus();
       }
     },
 
-    async clearIntercepts() {
-      try {
-        await fetch('/api/connect/proxy/intercepts', { method: 'DELETE' });
-        this.loadIntercepts();
-      } catch (e) {}
+    onNewGroupInputKey(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.commitInlineNewGroup(true);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        this.cancelInlineNewGroup();
+      }
+    },
+
+    cancelInlineNewGroup() {
+      const container = document.getElementById('persona-new-group-container');
+      if (!container) return;
+      container.innerHTML = `
+        <button type="button" class="persona-new-group-btn" id="persona-new-group-btn" onclick="SConnect.showInlineNewGroupInput()">
+          <span>+ New group</span>
+        </button>
+      `;
+    },
+
+    commitInlineNewGroup(forceCommit) {
+      const input = document.getElementById('persona-new-group-input');
+      if (!input) return;
+      const clean = input.value.trim();
+      if (!clean) {
+        this.cancelInlineNewGroup();
+        return;
+      }
+      if (clean.toLowerCase() === 'all') {
+        alert("Group cannot be named 'All'.");
+        this.cancelInlineNewGroup();
+        return;
+      }
+      const groups = this.getPersonaGroups();
+      if (!groups.some(g => g.toLowerCase() === clean.toLowerCase())) {
+        groups.push(clean);
+        localStorage.setItem('s_connect_persona_groups', JSON.stringify(groups));
+      }
+      this._personasTab = clean;
+      this.renderPersonasView();
+    },
+
+    setPersonaTab(tab) {
+      this._personasTab = tab || 'all';
+      this.renderPersonasView();
+    },
+
+    togglePersonaSortMenu(e) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const wrap = document.getElementById('personas-sort-dropdown');
+      if (wrap) {
+        const isOpen = wrap.classList.toggle('is-open');
+        if (isOpen) {
+          document.querySelectorAll('.persona-custom-select-wrap.is-open').forEach(el => el.classList.remove('is-open'));
+          document.querySelectorAll('.persona-dots-wrap.is-open').forEach(el => el.classList.remove('is-open'));
+        }
+      }
+    },
+
+    setPersonaSort(sortKey) {
+      this._personasSort = sortKey;
+      const wrap = document.getElementById('personas-sort-dropdown');
+      if (wrap) wrap.classList.remove('is-open');
+      this.renderPersonasView();
+    },
+
+    onPersonaSearch(val) {
+      this._personasSearchQuery = (val || '').toLowerCase().trim();
+      this.renderPersonasView();
+    },
+
+    toggleCustomSelect(e, wrapId) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const wrap = document.getElementById(wrapId);
+      if (!wrap) return;
+      const isCurrentlyOpen = wrap.classList.contains('is-open');
+      document.querySelectorAll('.persona-custom-select-wrap.is-open').forEach(el => el.classList.remove('is-open'));
+      document.querySelectorAll('.persona-dots-wrap.is-open').forEach(el => el.classList.remove('is-open'));
+      const sortWrap = document.getElementById('personas-sort-dropdown');
+      if (sortWrap) sortWrap.classList.remove('is-open');
+
+      if (!isCurrentlyOpen) {
+        wrap.classList.add('is-open');
+      }
+    },
+
+    selectPersonaGroup(e, id, group) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const val = document.getElementById('persona-group-val-' + id);
+      if (val) val.textContent = group;
+      const wrap = document.getElementById('persona-group-select-' + id);
+      if (wrap) wrap.classList.remove('is-open');
+    },
+
+    selectPersonaPronouns(e, id, pronoun) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const val = document.getElementById('persona-pronouns-val-' + id);
+      if (val) val.textContent = pronoun;
+      const wrap = document.getElementById('persona-pronouns-select-' + id);
+      if (wrap) wrap.classList.remove('is-open');
+    },
+
+    togglePersonaDotsMenu(e, id) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const wrap = document.getElementById('persona-dots-wrap-' + id);
+      if (!wrap) return;
+      const isCurrentlyOpen = wrap.classList.contains('is-open');
+      document.querySelectorAll('.persona-dots-wrap.is-open').forEach(el => el.classList.remove('is-open'));
+      document.querySelectorAll('.persona-custom-select-wrap.is-open').forEach(el => el.classList.remove('is-open'));
+      if (!isCurrentlyOpen) {
+        wrap.classList.add('is-open');
+      }
+    },
+
+    movePersonaToGroup(e, id, group) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const personas = this.getPersonas();
+      const p = personas.find(x => x && x.id === id);
+      if (p) {
+        p.group = group;
+        p.updatedAt = Date.now();
+        this.savePersonas(personas);
+      }
+      const wrap = document.getElementById('persona-dots-wrap-' + id);
+      if (wrap) wrap.classList.remove('is-open');
+      this.renderPersonasView();
+    },
+
+    promptNewGroupFromDotsMenu(e, id) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const wrap = document.getElementById('persona-dots-wrap-' + id);
+      if (wrap) wrap.classList.remove('is-open');
+      const name = window.prompt('Enter new group name:');
+      if (!name || !name.trim()) return;
+      const clean = name.trim();
+      if (clean.toLowerCase() === 'all') {
+        alert("Group cannot be named 'All'.");
+        return;
+      }
+      const groups = this.getPersonaGroups();
+      if (!groups.some(g => g.toLowerCase() === clean.toLowerCase())) {
+        groups.push(clean);
+        localStorage.setItem('s_connect_persona_groups', JSON.stringify(groups));
+      }
+      const personas = this.getPersonas();
+      const p = personas.find(x => x && x.id === id);
+      if (p) {
+        p.group = clean;
+        p.updatedAt = Date.now();
+        this.savePersonas(personas);
+      }
+      this.renderPersonasView();
+    },
+
+    clonePersonaFromDots(e, id) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const wrap = document.getElementById('persona-dots-wrap-' + id);
+      if (wrap) wrap.classList.remove('is-open');
+      this.clonePersona(id);
+    },
+
+    deletePersonaFromDots(e, id) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const wrap = document.getElementById('persona-dots-wrap-' + id);
+      if (wrap) wrap.classList.remove('is-open');
+      this.deletePersona(id);
+    },
+
+    toggleActivePersona(e, id) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      this.setActivePersona(id);
+      this.renderPersonasView();
+    },
+
+    togglePersonaAccordion(id) {
+      const card = document.getElementById('persona-card-' + id);
+      if (!card) return;
+      const arrow = document.getElementById('persona-arrow-' + id);
+      const isExpanded = card.classList.toggle('is-expanded');
+      if (isExpanded) {
+        this._expandedPersonaIds.add(id);
+        if (arrow) arrow.innerHTML = '&#9662;';
+      } else {
+        this._expandedPersonaIds.delete(id);
+        if (arrow) arrow.innerHTML = '&#9656;';
+      }
+      this.renderPersonasView();
+    },
+
+    saveDefaultPersonaContext(id) {
+      const textarea = document.getElementById('persona-context-' + id);
+      const val = textarea ? textarea.value.trim() : '';
+      const personas = this.getPersonas();
+      const p = personas.find(x => x && (x.id === id || x.isDefault));
+      if (p) {
+        p.description = val;
+        p.updatedAt = Date.now();
+        this.savePersonas(personas);
+      }
+      const snippet = document.getElementById('persona-snippet-' + id);
+      if (snippet) snippet.textContent = val || 'Nice guy';
+      const btn = document.getElementById('persona-save-btn-' + id);
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = 'Saved ✓';
+        setTimeout(() => { btn.textContent = orig; }, 1600);
+      }
+    },
+
+    saveCustomPersona(id) {
+      const nameInput = document.getElementById('persona-name-' + id);
+      const textarea = document.getElementById('persona-context-' + id);
+      const groupSpan = document.getElementById('persona-group-val-' + id);
+      const pronounsSpan = document.getElementById('persona-pronouns-val-' + id);
+
+      const newName = nameInput ? nameInput.value.trim() : 'Persona';
+      const newDesc = textarea ? textarea.value.trim() : '';
+      const newGroup = groupSpan ? groupSpan.textContent.trim() : 'Ungrouped';
+      const newPronouns = pronounsSpan ? pronounsSpan.textContent.trim() : 'He/Him';
+
+      const personas = this.getPersonas();
+      const p = personas.find(x => x && x.id === id);
+      if (p) {
+        p.name = newName || 'Persona';
+        p.description = newDesc;
+        p.group = newGroup;
+        p.pronouns = newPronouns;
+        p.updatedAt = Date.now();
+        this.savePersonas(personas);
+      }
+
+      const headerName = document.getElementById('persona-header-name-' + id);
+      if (headerName) headerName.textContent = newName || 'Persona';
+      const snippet = document.getElementById('persona-snippet-' + id);
+      if (snippet) snippet.textContent = newDesc || 'No description set';
+
+      const btn = document.getElementById('persona-save-btn-' + id);
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = 'Saved ✓';
+        setTimeout(() => { btn.textContent = orig; }, 1600);
+      }
+    },
+
+    clonePersona(id) {
+      const personas = this.getPersonas();
+      const p = personas.find(x => x && x.id === id);
+      if (!p) return;
+      const cloneId = 'persona_' + Date.now();
+      const cloned = {
+        ...p,
+        id: cloneId,
+        isDefault: false,
+        name: (p.name || 'Persona') + ' (Clone)',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      personas.push(cloned);
+      this.savePersonas(personas);
+      this._expandedPersonaIds.add(cloneId);
+      this.renderPersonasView();
+    },
+
+    deletePersona(id) {
+      if (id === 'persona_default') {
+        alert('Default persona cannot be deleted.');
+        return;
+      }
+      if (!confirm('Are you sure you want to delete this persona?')) return;
+      let personas = this.getPersonas();
+      personas = personas.filter(p => p && p.id !== id);
+      this.savePersonas(personas);
+      this._expandedPersonaIds.delete(id);
+      this.renderPersonasView();
+    },
+
+    createNewPersona() {
+      const personas = this.getPersonas();
+      const newId = 'persona_' + Date.now();
+      const defaultGroup = (this._personasTab && this._personasTab.toLowerCase() !== 'all') ? this._personasTab : 'Ungrouped';
+      const newPersona = {
+        id: newId,
+        isDefault: false,
+        name: 'New Persona',
+        avatar: '/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg',
+        description: '',
+        group: defaultGroup,
+        pronouns: 'He/Him',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      personas.push(newPersona);
+      this.savePersonas(personas);
+      this._expandedPersonaIds.add(newId);
+      this.renderPersonasView();
+
+      setTimeout(() => {
+        const card = document.getElementById('persona-card-' + newId);
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const nameInput = document.getElementById('persona-name-' + newId);
+          if (nameInput) {
+            nameInput.focus();
+            nameInput.select();
+          }
+        }
+      }, 60);
+    },
+
+    changePersonaAvatar(id) {
+      this._avatarTargetPersonaId = id;
+      const input = document.getElementById('persona-file-input');
+      if (input) {
+        input.value = '';
+        input.click();
+      }
+    },
+
+    onPersonaFileSelected(input) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        const id = this._avatarTargetPersonaId;
+        if (!id) return;
+        const img = document.getElementById('persona-avatar-img-' + id);
+        if (img) img.src = dataUrl;
+        const thumb = document.querySelector(`#persona-card-${id} .persona-avatar-thumb`);
+        if (thumb) thumb.src = dataUrl;
+
+        const personas = this.getPersonas();
+        const p = personas.find(x => x && x.id === id);
+        if (p) {
+          p.avatar = dataUrl;
+          p.updatedAt = Date.now();
+          this.savePersonas(personas);
+        }
+      };
+      reader.readAsDataURL(file);
+    },
+
+    renderPersonasView(container) {
+      this._initPersonaGlobalListeners();
+      if (!container) container = document.getElementById('connect-main-view');
+      if (!container) return;
+
+      const allPersonas = this.getPersonas();
+      const groups = this.getPersonaGroups();
+      const activePersona = this.getActivePersona();
+      const activePersonaId = (activePersona && activePersona.id) || 'persona_default';
+
+      let filtered = allPersonas.filter(p => {
+        if (!p) return false;
+        if (this._personasTab && this._personasTab.toLowerCase() !== 'all') {
+          if ((p.group || 'ungrouped').toLowerCase() !== this._personasTab.toLowerCase()) {
+            return false;
+          }
+        }
+        if (this._personasSearchQuery) {
+          const q = this._personasSearchQuery;
+          const matchName = (p.name || '').toLowerCase().includes(q);
+          const matchDesc = (p.description || '').toLowerCase().includes(q);
+          if (!matchName && !matchDesc) return false;
+        }
+        return true;
+      });
+
+      if (this._personasSort === 'oldest') {
+        filtered.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      } else if (this._personasSort === 'newest') {
+        filtered.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      } else if (this._personasSort === 'last_edited') {
+        filtered.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+      } else if (this._personasSort === 'alphabetical') {
+        filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      } else {
+        filtered.sort((a, b) => {
+          if (a.id === 'persona_default' || a.isDefault) return -1;
+          if (b.id === 'persona_default' || b.isDefault) return 1;
+          return 0;
+        });
+      }
+
+      const sortMap = {
+        default: 'Default',
+        oldest: 'Oldest',
+        newest: 'Newest',
+        last_edited: 'Last edited',
+        alphabetical: 'Alphabetical'
+      };
+      const sortLabel = sortMap[this._personasSort] || 'Default';
+
+      const allCount = allPersonas.length;
+      const activeGroupCount = (this._personasTab === 'all')
+        ? allCount
+        : allPersonas.filter(p => (p.group || 'ungrouped').toLowerCase() === this._personasTab.toLowerCase()).length;
+
+      container.innerHTML = `
+        <div class="personas-view-wrapper">
+          <!-- Hidden file input for custom persona avatar upload -->
+          <input type="file" id="persona-file-input" style="display:none;" accept="image/*" onchange="SConnect.onPersonaFileSelected(this)" />
+
+          <!-- Header Row -->
+          <div class="personas-header-row">
+            <h1 class="personas-page-title">My Personas</h1>
+            <button class="personas-new-btn" onclick="SConnect.createNewPersona()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>New persona</span>
+            </button>
+          </div>
+
+          <!-- Controls Row: Search + Sort Dropdown -->
+          <div class="personas-controls-row">
+            <div class="personas-search-wrap">
+              <svg class="personas-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" class="personas-search-input" placeholder="Search personas" value="${this.escapeHTML(this._personasSearchQuery || '')}" oninput="SConnect.onPersonaSearch(this.value)" />
+            </div>
+
+            <div class="personas-sort-wrap" id="personas-sort-dropdown">
+              <button class="personas-sort-btn" onclick="SConnect.togglePersonaSortMenu(event)">
+                <span id="personas-sort-label">${sortLabel}</span>
+                <span class="personas-sort-arrow">&#9662;</span>
+              </button>
+              <div class="personas-sort-menu">
+                <button class="personas-sort-option ${this._personasSort === 'default' ? 'is-active' : ''}" onclick="SConnect.setPersonaSort('default')">Default</button>
+                <button class="personas-sort-option ${this._personasSort === 'oldest' ? 'is-active' : ''}" onclick="SConnect.setPersonaSort('oldest')">Oldest</button>
+                <button class="personas-sort-option ${this._personasSort === 'newest' ? 'is-active' : ''}" onclick="SConnect.setPersonaSort('newest')">Newest</button>
+                <button class="personas-sort-option ${this._personasSort === 'last_edited' ? 'is-active' : ''}" onclick="SConnect.setPersonaSort('last_edited')">Last edited</button>
+                <button class="personas-sort-option ${this._personasSort === 'alphabetical' ? 'is-active' : ''}" onclick="SConnect.setPersonaSort('alphabetical')">Alphabetical</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Heading Block -->
+          <div class="personas-heading-block">
+            <h2 class="personas-count-heading">Your personas (${activeGroupCount})</h2>
+            <p class="personas-count-sub">Create and manage personas you use in chats.</p>
+          </div>
+
+          <!-- Category Filter Tabs Bar: Only 'All' by default + Inline New Group transformation -->
+          <div class="personas-groups-bar">
+            <button class="persona-group-pill ${this._personasTab === 'all' ? 'is-active' : ''}" onclick="SConnect.setPersonaTab('all')">
+              <span>All</span>
+              <span class="persona-group-count">${allCount}</span>
+            </button>
+            ${groups.map(grp => {
+              const grpCount = allPersonas.filter(p => (p.group || '').toLowerCase() === grp.toLowerCase()).length;
+              return `
+                <button class="persona-group-pill ${this._personasTab.toLowerCase() === grp.toLowerCase() ? 'is-active' : ''}" onclick="SConnect.setPersonaTab('${this.escapeHTML(grp)}')">
+                  <span>${this.escapeHTML(grp)}</span>
+                  <span class="persona-group-count">${grpCount}</span>
+                </button>
+              `;
+            }).join('')}
+            <div class="persona-new-group-container" id="persona-new-group-container">
+              <button type="button" class="persona-new-group-btn" id="persona-new-group-btn" onclick="SConnect.showInlineNewGroupInput()">
+                <span>+ New group</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Personas Accordion List -->
+          <div class="personas-card-list">
+            ${filtered.length === 0 ? `
+              <div style="padding: 48px; text-align: center; color: #9ca3af; background: #20222a; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
+                No personas found matching your search.
+              </div>
+            ` : filtered.map(p => {
+              const isDefault = p.isDefault || p.id === 'persona_default';
+              const isExpanded = this._expandedPersonaIds.has(p.id);
+              const isActive = (p.id === activePersonaId);
+
+              if (isDefault) {
+                return `
+                  <div class="persona-card ${isExpanded ? 'is-expanded' : ''}" id="persona-card-${p.id}">
+                    <div class="persona-summary-row" ${!isExpanded ? `onclick="SConnect.togglePersonaAccordion('${p.id}')"` : ''}>
+                      <div class="persona-summary-left">
+                        <span class="persona-accordion-arrow" id="persona-arrow-${p.id}" onclick="SConnect.togglePersonaAccordion('${p.id}')">${isExpanded ? '&#9662;' : '&#9656;'}</span>
+                        <div class="persona-inline-avatar-btn is-disabled" title="Default persona avatar is linked to your user profile">
+                          <img src="${p.avatar || DEFAULT_AVATAR}" class="persona-avatar-thumb" alt="${this.escapeHTML(p.name)}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
+                        </div>
+                        ${isExpanded ? `
+                          <div class="persona-inline-name-wrap">
+                            <span class="persona-name-pen-icon" style="opacity: 0.4;" title="Default persona name cannot be changed">&#9998;</span>
+                            <input type="text" class="persona-inline-name-input" value="${this.escapeHTML(p.name)}" readonly title="Default persona name cannot be changed" />
+                          </div>
+                        ` : `
+                          <div class="persona-summary-meta">
+                            <div class="persona-summary-name">${this.escapeHTML(p.name)}</div>
+                            <div class="persona-summary-snippet" id="persona-snippet-${p.id}">${this.escapeHTML(p.description || 'Nice guy')}</div>
+                          </div>
+                        `}
+                      </div>
+                      <div class="persona-summary-right">
+                        <span class="persona-default-badge">Default</span>
+                        <button type="button" class="persona-custom-check ${isActive ? 'is-checked' : ''}" onclick="SConnect.toggleActivePersona(event, '${p.id}')" title="${isActive ? 'Active Persona' : 'Set as Active Persona'}">
+                          ${isActive ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+                        </button>
+                      </div>
+                    </div>
+                    <div class="persona-expanded-body">
+                      <div class="persona-badge-uppercase">DEFAULT PERSONA</div>
+                      <textarea class="persona-context-textarea" id="persona-context-${p.id}" placeholder="Persona context / scenario notes">${this.escapeHTML(p.description || '')}</textarea>
+                      <div class="persona-bottom-actions">
+                        <button type="button" class="persona-cancel-btn" onclick="SConnect.togglePersonaAccordion('${p.id}')">Cancel</button>
+                        <button type="button" class="persona-save-btn" id="persona-save-btn-${p.id}" onclick="SConnect.saveDefaultPersonaContext('${p.id}')">Save Changes</button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }
+
+              // Custom Persona Card (Single top row when expanded, NO duplicate body row)
+              return `
+                <div class="persona-card ${isExpanded ? 'is-expanded' : ''}" id="persona-card-${p.id}">
+                  <div class="persona-summary-row" ${!isExpanded ? `onclick="SConnect.togglePersonaAccordion('${p.id}')"` : ''}>
+                    <div class="persona-summary-left">
+                      <span class="persona-accordion-arrow" id="persona-arrow-${p.id}" onclick="SConnect.togglePersonaAccordion('${p.id}')">${isExpanded ? '&#9662;' : '&#9656;'}</span>
+                      ${isExpanded ? `
+                        <div class="persona-inline-avatar-btn" onclick="SConnect.changePersonaAvatar('${p.id}')" title="Click to change photo">
+                          <img src="${p.avatar || DEFAULT_AVATAR}" class="persona-avatar-thumb" id="persona-avatar-img-${p.id}" alt="${this.escapeHTML(p.name)}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
+                          <span class="persona-inline-avatar-edit-icon" title="Change photo">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                          </span>
+                        </div>
+                        <div class="persona-inline-name-wrap">
+                          <span class="persona-name-pen-icon" onclick="document.getElementById('persona-name-${p.id}')?.focus()">&#9998;</span>
+                          <input type="text" class="persona-inline-name-input" id="persona-name-${p.id}" value="${this.escapeHTML(p.name)}" placeholder="Persona name" onclick="event.stopPropagation();" />
+                        </div>
+                      ` : `
+                        <img src="${p.avatar || DEFAULT_AVATAR}" class="persona-avatar-thumb" alt="${this.escapeHTML(p.name)}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
+                        <div class="persona-summary-meta">
+                          <div class="persona-summary-name" id="persona-header-name-${p.id}">${this.escapeHTML(p.name)}</div>
+                          <div class="persona-summary-snippet" id="persona-snippet-${p.id}">${this.escapeHTML(p.description || 'No description set')}</div>
+                        </div>
+                      `}
+                    </div>
+                    <div class="persona-summary-right">
+                      ${!isExpanded ? `
+                        <!-- 3-Dots wrap & button (hidden when persona is open) -->
+                        <div class="persona-dots-wrap" id="persona-dots-wrap-${p.id}">
+                          <button type="button" class="persona-dots-btn" onclick="SConnect.togglePersonaDotsMenu(event, '${p.id}')" title="More options" aria-label="More options">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                              <circle cx="5" cy="12" r="2"></circle>
+                              <circle cx="12" cy="12" r="2"></circle>
+                              <circle cx="19" cy="12" r="2"></circle>
+                            </svg>
+                          </button>
+                          <div class="persona-dots-menu" id="persona-dots-menu-${p.id}">
+                            <div class="persona-dots-menu-title">${this.escapeHTML(p.name)}</div>
+                            <div class="persona-dots-menu-subtitle">MOVE TO GROUP</div>
+                            <div class="persona-dots-menu-groups">
+                              <button type="button" class="persona-dots-menu-item ${(!p.group || p.group === 'Ungrouped') ? 'is-current' : ''}" onclick="SConnect.movePersonaToGroup(event, '${p.id}', 'Ungrouped')">
+                                <span class="persona-dots-check-icon">${(!p.group || p.group === 'Ungrouped') ? '&#10003;' : ''}</span>
+                                <span>Ungrouped</span>
+                              </button>
+                              ${groups.map(g => `
+                                <button type="button" class="persona-dots-menu-item ${(p.group === g) ? 'is-current' : ''}" onclick="SConnect.movePersonaToGroup(event, '${p.id}', '${this.escapeHTML(g)}')">
+                                  <span class="persona-dots-check-icon">${(p.group === g) ? '&#10003;' : ''}</span>
+                                  <span>${this.escapeHTML(g)}</span>
+                                </button>
+                              `).join('')}
+                              <button type="button" class="persona-dots-menu-item persona-dots-newgroup-btn" onclick="SConnect.promptNewGroupFromDotsMenu(event, '${p.id}')">
+                                <span class="persona-dots-check-icon">+</span>
+                                <span>New group</span>
+                              </button>
+                            </div>
+                            <div class="persona-dots-divider"></div>
+                            <button type="button" class="persona-dots-menu-item" onclick="SConnect.clonePersonaFromDots(event, '${p.id}')">
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                              <span>Clone persona</span>
+                            </button>
+                            <button type="button" class="persona-dots-menu-item is-danger" onclick="SConnect.deletePersonaFromDots(event, '${p.id}')">
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        </div>
+                      ` : ''}
+                      <!-- Custom Checkbox -->
+                      <button type="button" class="persona-custom-check ${isActive ? 'is-checked' : ''}" onclick="SConnect.toggleActivePersona(event, '${p.id}')" title="${isActive ? 'Active Persona' : 'Set as Active Persona'}">
+                        ${isActive ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+                      </button>
+                    </div>
+                  </div>
+                  <div class="persona-expanded-body">
+                    <!-- Context Textarea directly on top (No duplicate name/avatar row) -->
+                    <textarea class="persona-context-textarea" id="persona-context-${p.id}" placeholder="Persona description, traits, or context">${this.escapeHTML(p.description || '')}</textarea>
+
+                    <!-- Group Field Row -->
+                    <div class="persona-field-row">
+                      <div class="persona-field-label">Group</div>
+                      <div class="persona-custom-select-wrap" id="persona-group-select-${p.id}">
+                        <button type="button" class="persona-custom-select-btn" onclick="SConnect.toggleCustomSelect(event, 'persona-group-select-${p.id}')">
+                          <span id="persona-group-val-${p.id}">${this.escapeHTML(p.group || 'Ungrouped')}</span>
+                          <span style="font-size:10px; color:#9ca3af; pointer-events:none;">&#9662;</span>
+                        </button>
+                        <div class="persona-custom-select-menu">
+                          <button type="button" class="persona-custom-select-option" onclick="SConnect.selectPersonaGroup(event, '${p.id}', 'Ungrouped')">Ungrouped</button>
+                          ${groups.map(g => `<button type="button" class="persona-custom-select-option" onclick="SConnect.selectPersonaGroup(event, '${p.id}', '${this.escapeHTML(g)}')">${this.escapeHTML(g)}</button>`).join('')}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Pronouns Field Row -->
+                    <div class="persona-field-row">
+                      <div class="persona-field-label">Pronouns</div>
+                      <div class="persona-custom-select-wrap" id="persona-pronouns-select-${p.id}">
+                        <button type="button" class="persona-custom-select-btn" onclick="SConnect.toggleCustomSelect(event, 'persona-pronouns-select-${p.id}')">
+                          <span id="persona-pronouns-val-${p.id}">${this.escapeHTML(p.pronouns || 'He/Him')}</span>
+                          <span style="font-size:10px; color:#9ca3af; pointer-events:none;">&#9662;</span>
+                        </button>
+                        <div class="persona-custom-select-menu">
+                          <button type="button" class="persona-custom-select-option" onclick="SConnect.selectPersonaPronouns(event, '${p.id}', 'He/Him')">He/Him</button>
+                          <button type="button" class="persona-custom-select-option" onclick="SConnect.selectPersonaPronouns(event, '${p.id}', 'She/Her')">She/Her</button>
+                          <button type="button" class="persona-custom-select-option" onclick="SConnect.selectPersonaPronouns(event, '${p.id}', 'They/Them')">They/Them</button>
+                          <button type="button" class="persona-custom-select-option" onclick="SConnect.selectPersonaPronouns(event, '${p.id}', 'Any')">Any</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="persona-timestamps-row">Created ${this.formatPersonaDate(p.createdAt)} &middot; Updated ${this.formatPersonaDate(p.updatedAt)}</div>
+
+                    <div class="persona-upper-actions">
+                      <button type="button" class="persona-clone-btn" onclick="SConnect.clonePersona('${p.id}')">Clone persona</button>
+                      <button type="button" class="persona-delete-btn" onclick="SConnect.deletePersona('${p.id}')">Delete</button>
+                    </div>
+
+                    <div class="persona-bottom-actions">
+                      <button type="button" class="persona-cancel-btn" onclick="SConnect.togglePersonaAccordion('${p.id}')">Cancel</button>
+                      <button type="button" class="persona-save-btn" id="persona-save-btn-${p.id}" onclick="SConnect.saveCustomPersona('${p.id}')">Save Changes</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
     },
 
     // -------------------------------------------------------------------------
@@ -1679,20 +2483,93 @@
     // JANITOR ROLEPLAY CHAT SYSTEM & PARSER
     // -------------------------------------------------------------------------
     getPersonas() {
+      let personas = [];
       try {
-        const p = JSON.parse(localStorage.getItem('s_connect_personas') || '[]');
-        if (p && p.length) return p;
-      } catch (e) {}
-      const defaultPersonas = [
-        {
+        personas = JSON.parse(localStorage.getItem('s_connect_personas') || '[]');
+        if (!Array.isArray(personas)) personas = [];
+      } catch (e) {
+        personas = [];
+      }
+
+      const userName = (localStorage.getItem('singularity_user_name') || 'Insomniac').trim() || 'Operator';
+      const userAvatar = (localStorage.getItem('singularity_user_avatar') || localStorage.getItem('singularity_user_avatar_url') || DEFAULT_AVATAR).trim();
+
+      let defaultPersona = personas.find(p => p && (p.id === 'persona_default' || p.isDefault));
+      if (!defaultPersona) {
+        defaultPersona = {
           id: 'persona_default',
-          name: 'Ayame',
-          avatar: '/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg',
-          description: 'Ayame is visiting the club tonight, dressed comfortably yet stylishly, with quiet curiosity.'
+          isDefault: true,
+          name: userName,
+          avatar: userAvatar,
+          description: 'Nice guy',
+          group: 'All',
+          pronouns: 'He/Him',
+          createdAt: Date.now() - 86400000 * 90,
+          updatedAt: Date.now() - 86400000 * 10
+        };
+        personas.unshift(defaultPersona);
+      } else {
+        defaultPersona.name = userName;
+        defaultPersona.avatar = userAvatar;
+        defaultPersona.isDefault = true;
+      }
+
+      // Sanitize legacy mock groups so only user-created groups and 'All' exist
+      personas.forEach(p => {
+        if (p && p.group && ['new-age', 'sex', 'anime'].includes(p.group.toLowerCase())) {
+          p.group = 'Ungrouped';
         }
-      ];
-      localStorage.setItem('s_connect_personas', JSON.stringify(defaultPersonas));
-      return defaultPersonas;
+      });
+
+      // Seed sample personas from reference on first load if only default exists
+      if (personas.length === 1 && !localStorage.getItem('s_connect_personas_seeded')) {
+        const samples = [
+          {
+            id: 'persona_kenji',
+            name: 'Kenji',
+            avatar: '/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg',
+            description: 'Kenji, white hair, sunglasses, cocky',
+            group: 'Ungrouped',
+            pronouns: 'He/Him',
+            createdAt: Date.now() - 86400000 * 60,
+            updatedAt: Date.now() - 86400000 * 5
+          },
+          {
+            id: 'persona_loid',
+            name: 'Loid',
+            avatar: '/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg',
+            description: '[Loid\'s Name; ("Loid Forger") Loid\'s hair color ("Blond" + "Short" + "Undercut")]',
+            group: 'Ungrouped',
+            pronouns: 'He/Him',
+            createdAt: Date.now() - 86400000 * 50,
+            updatedAt: Date.now() - 86400000 * 4
+          },
+          {
+            id: 'persona_yor',
+            name: 'Yor',
+            avatar: '/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg',
+            description: '[Yor\'s Name ("Yor" + "Yor Forger") Yor\'s hair color ("Jet black" + "Long and straight")]',
+            group: 'Ungrouped',
+            pronouns: 'She/Her',
+            createdAt: Date.now() - 86400000 * 40,
+            updatedAt: Date.now() - 86400000 * 2
+          }
+        ];
+        personas.push(...samples);
+        localStorage.setItem('s_connect_personas_seeded', 'true');
+        localStorage.setItem('s_connect_personas', JSON.stringify(personas));
+      }
+
+      return personas;
+    },
+
+    savePersonas(personas) {
+      try {
+        localStorage.setItem('s_connect_personas', JSON.stringify(personas));
+        window.dispatchEvent(new CustomEvent('singularity-cloud-sync-needed'));
+      } catch (e) {
+        console.warn('Failed to save personas:', e);
+      }
     },
 
     getActivePersona() {
@@ -2348,6 +3225,12 @@
       if (!rawText) return '';
       let str = String(rawText);
 
+      // 0. Remove thinking tags if present (e.g. from models outputting <antThinking> or <think>)
+      str = str.replace(/<antThinking>[\s\S]*?<\/antThinking>/gi, '');
+      str = str.replace(/<antThinking>[\s\S]*$/gi, '');
+      str = str.replace(/<think>[\s\S]*?<\/think>/gi, '');
+      str = str.replace(/<think>[\s\S]*$/gi, '');
+
       // 1. Tokenize code blocks & inline code FIRST to protect them from regex formatting
       const codeTokens = [];
       const saveCode = (html) => {
@@ -2405,6 +3288,67 @@
       return paragraphs.join('') || `<p class="rp-para">${str}</p>`;
     },
 
+    getBotChatName(bot) {
+      if (!bot) return 'Character';
+      if (bot.chat_name && typeof bot.chat_name === 'string' && bot.chat_name.trim()) {
+        return bot.chat_name.trim();
+      }
+      if (bot.character_chat_name && typeof bot.character_chat_name === 'string' && bot.character_chat_name.trim()) {
+        return bot.character_chat_name.trim();
+      }
+      if (bot.char_name && typeof bot.char_name === 'string' && bot.char_name.trim()) {
+        return bot.char_name.trim();
+      }
+      if (bot.character_name && typeof bot.character_name === 'string' && bot.character_name.trim()) {
+        return bot.character_name.trim();
+      }
+
+      const raw = String(bot.name || '').trim();
+      if (!raw) return 'Character';
+
+      // Pipe delimiter: e.g. "Still Yours, My Love.. | Nessa" or "Nessa | The Cold Knight"
+      if (raw.includes('|')) {
+        const parts = raw.split('|').map(s => s.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          const p0 = parts[0];
+          const p1 = parts[1];
+          const words0 = p0.split(/\s+/).length;
+          const words1 = p1.split(/\s+/).length;
+          if (words1 <= 3 && p1.length <= 25) return p1;
+          if (words0 <= 3 && p0.length <= 25) return p0;
+          return p1;
+        }
+      }
+
+      // Hyphen / dash delimiter: e.g. "Still Yours - Nessa" or "Nessa - The Cold Knight"
+      if (raw.includes(' - ') || raw.includes(' — ')) {
+        const sep = raw.includes(' - ') ? ' - ' : ' — ';
+        const parts = raw.split(sep).map(s => s.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          const p0 = parts[0];
+          const p1 = parts[1];
+          if (p1.split(/\s+/).length <= 3 && p1.length <= 25) return p1;
+          if (p0.split(/\s+/).length <= 3 && p0.length <= 25) return p0;
+        }
+      }
+
+      // Bracketed name: e.g. "[Nessa] The Cold Knight" or "The Cold Knight [Nessa]"
+      const bracketMatch = raw.match(/\[([A-Z][a-zA-Z0-9_\s]{1,20})\]/);
+      if (bracketMatch && bracketMatch[1]) {
+        return bracketMatch[1].trim();
+      }
+
+      // Long title fallback
+      if (raw.length > 28) {
+        const tokens = raw.split(/[:;,]/);
+        if (tokens.length > 1 && tokens[0].trim().length <= 25) {
+          return tokens[0].trim();
+        }
+      }
+
+      return raw;
+    },
+
     async renderChatView(container, botId) {
       let bot = this.botCache.get(botId) || (this.activeBot && this.activeBot.id === botId ? this.activeBot : null);
       if (!bot) {
@@ -2445,16 +3389,17 @@
       const settings = this.getChatSettings(session.id);
       const greetings = this.getBotGreetings(bot);
       const greetingIdx = (typeof session.greetingIdx === 'number') ? session.greetingIdx : this.getGreetingIndex(bot.id);
+      const charChatName = this.getBotChatName(bot);
 
       let history = this.getChatMessages(session.id);
       if (!history || history.length === 0) {
-        const greetingRaw = greetings[greetingIdx] || greetings[0] || `*${bot.name} stands before you.* "Hey."`;
-        const formattedGreeting = this.replaceMacros(greetingRaw, bot.name, persona.name);
+        const greetingRaw = greetings[greetingIdx] || greetings[0] || `*${charChatName} stands before you.* "Hey."`;
+        const formattedGreeting = this.replaceMacros(greetingRaw, charChatName, persona.name);
         history = [
           {
             id: 'msg_' + Date.now(),
             role: 'assistant',
-            author: bot.name,
+            author: charChatName,
             avatar: bot.avatar || DEFAULT_AVATAR,
             content: formattedGreeting,
             timestamp: Date.now()
@@ -2466,27 +3411,27 @@
       }
 
       const isUnmasked = bot.is_unmasked || bot.isUnmasked || false;
-      const bgImg = settings.customBg || bot.avatar || '';
+      const bgImg = settings.customBg || ''; // Base background image of chat is black screen unless customBg is set
 
       container.innerHTML = `
         <div class="janitor-chat-view" id="janitor-chat-view">
           <!-- Background image layer with opacity & blur -->
-          <div class="janitor-chat-bg-layer" id="janitor-chat-bg-layer" style="background-image: url('${bgImg}'); opacity: ${settings.bgOpacity / 100}; filter: blur(${settings.bgBlur}px);"></div>
+          <div class="janitor-chat-bg-layer" id="janitor-chat-bg-layer" style="${bgImg ? `background-image: url('${bgImg}');` : ''} opacity: ${settings.bgOpacity / 100}; filter: blur(${settings.bgBlur}px);"></div>
 
           <!-- Top Sticky Header (Exact match to screenshot) -->
           <header class="janitor-chat-header">
-            <button class="janitor-chat-back-btn" onclick="SConnect.navigateBack()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            <button class="janitor-chat-back-btn" onclick="SConnect.navigateBack()" title="Back">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"></polyline></svg>
               <span>Back</span>
             </button>
 
-            <div class="janitor-chat-title" onclick="SConnect.navigate('bot', { id: '${bot.id}' })" title="View Bot Card Details">
+            <div class="janitor-chat-title" onclick="SConnect.navigate('bot', { id: '${bot.id}' })" title="View Bot Card Details: ${this.escapeHTML(bot.name)}">
               ${isUnmasked ? ICONS.unlock : ICONS.lock}
-              <span>${this.escapeHTML(bot.name)}</span>
+              <span class="janitor-header-bot-name">${this.escapeHTML(charChatName)}</span>
             </div>
 
             <div class="janitor-chat-header-actions">
-              <div class="janitor-proxy-pill" onclick="SConnect.openChatSettingsModal('${bot.id}')" title="Gateway proxy active">
+              <div class="janitor-proxy-pill" onclick="SConnect.openChatSettingsModal('${bot.id}')" title="Proxy settings">
                 <span>using proxy</span>
               </div>
               <div class="janitor-header-menu-anchor" id="janitor-header-menu-anchor">
@@ -2579,6 +3524,66 @@
               <div class="janitor-sheet-content">
                 <!-- 1. SETTINGS TAB (Screenshot 3) -->
                 <div class="janitor-tab-panel is-active" id="panel-settings">
+                  <!-- Model & Intelligence (Custom Selector & Thinking Slider) -->
+                  <div class="janitor-card-group">
+                    <div class="janitor-card-title-row">
+                      <span class="janitor-card-heading">Model &amp; Intelligence</span>
+                      <span class="janitor-active-model-badge" id="janitor-active-model-badge">${settings.model || 'kimi-k3'}</span>
+                    </div>
+
+                    <!-- Custom Model Selector -->
+                    <div class="janitor-custom-model-selector" id="janitor-model-selector-wrap">
+                      <label class="janitor-field-label">Active Model</label>
+                      <input type="hidden" id="janitor-chat-model-val" value="${settings.model || 'kimi-k3'}" />
+                      <div class="janitor-model-trigger" id="janitor-model-trigger" onclick="SConnect.toggleChatModelDropdown(event)">
+                        <div class="janitor-model-trigger-left">
+                          <span class="janitor-model-provider-dot"></span>
+                          <span class="janitor-model-trigger-name" id="janitor-model-trigger-name">${settings.model || 'kimi-k3'}</span>
+                        </div>
+                        <span class="janitor-model-chevron">${ICONS.chevronDown}</span>
+                      </div>
+                      
+                      <!-- Custom Popover Dropdown -->
+                      <div class="janitor-model-dropdown-menu" id="janitor-model-dropdown-menu" style="display: none;">
+                        <div class="janitor-model-search-box">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                          <input type="text" id="janitor-model-search-input" placeholder="Search models (kimi, deepseek, gpt, claude)..." oninput="SConnect.filterChatModelOptions(this.value)" />
+                        </div>
+                        <div class="janitor-model-options-list" id="janitor-model-options-list">
+                          <!-- Populated dynamically -->
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Thinking Budget Range Slider & Presets (Identical to Playground) -->
+                    <div class="janitor-slider-row" style="margin-top: 14px;">
+                      <div class="janitor-slider-header">
+                        <span class="janitor-slider-label">Thinking Budget Cap</span>
+                        <span class="janitor-slider-badge" id="janitor-thinking-val">${(settings.thinking_budget > 0) ? (Number(settings.thinking_budget).toLocaleString() + ' tokens') : 'Off (0)'}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        id="janitor-thinking-slider" 
+                        class="janitor-purple-slider" 
+                        min="0" 
+                        max="65536" 
+                        step="1024" 
+                        value="${settings.thinking_budget || 0}" 
+                        oninput="SConnect.onChatThinkingSliderInput(this.value)" 
+                      />
+                      <div class="janitor-thinking-presets-row" id="janitor-thinking-presets">
+                        <button type="button" class="janitor-preset-btn ${(!settings.thinking_budget || settings.thinking_budget === 0) ? 'active' : ''}" data-tokens="0" onclick="SConnect.setChatThinkingPreset(0)">Off</button>
+                        <button type="button" class="janitor-preset-btn ${settings.thinking_budget === 2048 ? 'active' : ''}" data-tokens="2048" onclick="SConnect.setChatThinkingPreset(2048)">2K</button>
+                        <button type="button" class="janitor-preset-btn ${settings.thinking_budget === 4096 ? 'active' : ''}" data-tokens="4096" onclick="SConnect.setChatThinkingPreset(4096)">4K</button>
+                        <button type="button" class="janitor-preset-btn ${settings.thinking_budget === 8192 ? 'active' : ''}" data-tokens="8192" onclick="SConnect.setChatThinkingPreset(8192)">8K</button>
+                        <button type="button" class="janitor-preset-btn ${settings.thinking_budget === 16384 ? 'active' : ''}" data-tokens="16384" onclick="SConnect.setChatThinkingPreset(16384)">16K</button>
+                        <button type="button" class="janitor-preset-btn ${settings.thinking_budget === 32768 ? 'active' : ''}" data-tokens="32768" onclick="SConnect.setChatThinkingPreset(32768)">32K</button>
+                        <button type="button" class="janitor-preset-btn ${settings.thinking_budget === 65536 ? 'active' : ''}" data-tokens="65536" onclick="SConnect.setChatThinkingPreset(65536)">64K</button>
+                      </div>
+                      <span class="janitor-slider-sub">Controls internal reasoning/thinking budget for models supporting CoT (Kimi K3, DeepSeek R1, GPT-5 Thinking, Claude 3.7 Thinking, Gemini 3.8 Flash).</span>
+                    </div>
+                  </div>
+
                   <div class="janitor-card-group">
                     <div class="janitor-nav-row" onclick="SConnect.cycleGlobalPrompt('${bot.id}')">
                       <span class="janitor-nav-label">Global prompt</span>
@@ -2776,7 +3781,7 @@
 
     renderMessageRowHtml(msg, idx, bot, persona) {
       const isBot = msg.role === 'assistant';
-      const author = isBot ? (bot.name || 'Character') : (persona ? persona.name : 'You');
+      const author = isBot ? this.getBotChatName(bot) : (persona ? persona.name : 'You');
       const avatar = isBot ? (bot.avatar || DEFAULT_AVATAR) : (persona && persona.avatar ? persona.avatar : DEFAULT_AVATAR);
       const parsedBody = this.parseJanitorChatMarkdown(msg.content);
 
@@ -2878,10 +3883,11 @@
 
       // Add assistant placeholder
       const botMsgId = 'msg_' + (Date.now() + 1);
+      const botAuthorName = this.getBotChatName(bot);
       const botPlaceholder = {
         id: botMsgId,
         role: 'assistant',
-        author: bot.name,
+        author: botAuthorName,
         avatar: bot.avatar || DEFAULT_AVATAR,
         content: '',
         timestamp: Date.now()
@@ -2891,11 +3897,11 @@
         const placeholderHtml = `
           <div class="janitor-msg-row janitor-bot-row is-streaming" id="janitor-msg-${botMsgId}">
             <div class="janitor-avatar-col">
-              <img src="${bot.avatar || DEFAULT_AVATAR}" class="janitor-msg-avatar" alt="${this.escapeHTML(bot.name)}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
+              <img src="${bot.avatar || DEFAULT_AVATAR}" class="janitor-msg-avatar" alt="${this.escapeHTML(botAuthorName)}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
             </div>
             <div class="janitor-msg-content-col">
               <div class="janitor-msg-meta">
-                <span class="janitor-msg-author">${this.escapeHTML(bot.name)}</span>
+                <span class="janitor-msg-author">${this.escapeHTML(botAuthorName)}</span>
                 <span class="janitor-sound-icon" title="Voice / Audio">${ICONS.volume}</span>
               </div>
               <div class="janitor-msg-body" id="body-${botMsgId}">
@@ -2972,7 +3978,8 @@
         formattedMsgs.push({ role: 'assistant', content: settings.prefill.trim() });
       }
 
-      const activeModel = localStorage.getItem('s_connect_chat_model') || 'gpt-4o-mini';
+      const activeModel = settings.model || localStorage.getItem('s_connect_chat_model') || 'kimi-k3';
+      const thinkingBudget = parseInt(settings.thinking_budget !== undefined ? settings.thinking_budget : (localStorage.getItem('s_connect_thinking_budget') || 0), 10);
       const bodyEl = document.getElementById(`body-${botMsgId}`);
 
       // 7. Request Payload with Working Generation Parameters
@@ -2981,6 +3988,10 @@
         messages: formattedMsgs,
         temperature: Number(settings.temperature)
       };
+
+      if (thinkingBudget > 0) {
+        payload.thinking_budget = thinkingBudget;
+      }
 
       if (Number(settings.max_tokens) > 0) {
         payload.max_tokens = Number(settings.max_tokens);
@@ -3322,7 +4333,9 @@
         textStreaming: true,
         bgOpacity: 100,
         bgBlur: 0,
-        customBg: ''
+        customBg: '',
+        model: localStorage.getItem('s_connect_chat_model') || 'kimi-k3',
+        thinking_budget: parseInt(localStorage.getItem('s_connect_thinking_budget') || '0', 10)
       };
 
       if (!targetId) return defaults;
@@ -3360,6 +4373,12 @@
     },
 
     saveChatSettings(targetId, settings) {
+      if (settings.model) {
+        localStorage.setItem('s_connect_chat_model', settings.model);
+      }
+      if (settings.thinking_budget !== undefined) {
+        localStorage.setItem('s_connect_thinking_budget', String(settings.thinking_budget));
+      }
       localStorage.setItem(`s_connect_settings_${targetId}`, JSON.stringify(settings));
 
       let session = null;
@@ -3376,11 +4395,19 @@
         session.summary = settings.memorySummary && settings.memorySummary.trim() ? settings.memorySummary.trim() : 'no summary :(';
         this.updateChatSessionMeta(session);
       }
+
+      window.dispatchEvent(new CustomEvent('singularity-cloud-sync-needed'));
+      window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
     },
 
     openChatSettingsModal(botId) {
       const modal = document.getElementById('janitor-settings-modal');
       if (modal) modal.classList.add('is-open');
+      const wrap = document.getElementById('janitor-model-selector-wrap');
+      if (wrap) wrap.classList.remove('is-open');
+      const menu = document.getElementById('janitor-model-dropdown-menu');
+      if (menu) menu.style.display = 'none';
+      this.populateChatModelList();
     },
 
     closeSettingsModal() {
@@ -3603,6 +4630,16 @@
     saveAllChatSettings(botId) {
       const settings = this.getChatSettings(botId);
 
+      const modelVal = document.getElementById('janitor-chat-model-val');
+      if (modelVal && modelVal.value) {
+        settings.model = modelVal.value;
+      }
+
+      const thinkingSlider = document.getElementById('janitor-thinking-slider');
+      if (thinkingSlider) {
+        settings.thinking_budget = parseInt(thinkingSlider.value, 10) || 0;
+      }
+
       const tempNum = document.getElementById('gen-temp-num');
       if (tempNum) settings.temperature = parseFloat(tempNum.value) || 1.0;
 
@@ -3648,6 +4685,131 @@
       }
 
       this.closeSettingsModal();
+    },
+
+    async getAvailableModelsList() {
+      if (window.state && Array.isArray(window.state.models) && window.state.models.length > 0) {
+        return window.state.models;
+      }
+      try {
+        const res = await fetch('/api/models');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.models)) {
+            if (window.state) window.state.models = data.models;
+            return data.models;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch /api/models:', e);
+      }
+      return [
+        { id: 'kimi-k3', name: 'Kimi K3 (Roleplay & Reasoning)', provider: 'kimi' },
+        { id: 'kimi-k3-thinking', name: 'Kimi K3 Thinking', provider: 'kimi' },
+        { id: 'deepseek-v4', name: 'DeepSeek V4', provider: 'deepseek' },
+        { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', provider: 'deepseek' },
+        { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'deepseek' },
+        { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', provider: 'chatgpt' },
+        { id: 'gpt-5-6-mini', name: 'GPT-5.6 Mini', provider: 'chatgpt' },
+        { id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'claude' },
+        { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'gemini' },
+        { id: 'qwen-max-2025', name: 'Qwen Max 2025', provider: 'qwen' }
+      ];
+    },
+
+    async populateChatModelList(query = '') {
+      const listEl = document.getElementById('janitor-model-options-list');
+      if (!listEl) return;
+      const models = await this.getAvailableModelsList();
+      const currentSelected = document.getElementById('janitor-chat-model-val')?.value || localStorage.getItem('s_connect_chat_model') || 'kimi-k3';
+      const q = (query || '').toLowerCase().trim();
+
+      const filtered = models.filter(m => {
+        if (!q) return true;
+        const id = (m.id || '').toLowerCase();
+        const name = (m.name || '').toLowerCase();
+        const prov = (m.provider || '').toLowerCase();
+        return id.includes(q) || name.includes(q) || prov.includes(q);
+      });
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<div style="padding:12px; text-align:center; color:#9ca3af; font-size:0.82rem;">No matching models found</div>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(m => {
+        const isSelected = m.id === currentSelected;
+        return `
+          <div class="janitor-model-option-item ${isSelected ? 'is-selected' : ''}" onclick="SConnect.selectChatModel('${this.escapeHTML(m.id)}', '${this.escapeHTML(m.name || m.id)}')">
+            <div class="janitor-model-opt-info">
+              <span class="janitor-model-opt-title">${this.escapeHTML(m.name || m.id)}</span>
+              <span class="janitor-model-opt-meta">${this.escapeHTML(m.id)} &bull; ${this.escapeHTML(m.provider || 'AI')}</span>
+            </div>
+            ${isSelected ? '<span class="janitor-model-opt-tag">Active</span>' : ''}
+          </div>
+        `;
+      }).join('');
+    },
+
+    toggleChatModelDropdown(event) {
+      if (event) event.stopPropagation();
+      const menu = document.getElementById('janitor-model-dropdown-menu');
+      const wrap = document.getElementById('janitor-model-selector-wrap');
+      if (!menu || !wrap) return;
+      const isOpen = menu.style.display !== 'none';
+      if (isOpen) {
+        menu.style.display = 'none';
+        wrap.classList.remove('is-open');
+      } else {
+        menu.style.display = 'flex';
+        wrap.classList.add('is-open');
+        this.populateChatModelList();
+        const searchInput = document.getElementById('janitor-model-search-input');
+        if (searchInput) {
+          searchInput.value = '';
+          setTimeout(() => searchInput.focus(), 50);
+        }
+      }
+    },
+
+    filterChatModelOptions(query) {
+      this.populateChatModelList(query);
+    },
+
+    selectChatModel(modelId, modelName) {
+      const valInput = document.getElementById('janitor-chat-model-val');
+      if (valInput) valInput.value = modelId;
+      const triggerName = document.getElementById('janitor-model-trigger-name');
+      if (triggerName) triggerName.textContent = modelName || modelId;
+      const badge = document.getElementById('janitor-active-model-badge');
+      if (badge) badge.textContent = modelId;
+
+      localStorage.setItem('s_connect_chat_model', modelId);
+
+      const menu = document.getElementById('janitor-model-dropdown-menu');
+      const wrap = document.getElementById('janitor-model-selector-wrap');
+      if (menu) menu.style.display = 'none';
+      if (wrap) wrap.classList.remove('is-open');
+    },
+
+    onChatThinkingSliderInput(val) {
+      const tokens = parseInt(val, 10) || 0;
+      const label = document.getElementById('janitor-thinking-val');
+      if (label) {
+        label.textContent = tokens > 0 ? `${tokens.toLocaleString()} tokens` : 'Off (0)';
+      }
+      const btns = document.querySelectorAll('#janitor-thinking-presets .janitor-preset-btn');
+      btns.forEach(b => {
+        const btnTok = parseInt(b.dataset.tokens, 10);
+        b.classList.toggle('active', btnTok === tokens);
+      });
+      localStorage.setItem('s_connect_thinking_budget', String(tokens));
+    },
+
+    setChatThinkingPreset(tokens) {
+      const slider = document.getElementById('janitor-thinking-slider');
+      if (slider) slider.value = tokens;
+      this.onChatThinkingSliderInput(tokens);
     },
 
     toggleChatDrawer(botId) {
@@ -4211,6 +5373,119 @@
       text = text.replace(/(?:<p[^>]*>\s*(?:&nbsp;|<br\s*\/?>)?\s*<\/p>\s*){2,}/gi, '');
 
       return text.replace(/\uE000TOK\d+\uE001/g, '');
+    },
+
+    toggleCustomSelect(wrapId, e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      const wrap = document.getElementById(wrapId);
+      if (!wrap) return;
+      const isOpen = wrap.classList.contains('open');
+
+      document.querySelectorAll('.claude-custom-select-wrap.open').forEach(el => {
+        el.classList.remove('open');
+      });
+      document.querySelectorAll('.claude-custom-select-menu.open').forEach(el => {
+        el.classList.remove('open');
+      });
+
+      if (!isOpen) {
+        wrap.classList.add('open');
+        const menu = wrap.querySelector('.claude-custom-select-menu');
+        if (menu) menu.classList.add('open');
+      }
+    },
+
+    renderDossierSnippet(raw, botId) {
+      if (!raw) return '<p><em>No description provided.</em></p>';
+
+      const fullHtml = this.renderRichText(raw);
+
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(`<div id="dossier-snippet-root">${fullHtml}</div>`, 'text/html');
+        const root = doc.getElementById('dossier-snippet-root') || doc.body;
+
+        const plainText = (root.textContent || '').trim();
+        const TARGET_LIMIT = 150;
+
+        if (plainText.length <= TARGET_LIMIT) {
+          return root.innerHTML;
+        }
+
+        let charCount = 0;
+        let cutDone = false;
+
+        const traverse = (node) => {
+          if (cutDone) {
+            node.remove();
+            return;
+          }
+
+          if (node.nodeType === Node.TEXT_NODE) {
+            const text = node.textContent;
+            if (charCount + text.length > TARGET_LIMIT) {
+              const remaining = Math.max(0, TARGET_LIMIT - charCount);
+              let cutIdx = -1;
+
+              // Flexible window search: look ahead up to 60 chars for sentence ends [.!?]
+              const sub = text.slice(remaining, Math.min(text.length, remaining + 60));
+              const punctMatch = sub.search(/[.!?](\s+|$)/);
+              if (punctMatch !== -1) {
+                cutIdx = remaining + punctMatch + 1;
+              } else {
+                // If no sentence end, look for comma, semicolon or whitespace
+                const commaMatch = sub.search(/[,;](\s+|$)/);
+                if (commaMatch !== -1) {
+                  cutIdx = remaining + commaMatch;
+                } else {
+                  const spaceMatch = sub.search(/\s+/);
+                  if (spaceMatch !== -1) {
+                    cutIdx = remaining + spaceMatch;
+                  } else {
+                    cutIdx = Math.min(text.length, remaining + 30);
+                  }
+                }
+              }
+
+              node.textContent = text.slice(0, cutIdx).trimEnd() + '...';
+              charCount += cutIdx;
+              cutDone = true;
+            } else {
+              charCount += text.length;
+            }
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = node.tagName.toLowerCase();
+            // In chat snippet, don't include audio/video or iframe embeds
+            if (['audio', 'video', 'iframe', 'style', 'script', 'form'].includes(tag)) {
+              node.remove();
+              return;
+            }
+
+            const children = Array.from(node.childNodes);
+            for (const child of children) {
+              if (cutDone) {
+                child.remove();
+              } else {
+                traverse(child);
+              }
+            }
+
+            // Remove empty non-void tags
+            if (!['br', 'hr', 'img'].includes(tag) && node.childNodes.length === 0) {
+              node.remove();
+            }
+          }
+        };
+
+        traverse(root);
+        return root.innerHTML;
+      } catch (e) {
+        console.warn('[renderDossierSnippet] fallback', e);
+        return this.escapeHTML(String(raw).slice(0, 300)) + '...';
+      }
     }
   };
 

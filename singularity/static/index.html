@@ -23,17 +23,17 @@
 
   <link rel="stylesheet" href="/static/tokens.css?v=60" />
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css?v=1" />
-  <link rel="stylesheet" href="/static/style.css?v=75" />
+  <link rel="stylesheet" href="/static/style.css?v=77" />
   <link rel="stylesheet" href="/static/tool-steps.css?v=5" />
   <link rel="stylesheet" href="/static/message-controls.css?v=3" />
   <link rel="stylesheet" href="/static/chat-management.css?v=1" />
   <link rel="stylesheet" href="/static/chat-modes.css?v=6" />
   <link rel="stylesheet" href="/static/presets.css?v=9" />
-  <link rel="stylesheet" href="/static/glass-dock.css?v=62" />
+  <link rel="stylesheet" href="/static/glass-dock.css?v=65" />
   <link rel="stylesheet" href="/static/preloader.css?v=1" />
   <link rel="stylesheet" href="/static/janitor-bio.css?v=1" />
   <link rel="stylesheet" href="/static/updates.css?v=1" />
-  <link rel="stylesheet" href="/static/connect.css?v=9" />
+  <link rel="stylesheet" href="/static/connect.css?v=23" />
   <link rel="stylesheet" href="/static/login-portal.css?v=1" />
   <!-- Immediate Auth URL Hash Cleaner: Instantly capture & strip #access_token hashes so they never linger in address bar -->
   <script>
@@ -994,11 +994,11 @@
             <!-- Hero Status Banner -->
             <div class="gateway-hero" id="tunnel-hero">
               <div class="gateway-hero-header">
-                <div>
-                  <h3 style="font-size: 18px; font-weight: 700;" id="tunnel-status-title">Singularity-Access</h3>
+                <div class="tunnel-title-wrap">
+                  <h3 id="tunnel-status-title">Singularity-Access</h3>
                 </div>
 
-                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <div class="tunnel-actions-wrap">
                   <button class="btn btn-primary btn-sm" id="btn-toggle-tunnel">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -1092,7 +1092,10 @@
                 </div>
               </div>
 
-              <canvas id="tunnel-globe-canvas"></canvas>
+              <!-- Dedicated Canvas Wrapper for 3D globe -->
+              <div class="tunnel-globe-canvas-wrap">
+                <canvas id="tunnel-globe-canvas"></canvas>
+              </div>
 
               <!-- VengeanceUI Testimonials Card Stack (Ngrok Key Guide) -->
               <div class="tunnel-guide-deck" id="tunnel-guide-deck" aria-label="Ngrok Authtoken Guide">
@@ -1671,39 +1674,52 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
         <!-- 10. S-CONNECT TAB (Domcord Cards Matrix & JanitorAI Bot Hub) -->
         <div class="tab-pane" id="pane-connect">
           <!-- Top Navigation Bar (Exact Domcord Nav Bar) -->
-          <header class="cards-top-nav-bar">
-            <nav class="cards-nav-capsule" role="tablist">
-              <button type="button" class="cards-nav-pill-btn is-active" id="cnav-discover" onclick="SConnect.navigate('discover')" title="Discover" aria-label="Discover">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
-                <span>Discover</span>
+          <header class="cards-top-nav-bar" id="cards-top-nav-bar">
+            <span class="cards-mobile-header-title">S-Connect</span>
+            <button type="button" class="cards-top-back-btn" id="cards-top-back-btn" onclick="SConnect.navigateBack()" title="Back" aria-label="Back">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+              <span>Back</span>
+            </button>
+            <div class="cards-top-user-wrap">
+              <button type="button" class="cards-top-avatar-btn" id="cards-top-avatar-btn" onclick="SConnect.toggleUserMenu(event)" aria-label="User Menu" aria-expanded="false" title="Menu">
+                <span class="cards-top-avatar-box" id="cards-top-avatar-box"></span>
               </button>
-              <button type="button" class="cards-nav-pill-btn" id="cnav-following" onclick="SConnect.navigate('following')" title="Following Feed" aria-label="Following Feed">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                <span>Following Feed</span>
-              </button>
-              <button type="button" class="cards-nav-pill-btn" id="cnav-my-chats" onclick="SConnect.navigate('my-chats')" title="My Chats" aria-label="My Chats">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                <span>My Chats</span>
-              </button>
-              <button type="button" class="cards-nav-pill-btn" id="cnav-creators" onclick="SConnect.navigate('creators')" title="Creators" aria-label="Creators">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                <span>Creators</span>
-              </button>
-              <button type="button" class="cards-nav-pill-btn" id="cnav-library" onclick="SConnect.navigate('library')" title="Library" aria-label="Library">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-                <span>Library</span>
-              </button>
-              <button type="button" class="cards-nav-pill-btn" id="cnav-interceptor" onclick="SConnect.navigate('interceptor')" title="Interceptor" aria-label="Interceptor">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                <span>Interceptor</span>
-              </button>
-            </nav>
+              <div class="cards-top-user-dropdown" id="cards-top-user-dropdown" role="menu">
+                <button type="button" class="cards-top-menu-item" onclick="SConnect.selectUserMenuItem('creators')" role="menuitem">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                  <span>Creators Followed</span>
+                </button>
+                <button type="button" class="cards-top-menu-item" onclick="SConnect.selectUserMenuItem('personas')" role="menuitem">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                  <span>My Personas</span>
+                </button>
+              </div>
+            </div>
           </header>
 
           <!-- Main Dynamic Container for Views (Discover, Detail, Creators, etc.) -->
           <main id="connect-main-view" class="cards-app-container">
             <!-- Dynamically populated by SConnect -->
           </main>
+
+          <nav class="cards-nav-capsule" role="tablist">
+            <button type="button" class="cards-nav-pill-btn is-active" id="cnav-discover" onclick="SConnect.navigate('discover')" title="Discover" aria-label="Discover">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
+              <span>Discover</span>
+            </button>
+            <button type="button" class="cards-nav-pill-btn" id="cnav-following" onclick="SConnect.navigate('following')" title="Following Feed" aria-label="Following Feed">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              <span>Following Feed</span>
+            </button>
+            <button type="button" class="cards-nav-pill-btn" id="cnav-my-chats" onclick="SConnect.navigate('my-chats')" title="My Chats" aria-label="My Chats">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              <span>My Chats</span>
+            </button>
+            <button type="button" class="cards-nav-pill-btn" id="cnav-library" onclick="SConnect.navigate('library')" title="Library" aria-label="Library">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+              <span>Library</span>
+            </button>
+          </nav>
         </div>
       </section>
     </main>
@@ -2428,10 +2444,10 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
   <script src="/static/vendor/supabase.min.js"></script>
   <script src="/static/supabase-sync.js?v=4"></script>
   <script src="/static/app.js?v=78"></script>
-  <script src="/static/glass-dock.js?v=62"></script>
+  <script src="/static/glass-dock.js?v=63"></script>
   <script src="/static/janitor-bio.js?v=1"></script>
   <script src="/static/updates-panel.js?v=1"></script>
-  <script src="/static/connect-panel.js?v=10"></script>
+  <script src="/static/connect-panel.js?v=23"></script>
 </body>
 
 </html>

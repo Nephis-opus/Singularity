@@ -227,8 +227,65 @@
     }
 
     if (sbOpen && sbEl) {
+      updateSidebarProfile();
       const active = sbEl.querySelector('.m-sidebar-item.active');
       if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function resolveUserProfile() {
+    let name = (localStorage.getItem('singularity_user_name') || '').trim();
+    let avatar = (localStorage.getItem('singularity_user_avatar') || '').trim();
+
+    // Check S-Connect active persona if not set or default 'Operator'
+    if (!name || name.toLowerCase() === 'operator') {
+      try {
+        const activePersonaId = localStorage.getItem('s_connect_active_persona_id') || localStorage.getItem('s_connect_active_persona');
+        const rawPersonas = localStorage.getItem('s_connect_personas');
+        if (rawPersonas) {
+          const personas = JSON.parse(rawPersonas);
+          const active = (Array.isArray(personas) && personas.find(p => p.id === activePersonaId)) || (Array.isArray(personas) && personas[0]);
+          if (active && active.name && active.name.trim()) {
+            name = active.name.trim();
+            if (!avatar && active.avatar) avatar = active.avatar.trim();
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!name || name.toLowerCase() === 'operator') {
+      const alt = (localStorage.getItem('singularity_user_profile_name') || '').trim();
+      if (alt) name = alt;
+    }
+    if (!avatar) {
+      avatar = (localStorage.getItem('singularity_user_avatar_url') || '').trim();
+    }
+
+    if (!name) name = 'Operator';
+    return { name, avatar };
+  }
+
+  function updateSidebarProfile() {
+    if (!sbEl) return;
+    const profile = resolveUserProfile();
+    const isCloud = localStorage.getItem('singularity_cloud_authenticated') === 'true';
+
+    const nameEl = sbEl.querySelector('.m-sidebar-user-name');
+    if (nameEl) nameEl.textContent = profile.name;
+
+    const badgeEl = sbEl.querySelector('.m-sidebar-user-badge');
+    if (badgeEl) {
+      badgeEl.className = `m-sidebar-user-badge ${isCloud ? 'cloud' : 'local'}`;
+      badgeEl.textContent = isCloud ? 'Cloud Synced' : 'Offline Vault';
+    }
+
+    const avatarBox = sbEl.querySelector('#m-sidebar-avatar-box');
+    if (avatarBox) {
+      if (profile.avatar) {
+        avatarBox.innerHTML = `<img src="${profile.avatar}" alt="${profile.name}" />`;
+      } else {
+        avatarBox.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+      }
     }
   }
 
@@ -263,43 +320,15 @@
     sbEl.setAttribute('aria-label', 'Main navigation');
     sbEl.setAttribute('aria-hidden', 'true');
 
-    // Sidebar Header: Logo & Branding
+    // Sidebar Header: Logo & Branding (Subtitle removed per user request)
     const head = document.createElement('div');
     head.className = 'm-sidebar-head';
     head.innerHTML = `
       <img class="m-sidebar-logo" src="/logo.svg" alt="Singularity" />
       <div class="m-sidebar-brand">
         <span class="m-sidebar-title">Singularity</span>
-        <span class="m-sidebar-sub">Unified AI Gateway</span>
       </div>`;
     sbEl.appendChild(head);
-
-    // Primary CTA: + New Chat (matching Claude & ChatGPT mobile apps)
-    const newChatCta = document.createElement('div');
-    newChatCta.className = 'm-sidebar-cta-wrap';
-    newChatCta.innerHTML = `
-      <button type="button" class="m-sidebar-new-chat-btn" id="m-btn-new-chat">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        <span>New Chat</span>
-      </button>
-    `;
-    const newChatBtn = newChatCta.querySelector('#m-btn-new-chat');
-    newChatBtn.addEventListener('click', () => {
-      triggerHaptic(12);
-      sbSetOpen(false);
-      window.switchTab?.('playground');
-      const clearBtn = document.getElementById('btn-clear-chat');
-      if (clearBtn) clearBtn.click();
-      const input = document.getElementById('chat-input');
-      if (input) {
-        input.value = '';
-        input.focus();
-      }
-    });
-    sbEl.appendChild(newChatCta);
 
     // Navigation Items List
     const list = document.createElement('nav');
@@ -326,17 +355,16 @@
     const foot = document.createElement('div');
     foot.className = 'm-sidebar-foot';
 
-    const userName = localStorage.getItem('singularity_user_profile_name') || 'Operator';
+    const userProfile = resolveUserProfile();
     const isCloud = localStorage.getItem('singularity_cloud_authenticated') === 'true';
-    const userAvatar = localStorage.getItem('singularity_user_avatar_url') || '';
 
     foot.innerHTML = `
       <div class="m-sidebar-profile-card">
         <div class="m-sidebar-avatar-circle" id="m-sidebar-avatar-box">
-          ${userAvatar ? `<img src="${userAvatar}" alt="${userName}" />` : `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`}
+          ${userProfile.avatar ? `<img src="${userProfile.avatar}" alt="${userProfile.name}" />` : `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`}
         </div>
         <div class="m-sidebar-user-details" id="m-sidebar-user-details">
-          <span class="m-sidebar-user-name">${userName}</span>
+          <span class="m-sidebar-user-name">${userProfile.name}</span>
           <span class="m-sidebar-user-badge ${isCloud ? 'cloud' : 'local'}">${isCloud ? 'Cloud Synced' : 'Offline Vault'}</span>
         </div>
         <button type="button" class="m-sidebar-gear-btn" id="m-sidebar-gear-btn" aria-label="Settings" title="Open Settings">
@@ -362,6 +390,10 @@
     document.body.appendChild(sbEl);
     document.body.appendChild(sbToggle);
     sbSetProgress(0);
+
+    // Sync profile on events
+    window.addEventListener('singularity-settings-updated', updateSidebarProfile);
+    window.addEventListener('storage', updateSidebarProfile);
 
     // Esc closes
     document.addEventListener('keydown', (e) => {

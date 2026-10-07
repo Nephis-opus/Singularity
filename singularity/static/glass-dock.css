@@ -1660,46 +1660,61 @@ html.theme-transitioning *::after {
     padding-left: 58px !important;
   }
 
-  /* 4. Toggle button (morphing burger -> X) */
+  /* Chat Mode: strictly suppress mobile sidebar toggle and drawer */
+  body.is-janitor-chat-active .m-sidebar-toggle,
+  html.is-janitor-chat-active .m-sidebar-toggle,
+  body.is-janitor-chat-active #singularity-sidebar-toggle,
+  html.is-janitor-chat-active #singularity-sidebar-toggle,
+  body.is-janitor-chat-active .m-sidebar,
+  body.is-janitor-chat-active #singularity-mobile-sidebar,
+  body.is-janitor-chat-active .m-sidebar-scrim {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  /* 4. Toggle button (morphing burger -> X, borderless & clean) */
   .m-sidebar-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
     position: fixed;
-    top: calc(10px + env(safe-area-inset-top, 0px));
-    left: 10px;
-    width: 42px;
-    height: 42px;
+    top: calc(6px + env(safe-area-inset-top, 0px));
+    left: 8px;
+    width: 40px;
+    height: 40px;
     padding: 0;
-    border-radius: 14px;
-    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
-    background: rgba(20, 20, 20, 0.72);
-    -webkit-backdrop-filter: blur(16px) saturate(180%);
-    backdrop-filter: blur(16px) saturate(180%);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-    color: #fff;
+    border-radius: 0;
+    border: none !important;
+    background: transparent !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    color: var(--text-primary, #ffffff);
     z-index: 100002;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    transition: background-color 0.25s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   [data-theme="light"] .m-sidebar-toggle {
-    background: rgba(255, 255, 255, 0.82);
+    background: transparent !important;
     color: #1c1917;
-    border-color: rgba(0, 0, 0, 0.1);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+    border: none !important;
+    box-shadow: none !important;
   }
   .m-sidebar-toggle:active {
-    transform: scale(0.92);
+    transform: scale(0.9);
   }
   .m-sidebar-toggle.open {
-    background: transparent;
-    border-color: transparent;
-    box-shadow: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    color: var(--text-primary, #fff);
+    background: transparent !important;
+    border: none !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    color: var(--text-primary, #fff) !important;
   }
 
   .m-burger {
@@ -1788,7 +1803,7 @@ html.theme-transitioning *::after {
     gap: 12px;
     padding: 14px 16px 14px 66px; /* leaves room for the toggle (now an X) */
     min-height: 66px;
-    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-bottom: none;
   }
   .m-sidebar-logo {
     width: 28px;
@@ -1808,36 +1823,15 @@ html.theme-transitioning *::after {
     color: var(--text-primary, #f5f4f2);
   }
   .m-sidebar-sub {
-    font-size: 11px;
-    color: var(--text-muted, #78716c);
+    display: none;
   }
 
   /* Primary CTA: + New Chat */
   .m-sidebar-cta-wrap {
-    padding: 12px 14px 4px 14px;
+    display: none;
   }
   .m-sidebar-new-chat-btn {
-    width: 100%;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
-    padding: 0 16px;
-    border-radius: 12px;
-    border: 1px solid rgba(217, 119, 87, 0.38);
-    background: rgba(217, 119, 87, 0.14);
-    color: var(--brand-primary, #d97757);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-    transition: background 0.18s ease, transform 0.15s ease;
-  }
-  .m-sidebar-new-chat-btn:active {
-    transform: scale(0.97);
-    background: rgba(217, 119, 87, 0.24);
+    display: none;
   }
 
   .m-sidebar-list {
@@ -1852,7 +1846,7 @@ html.theme-transitioning *::after {
   }
   .m-sidebar-foot {
     padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)) 14px;
-    border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-top: none;
   }
   .m-sidebar-profile-card {
     display: flex;
