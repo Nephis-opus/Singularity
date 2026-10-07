@@ -3,7 +3,10 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#141414" id="theme-color-meta" />
   <title>Singularity</title>
   <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 
@@ -20,17 +23,17 @@
 
   <link rel="stylesheet" href="/static/tokens.css?v=60" />
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css?v=1" />
-  <link rel="stylesheet" href="/static/style.css?v=74" />
+  <link rel="stylesheet" href="/static/style.css?v=75" />
   <link rel="stylesheet" href="/static/tool-steps.css?v=5" />
   <link rel="stylesheet" href="/static/message-controls.css?v=3" />
   <link rel="stylesheet" href="/static/chat-management.css?v=1" />
   <link rel="stylesheet" href="/static/chat-modes.css?v=6" />
   <link rel="stylesheet" href="/static/presets.css?v=9" />
-  <link rel="stylesheet" href="/static/glass-dock.css?v=61" />
+  <link rel="stylesheet" href="/static/glass-dock.css?v=62" />
   <link rel="stylesheet" href="/static/preloader.css?v=1" />
   <link rel="stylesheet" href="/static/janitor-bio.css?v=1" />
   <link rel="stylesheet" href="/static/updates.css?v=1" />
-  <link rel="stylesheet" href="/static/connect.css?v=8" />
+  <link rel="stylesheet" href="/static/connect.css?v=9" />
   <link rel="stylesheet" href="/static/login-portal.css?v=1" />
   <!-- Immediate Auth URL Hash Cleaner: Instantly capture & strip #access_token hashes so they never linger in address bar -->
   <script>
@@ -478,7 +481,12 @@
             <div class="claude-top-bar">
               <div class="claude-top-left"></div>
 
-              <div class="claude-top-center"></div>
+              <div class="claude-top-center">
+                <button type="button" class="claude-top-model-chip" id="claude-top-model-chip" aria-haspopup="dialog" aria-label="Select Model" title="Select Model">
+                  <span class="claude-top-model-name" id="claude-top-model-name">Gpt 5.6 Sol</span>
+                  <svg class="claude-select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+              </div>
 
               <div class="claude-top-right">
                 <!-- Parameters & System Prompt Popover -->
@@ -681,6 +689,14 @@
                 <div class="claude-chat-scroll" id="chat-history">
                   <div class="chat-thread-container"></div>
                 </div>
+
+                <!-- Floating Scroll to Bottom FAB -->
+                <button type="button" class="claude-scroll-bottom-fab" id="btn-scroll-bottom" aria-label="Scroll to latest messages" title="Scroll to bottom">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <polyline points="19 12 12 19 5 12"></polyline>
+                  </svg>
+                </button>
 
                 <!-- Central Claude Flow: Hero Greeting + Input Card + 5 Suggestion Pills -->
                 <div class="claude-flow-wrapper" id="claude-flow-wrap">
@@ -2411,8 +2427,8 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
   <script src="/static/preloader.js?v=1"></script>
   <script src="/static/vendor/supabase.min.js"></script>
   <script src="/static/supabase-sync.js?v=4"></script>
-  <script src="/static/app.js?v=77"></script>
-  <script src="/static/glass-dock.js?v=61"></script>
+  <script src="/static/app.js?v=78"></script>
+  <script src="/static/glass-dock.js?v=62"></script>
   <script src="/static/janitor-bio.js?v=1"></script>
   <script src="/static/updates-panel.js?v=1"></script>
   <script src="/static/connect-panel.js?v=10"></script>

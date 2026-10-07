@@ -4096,11 +4096,11 @@ body.is-janitor-chat-active #sidebar {
 /* --- Floating Bottom Input Bar (Fixed at bottom even when scrolling) --- */
 .janitor-input-floating-bar {
   position: fixed !important;
-  bottom: 22px !important;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px)) !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
-  width: min(1000px, calc(100vw - 48px)) !important;
-  z-index: 100000 !important;
+  width: min(1000px, calc(100vw - 24px)) !important;
+  z-index: 99999 !important;
   background: rgba(18, 18, 22, 0.94) !important;
   backdrop-filter: blur(16px) !important;
   -webkit-backdrop-filter: blur(16px) !important;
@@ -4112,6 +4112,7 @@ body.is-janitor-chat-active #sidebar {
   flex-direction: column;
   gap: 10px;
   box-sizing: border-box;
+  transition: bottom 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .janitor-textarea {
@@ -4120,7 +4121,7 @@ body.is-janitor-chat-active #sidebar {
   border: none;
   outline: none;
   resize: none;
-  font-size: 0.92rem;
+  font-size: 16px;
   color: #f3f4f6;
   font-family: inherit;
   line-height: 1.5;

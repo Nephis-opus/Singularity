@@ -149,6 +149,10 @@ function applyThemePref(pref, animate = true) {
 
   document.documentElement.setAttribute('data-theme', effectiveTheme);
   localStorage.setItem('singularity_theme', effectiveTheme);
+  const themeMeta = document.getElementById('theme-color-meta');
+  if (themeMeta) {
+    themeMeta.setAttribute('content', effectiveTheme === 'light' ? '#fcfbfa' : '#141414');
+  }
 
   // Update 3-icon segmented control UI
   const btnSystem = document.getElementById('btn-theme-system');
@@ -2998,20 +3002,29 @@ function initCustomSelect() {
   if (label) {
     label.textContent = formatModelDisplayName(state.selectedModel);
   }
+  const topLabel = document.getElementById('claude-top-model-name');
+  if (topLabel) {
+    topLabel.textContent = formatModelDisplayName(state.selectedModel);
+  }
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
+    window.triggerHaptic?.(8);
     const isOpen = popover.classList.toggle('open');
     trigger.classList.toggle('active', isOpen);
+    const topChip = document.getElementById('claude-top-model-chip');
+    if (topChip) topChip.classList.toggle('active', isOpen);
     if (isOpen) {
       searchInput.focus();
     }
   });
 
   document.addEventListener('click', (e) => {
-    if (!popover.contains(e.target) && !trigger.contains(e.target)) {
+    const topChip = document.getElementById('claude-top-model-chip');
+    if (!popover.contains(e.target) && !trigger.contains(e.target) && (!topChip || !topChip.contains(e.target))) {
       popover.classList.remove('open');
       trigger.classList.remove('active');
+      if (topChip) topChip.classList.remove('active');
     }
   });
 
@@ -3059,16 +3072,22 @@ function renderCustomSelectOptions(query = '') {
 
   list.querySelectorAll('.select-option').forEach(opt => {
     opt.addEventListener('click', () => {
+      window.triggerHaptic?.(8);
       const modelId = opt.dataset.id;
       state.selectedModel = modelId;
       localStorage.setItem('singularity_selected_model', modelId);
       window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
       const label = document.getElementById('model-select-label');
       if (label) label.textContent = formatModelDisplayName(modelId);
+      const topLabel = document.getElementById('claude-top-model-name');
+      if (topLabel) topLabel.textContent = formatModelDisplayName(modelId);
+      const topChip = document.getElementById('claude-top-model-chip');
+      if (topChip) topChip.classList.remove('active');
       const inputModel = document.getElementById('input-model-name');
       if (inputModel) inputModel.textContent = formatModelDisplayName(modelId);
       document.getElementById('model-select-popover').classList.remove('open');
       document.getElementById('model-select-trigger').classList.remove('active');
+      window.dispatchEvent(new CustomEvent('singularity-bottomsheet-change'));
       renderCustomSelectOptions();
       if (typeof loadModelSettings === 'function') {
         loadModelSettings(modelId);
@@ -3094,6 +3113,10 @@ function selectModelFromParamsModal(modelId) {
   // 2. Update Main Playground model selector & input model
   const mainLabel = document.getElementById('model-select-label');
   if (mainLabel) mainLabel.textContent = formatModelDisplayName(modelId);
+  const topLabel = document.getElementById('claude-top-model-name');
+  if (topLabel) topLabel.textContent = formatModelDisplayName(modelId);
+  const topChip = document.getElementById('claude-top-model-chip');
+  if (topChip) topChip.classList.remove('active');
   const inputModel = document.getElementById('input-model-name');
   if (inputModel) inputModel.textContent = formatModelDisplayName(modelId);
 
@@ -5984,6 +6007,24 @@ function initPlayground() {
     });
   }
 
+  // Floating Scroll-to-Bottom FAB controller
+  const scrollFab = document.getElementById('btn-scroll-bottom');
+  if (chatHistoryEl && scrollFab) {
+    const updateScrollFab = () => {
+      const scrollDist = chatHistoryEl.scrollHeight - chatHistoryEl.scrollTop - chatHistoryEl.clientHeight;
+      if (scrollDist > 160) {
+        scrollFab.classList.add('visible');
+      } else {
+        scrollFab.classList.remove('visible');
+      }
+    };
+    chatHistoryEl.addEventListener('scroll', updateScrollFab, { passive: true });
+    scrollFab.addEventListener('click', () => {
+      chatHistoryEl.scrollTo({ top: chatHistoryEl.scrollHeight, behavior: 'smooth' });
+      scrollFab.classList.remove('visible');
+    });
+  }
+
   // Auto-grow textarea & send button enabling
   if (input) {
     input.addEventListener('input', () => {
@@ -5996,13 +6037,31 @@ function initPlayground() {
 
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendChatMessage();
+        const isMobileTouch = window.matchMedia('(max-width: 768px)').matches && window.matchMedia('(pointer: coarse)').matches;
+        if (!isMobileTouch) {
+          e.preventDefault();
+          sendChatMessage();
+        }
       }
     });
   }
 
   if (sendBtn) sendBtn.addEventListener('click', sendChatMessage);
+
+  // Mobile: swipe/scroll chat thread dismisses soft keyboard
+  if (chatHistoryEl && input) {
+    let touchStartY = 0;
+    chatHistoryEl.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches[0]) touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    chatHistoryEl.addEventListener('touchmove', (e) => {
+      if (e.touches && e.touches[0] && Math.abs(e.touches[0].clientY - touchStartY) > 18) {
+        if (document.activeElement === input) {
+          input.blur();
+        }
+      }
+    }, { passive: true });
+  }
 
   // Claude Suggestion Pills & Legacy Chips Click
   document.addEventListener('click', (e) => {
@@ -6334,6 +6393,7 @@ function createUserActionBar(userMsgEl, userText, timestamp = new Date()) {
   `;
   retryBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    window.triggerHaptic?.(10);
     if (state.isStreaming) {
       showToast('A message is already generating', 'warning');
       return;
@@ -6356,6 +6416,7 @@ function createUserActionBar(userMsgEl, userText, timestamp = new Date()) {
   `;
   editBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    window.triggerHaptic?.(8);
     if (state.isStreaming) {
       showToast('A message is already generating', 'warning');
       return;
@@ -6377,6 +6438,7 @@ function createUserActionBar(userMsgEl, userText, timestamp = new Date()) {
   `;
   copyBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
+    window.triggerHaptic?.(8);
     try {
       const textToCopy = userMsgEl.dataset.promptText || userText;
       await navigator.clipboard.writeText(textToCopy);
@@ -6793,7 +6855,10 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
           // ignore chunk parse errors
         }
       }
-      history.scrollTop = history.scrollHeight;
+      const isNearBottom = (history.scrollHeight - history.scrollTop - history.clientHeight) < 160;
+      if (isNearBottom) {
+        history.scrollTop = history.scrollHeight;
+      }
     }
 
     // Finalize streaming artifact once stream finishes
@@ -6844,6 +6909,8 @@ async function sendChatMessage() {
   const input = document.getElementById('chat-input');
   const userText = input.value.trim();
   if (!userText) return;
+
+  window.triggerHaptic?.(12);
 
   // Toggle active chat workspace mode & shift dock to left vertical format
   const workspace = document.getElementById('playground-workspace');

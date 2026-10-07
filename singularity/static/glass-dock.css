@@ -1626,23 +1626,38 @@ html.theme-transitioning *::after {
     display: none !important;
   }
 
-  /* 2. Reclaim the space the dock used */
+  /* 2. Reclaim the space the dock used & anchor with keyboard inset */
   .tab-pane:not(#pane-playground) {
-    padding-bottom: 24px !important;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .claude-playground-container:not(.has-messages) .claude-flow-wrapper {
+    transform: none !important;
+    margin: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 16px !important;
   }
   .claude-playground-container.has-messages .claude-flow-wrapper {
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+    position: absolute !important;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px)) !important;
+    left: 14px !important;
+    right: 14px !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: none !important;
+    margin: 0 !important;
+    transition: bottom 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
   .claude-playground-container.has-messages .claude-chat-scroll {
-    padding-bottom: 170px !important;
-    scroll-padding-bottom: 170px !important;
+    padding-bottom: calc(170px + var(--keyboard-inset, 0px)) !important;
+    scroll-padding-bottom: calc(170px + var(--keyboard-inset, 0px)) !important;
   }
 
   /* 3. Reserve top-left room for the toggle on every page header */
   .top-bar,
   .claude-top-bar,
   .cards-top-nav-bar {
-    padding-left: 60px !important;
+    padding-left: 58px !important;
   }
 
   /* 4. Toggle button (morphing burger -> X) */
@@ -1797,6 +1812,34 @@ html.theme-transitioning *::after {
     color: var(--text-muted, #78716c);
   }
 
+  /* Primary CTA: + New Chat */
+  .m-sidebar-cta-wrap {
+    padding: 12px 14px 4px 14px;
+  }
+  .m-sidebar-new-chat-btn {
+    width: 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 0 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(217, 119, 87, 0.38);
+    background: rgba(217, 119, 87, 0.14);
+    color: var(--brand-primary, #d97757);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: background 0.18s ease, transform 0.15s ease;
+  }
+  .m-sidebar-new-chat-btn:active {
+    transform: scale(0.97);
+    background: rgba(217, 119, 87, 0.24);
+  }
+
   .m-sidebar-list {
     flex: 1;
     min-height: 0;
@@ -1808,8 +1851,79 @@ html.theme-transitioning *::after {
     gap: 2px;
   }
   .m-sidebar-foot {
-    padding: 8px 10px 12px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)) 14px;
     border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  }
+  .m-sidebar-profile-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: var(--bg-surface, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.18s ease;
+  }
+  .m-sidebar-profile-card:active {
+    background: var(--bg-surface-hover, rgba(255, 255, 255, 0.08));
+  }
+  .m-sidebar-avatar-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(217, 119, 87, 0.2);
+    color: var(--brand-primary, #d97757);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .m-sidebar-avatar-circle img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .m-sidebar-user-details {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .m-sidebar-user-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-primary, #fff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .m-sidebar-user-badge {
+    font-size: 10.5px;
+    color: var(--text-muted, #78716c);
+  }
+  .m-sidebar-user-badge.cloud {
+    color: #10b981;
+  }
+  .m-sidebar-gear-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted, #78716c);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .m-sidebar-gear-btn:hover,
+  .m-sidebar-gear-btn:active {
+    color: var(--text-primary, #fff);
   }
 
   .m-sidebar-item {
@@ -1885,6 +1999,50 @@ html.theme-transitioning *::after {
     opacity: 0.55;
   }
 
+  /* Mobile Top Bar Model Chip */
+  .claude-top-model-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+    color: var(--text-primary, #ffffff);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    max-width: 180px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  }
+  [data-theme="light"] .claude-top-model-chip {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.1);
+    color: #1c1917;
+  }
+  .claude-top-model-chip:active,
+  .claude-top-model-chip.active {
+    transform: scale(0.96);
+    border-color: var(--brand-primary, #d97757);
+    background: rgba(217, 119, 87, 0.12);
+  }
+  .claude-top-model-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .claude-top-model-chip svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+    transition: transform 0.2s ease;
+  }
+  .claude-top-model-chip.active svg {
+    transform: rotate(180deg);
+  }
+
   /* Lock background scroll while open */
   body.m-sidebar-open {
     overflow: hidden;
@@ -1896,10 +2054,66 @@ html.theme-transitioning *::after {
   }
 }
 
+/* Desktop default: Top model chip hidden (desktop uses bottom bar selector) */
+.claude-top-model-chip {
+  display: none;
+}
+
+/* Global Floating Scroll-to-Bottom FAB */
+.claude-scroll-bottom-fab {
+  position: absolute;
+  right: 22px;
+  bottom: calc(90px + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px));
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border-medium, rgba(255, 255, 255, 0.15));
+  background: rgba(22, 22, 24, 0.88);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.85));
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 45;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px) scale(0.9);
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease,
+              color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-theme="light"] .claude-scroll-bottom-fab {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1c1917;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+}
+.claude-scroll-bottom-fab.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.claude-scroll-bottom-fab:hover {
+  border-color: var(--brand-primary, #d97757);
+  color: #ffffff;
+  transform: translateY(-2px) scale(1.04);
+}
+.claude-scroll-bottom-fab:active {
+  transform: scale(0.94);
+  border-color: var(--brand-primary, #d97757);
+  color: var(--brand-primary, #d97757);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .m-sidebar,
   .m-sidebar-scrim,
-  .m-burger-bar {
+  .m-burger-bar,
+  .claude-scroll-bottom-fab {
     transition-duration: 0.01s !important;
   }
 }

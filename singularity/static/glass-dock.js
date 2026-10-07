@@ -152,25 +152,81 @@
   let sbOpen = false;
   let sbWidth = 300;
 
-  function sbSetProgress(p) {
-    p = Math.max(0, Math.min(1, p));
-    sbEl.style.setProperty('--p', p);
-    sbScrim.style.setProperty('--p', p);
-    sbScrim.classList.toggle('visible', p > 0.001);
+  function triggerHaptic(ms = 8) {
+    try {
+      if (navigator.vibrate) navigator.vibrate(ms);
+    } catch (e) {}
+  }
+  window.triggerHaptic = triggerHaptic;
+
+  // Real-time Visual Viewport & Soft Keyboard tracking (iOS Safari & Chrome Mobile)
+  function initVisualViewportSync() {
+    if (!window.visualViewport) return;
+    let rAF = null;
+    function updateViewport() {
+      if (rAF) cancelAnimationFrame(rAF);
+      rAF = requestAnimationFrame(() => {
+        const vv = window.visualViewport;
+        const winH = window.innerHeight;
+        // Difference between layout viewport and visual viewport = soft keyboard height
+        const keyboardInset = Math.max(0, winH - vv.height - (vv.offsetTop || 0));
+        document.documentElement.style.setProperty('--keyboard-inset', `${Math.round(keyboardInset)}px`);
+        document.documentElement.style.setProperty('--vv-height', `${Math.round(vv.height)}px`);
+        const isKb = keyboardInset > 60;
+        document.body.classList.toggle('keyboard-visible', isKb);
+        if (isKb) {
+          const chatHist = document.getElementById('chat-history');
+          if (chatHist) {
+            chatHist.scrollTop = chatHist.scrollHeight;
+          }
+        }
+      });
+    }
+    window.visualViewport.addEventListener('resize', updateViewport, { passive: true });
+    window.visualViewport.addEventListener('scroll', updateViewport, { passive: true });
+    updateViewport();
   }
 
-  function sbSetOpen(open) {
+  function sbSetProgress(p) {
+    p = Math.max(0, Math.min(1, p));
+    if (sbEl) sbEl.style.setProperty('--p', p);
+    if (sbScrim) {
+      sbScrim.style.setProperty('--p', p);
+      sbScrim.classList.toggle('visible', p > 0.001);
+    }
+  }
+
+  function sbSetOpen(open, skipHistory = false) {
     sbOpen = !!open;
-    sbEl.classList.remove('dragging');
-    sbScrim.classList.remove('dragging');
+    triggerHaptic(8);
+    if (sbEl) {
+      sbEl.classList.remove('dragging');
+      sbEl.classList.toggle('open', sbOpen);
+      sbEl.setAttribute('aria-hidden', String(!sbOpen));
+    }
+    if (sbScrim) {
+      sbScrim.classList.remove('dragging');
+    }
     sbSetProgress(sbOpen ? 1 : 0);
-    sbEl.classList.toggle('open', sbOpen);
-    sbToggle.classList.toggle('open', sbOpen);
-    sbToggle.setAttribute('aria-expanded', String(sbOpen));
-    sbToggle.setAttribute('aria-label', sbOpen ? 'Close navigation' : 'Open navigation');
-    sbEl.setAttribute('aria-hidden', String(!sbOpen));
+    if (sbToggle) {
+      sbToggle.classList.toggle('open', sbOpen);
+      sbToggle.setAttribute('aria-expanded', String(sbOpen));
+      sbToggle.setAttribute('aria-label', sbOpen ? 'Close navigation' : 'Open navigation');
+    }
     document.body.classList.toggle('m-sidebar-open', sbOpen);
-    if (sbOpen) {
+    
+    // Native back button integration
+    if (sbOpen && !skipHistory) {
+      try {
+        history.pushState({ singularity_drawer_open: true }, '');
+      } catch (e) {}
+    } else if (!sbOpen && !skipHistory && history.state?.singularity_drawer_open) {
+      try {
+        history.back();
+      } catch (e) {}
+    }
+
+    if (sbOpen && sbEl) {
       const active = sbEl.querySelector('.m-sidebar-item.active');
       if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
     }
@@ -178,6 +234,8 @@
 
   function createMobileSidebar() {
     if (document.getElementById('singularity-mobile-sidebar')) return;
+
+    initVisualViewportSync();
 
     // Toggle button with morphing three-bar -> X icon
     sbToggle = document.createElement('button');
@@ -205,13 +263,45 @@
     sbEl.setAttribute('aria-label', 'Main navigation');
     sbEl.setAttribute('aria-hidden', 'true');
 
+    // Sidebar Header: Logo & Branding
     const head = document.createElement('div');
     head.className = 'm-sidebar-head';
     head.innerHTML = `
-      <img class="m-sidebar-logo" src="/static/logo.svg" alt="" />
-      <div class="m-sidebar-brand"><span class="m-sidebar-title">Singularity</span><span class="m-sidebar-sub">Unified AI Gateway</span></div>`;
+      <img class="m-sidebar-logo" src="/logo.svg" alt="Singularity" />
+      <div class="m-sidebar-brand">
+        <span class="m-sidebar-title">Singularity</span>
+        <span class="m-sidebar-sub">Unified AI Gateway</span>
+      </div>`;
     sbEl.appendChild(head);
 
+    // Primary CTA: + New Chat (matching Claude & ChatGPT mobile apps)
+    const newChatCta = document.createElement('div');
+    newChatCta.className = 'm-sidebar-cta-wrap';
+    newChatCta.innerHTML = `
+      <button type="button" class="m-sidebar-new-chat-btn" id="m-btn-new-chat">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>New Chat</span>
+      </button>
+    `;
+    const newChatBtn = newChatCta.querySelector('#m-btn-new-chat');
+    newChatBtn.addEventListener('click', () => {
+      triggerHaptic(12);
+      sbSetOpen(false);
+      window.switchTab?.('playground');
+      const clearBtn = document.getElementById('btn-clear-chat');
+      if (clearBtn) clearBtn.click();
+      const input = document.getElementById('chat-input');
+      if (input) {
+        input.value = '';
+        input.focus();
+      }
+    });
+    sbEl.appendChild(newChatCta);
+
+    // Navigation Items List
     const list = document.createElement('nav');
     list.className = 'm-sidebar-list';
     NAV_ITEMS.forEach((item) => {
@@ -224,6 +314,7 @@
       b.innerHTML = `<span class="m-sidebar-icon">${item.icon}</span><span class="m-sidebar-label">${label}</span>` +
         (item.id === 'tavern' ? `<span class="m-sidebar-ext" aria-hidden="true">↗</span>` : '');
       b.addEventListener('click', () => {
+        triggerHaptic(8);
         handleItemClick(item, b);
         sbSetOpen(false);
       });
@@ -231,18 +322,40 @@
     });
     sbEl.appendChild(list);
 
+    // Sidebar Footer: User Account Capsule & Settings Gear
     const foot = document.createElement('div');
     foot.className = 'm-sidebar-foot';
-    const settingsBtn = document.createElement('button');
-    settingsBtn.type = 'button';
-    settingsBtn.className = 'm-sidebar-item m-sidebar-settings';
-    settingsBtn.innerHTML = `<span class="m-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></span><span class="m-sidebar-label">Settings</span>`;
-    settingsBtn.addEventListener('click', () => {
+
+    const userName = localStorage.getItem('singularity_user_profile_name') || 'Operator';
+    const isCloud = localStorage.getItem('singularity_cloud_authenticated') === 'true';
+    const userAvatar = localStorage.getItem('singularity_user_avatar_url') || '';
+
+    foot.innerHTML = `
+      <div class="m-sidebar-profile-card">
+        <div class="m-sidebar-avatar-circle" id="m-sidebar-avatar-box">
+          ${userAvatar ? `<img src="${userAvatar}" alt="${userName}" />` : `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`}
+        </div>
+        <div class="m-sidebar-user-details" id="m-sidebar-user-details">
+          <span class="m-sidebar-user-name">${userName}</span>
+          <span class="m-sidebar-user-badge ${isCloud ? 'cloud' : 'local'}">${isCloud ? 'Cloud Synced' : 'Offline Vault'}</span>
+        </div>
+        <button type="button" class="m-sidebar-gear-btn" id="m-sidebar-gear-btn" aria-label="Settings" title="Open Settings">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    `;
+
+    const profileTrigger = foot.querySelector('.m-sidebar-profile-card');
+    profileTrigger.addEventListener('click', (e) => {
+      triggerHaptic(10);
       sbSetOpen(false);
       const gear = document.getElementById('btn-open-settings');
       if (gear) setTimeout(() => gear.click(), 220);
     });
-    foot.appendChild(settingsBtn);
+
     sbEl.appendChild(foot);
 
     document.body.appendChild(sbScrim);
@@ -255,6 +368,13 @@
       if (e.key === 'Escape' && sbOpen) sbSetOpen(false);
     });
 
+    // Hardware back button / swipe-back closes drawer
+    window.addEventListener('popstate', (e) => {
+      if (sbOpen) {
+        sbSetOpen(false, true);
+      }
+    });
+
     // Close if viewport grows past phone breakpoint
     const onMq = () => { if (!MOBILE_MQ.matches && sbOpen) sbSetOpen(false); };
     if (MOBILE_MQ.addEventListener) MOBILE_MQ.addEventListener('change', onMq);
@@ -262,6 +382,113 @@
 
     bindSidebarGestures();
     updateActiveDockTab();
+
+    // Mobile Top Bar Model Chip click handler
+    const topModelChip = document.getElementById('claude-top-model-chip');
+    if (topModelChip) {
+      topModelChip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        triggerHaptic(8);
+        const popover = document.getElementById('model-select-popover');
+        if (popover) {
+          const isOpen = popover.classList.toggle('open');
+          topModelChip.classList.toggle('active', isOpen);
+          if (isOpen) {
+            document.getElementById('model-filter-input')?.focus();
+          }
+        }
+      });
+    }
+
+    initBottomSheets();
+  }
+
+  // Mobile Bottom Sheet Scrim & Swipe-Down-To-Dismiss Engine
+  function initBottomSheets() {
+    let bsScrim = document.getElementById('bottom-sheet-scrim');
+    if (!bsScrim) {
+      bsScrim = document.createElement('div');
+      bsScrim.id = 'bottom-sheet-scrim';
+      bsScrim.className = 'bottom-sheet-scrim';
+      document.body.appendChild(bsScrim);
+    }
+
+    const popover = document.getElementById('model-select-popover');
+    const settings = document.getElementById('playground-settings-dropdown');
+    const topChip = document.getElementById('claude-top-model-chip');
+    const modelTrigger = document.getElementById('model-select-trigger');
+
+    function closeBottomSheets() {
+      triggerHaptic(6);
+      if (popover) popover.classList.remove('open');
+      if (settings) settings.classList.remove('open');
+      if (topChip) topChip.classList.remove('active');
+      if (modelTrigger) modelTrigger.classList.remove('active');
+      if (bsScrim) bsScrim.classList.remove('visible');
+      document.body.classList.remove('bottom-sheet-open');
+    }
+
+    bsScrim.addEventListener('click', closeBottomSheets);
+
+    function syncScrim() {
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+      const isOpen = isMobile && ((popover && popover.classList.contains('open')) || (settings && settings.classList.contains('open')));
+      if (bsScrim) bsScrim.classList.toggle('visible', !!isOpen);
+      document.body.classList.toggle('bottom-sheet-open', !!isOpen);
+    }
+
+    if (window.MutationObserver) {
+      const mo = new MutationObserver(syncScrim);
+      if (popover) mo.observe(popover, { attributes: true, attributeFilter: ['class'] });
+      if (settings) mo.observe(settings, { attributes: true, attributeFilter: ['class'] });
+    }
+    window.addEventListener('singularity-bottomsheet-change', syncScrim);
+
+    // Swipe-down-to-dismiss for bottom sheets on mobile
+    function bindDismiss(sheet) {
+      if (!sheet) return;
+      let startY = 0;
+      let currentY = 0;
+      let dragging = false;
+
+      sheet.addEventListener('touchstart', (e) => {
+        if (!window.matchMedia('(max-width: 768px)').matches) return;
+        if (sheet.scrollTop > 6) return;
+        startY = e.touches[0].clientY;
+        dragging = true;
+      }, { passive: true });
+
+      sheet.addEventListener('touchmove', (e) => {
+        if (!dragging) return;
+        currentY = e.touches[0].clientY;
+        const dy = currentY - startY;
+        if (dy > 0) {
+          sheet.style.transform = `translate3d(0, ${dy}px, 0)`;
+          sheet.style.transition = 'none';
+        }
+      }, { passive: true });
+
+      const onEnd = () => {
+        if (!dragging) return;
+        dragging = false;
+        sheet.style.transition = '';
+        const dy = currentY - startY;
+        if (dy > 70) {
+          closeBottomSheets();
+          sheet.style.transform = '';
+        } else {
+          sheet.style.transform = '';
+        }
+        startY = 0;
+        currentY = 0;
+      };
+
+      sheet.addEventListener('touchend', onEnd, { passive: true });
+      sheet.addEventListener('touchcancel', onEnd, { passive: true });
+    }
+
+    bindDismiss(popover);
+    bindDismiss(settings);
   }
 
   // Edge-swipe to open, drag-to-close, finger-following drawer
