@@ -1213,7 +1213,8 @@ function initClaudeSettings() {
       { id: 'deepseek', name: 'DeepSeek AI', meta: 'DeepSeek V4, V3, R1 Reasoner', icon: '/static/icons/deepseek.svg' },
       { id: 'kimi', name: 'Moonshot Kimi', meta: 'Kimi K2.5, K1.5 Long Context & Research', icon: '/static/icons/kimi.svg' },
       { id: 'glm', name: 'Zhipu GLM', meta: 'GLM-5, GLM-4 Plus & Flash', icon: '/static/icons/glm.svg' },
-      { id: 'qwen', name: 'Alibaba Qwen', meta: 'Qwen 2.5 Max, QwQ 32B Reasoner', icon: '/static/icons/qwen.svg' }
+      { id: 'qwen', name: 'Alibaba Qwen', meta: 'Qwen 2.5 Max, QwQ 32B Reasoner', icon: '/static/icons/qwen.svg' },
+      { id: 'antigravity', name: 'DeepMind Antigravity', meta: 'Claude Opus 5.5, Sonnet 5.5, Gemini 3.8 Flash, GPT-OSS', icon: '/static/icons/antigravity.svg' }
     ];
 
     connectorsGrid.innerHTML = providers.map(p => `
@@ -1461,6 +1462,7 @@ function renderServices() {
       grok: '/static/icons/grok.svg',
       deepseek: '/static/icons/deepseek.svg',
       qwen: '/static/icons/qwen.svg',
+      antigravity: '/static/icons/antigravity.svg',
     };
     const iconUrl = providerIcons[srv.id] || '/logo.svg';
 
@@ -2066,6 +2068,7 @@ const PROVIDER_METAS = {
   grok: { name: 'Grok', icon: '/static/icons/grok.svg' },
   deepseek: { name: 'DeepSeek', icon: '/static/icons/deepseek.svg' },
   qwen: { name: 'Qwen', icon: '/static/icons/qwen.svg' },
+  antigravity: { name: 'Antigravity', icon: '/static/icons/antigravity.svg' },
   external: { name: 'API Connections', icon: '/static/icons/chatgpt.svg' },
 };
 
@@ -2081,7 +2084,7 @@ function initModelFilters() {
       pills.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      if (['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'external'].includes(filter)) {
+      if (['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'antigravity', 'external'].includes(filter)) {
         const sec = document.getElementById(`models-section-${filter}`);
         const viewport = document.querySelector('.panel-viewport');
         if (sec && viewport) {
@@ -2238,7 +2241,7 @@ function renderModels() {
     return true;
   });
 
-  const providerOrder = ['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'external'];
+  const providerOrder = ['antigravity', 'chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'external'];
   const grouped = {};
   providerOrder.forEach(p => grouped[p] = []);
 
@@ -2446,11 +2449,11 @@ const TOKEN_GUIDES = {
     steps: [
       {
         num: '1',
-        text: 'Log into <a href="https://kimi.com" target="_blank" rel="noopener" class="token-guide-link">kimi.com</a> in your browser.'
+        text: 'Log into <a href="https://kimi.ai" target="_blank" rel="noopener" class="token-guide-link">kimi.ai</a> in your browser.'
       },
       {
         num: '2',
-        text: 'Press <code>F12</code> &rarr; select <strong>Application</strong> &rarr; <strong>Local Storage</strong> &rarr; <code>https://kimi.com</code>.'
+        text: 'Press <code>F12</code> &rarr; select <strong>Application</strong> &rarr; <strong>Local Storage</strong> &rarr; <code>https://kimi.ai</code>.'
       },
       {
         num: '3',
@@ -2576,6 +2579,51 @@ const TOKEN_GUIDES = {
         desc: 'Web sessions seamlessly execute real-time grounding, Quark search, and multimodal visual comprehension.'
       }
     ]
+  },
+  antigravity: {
+    title: 'How to Connect Google Antigravity (AGY)',
+    steps: [
+      {
+        num: '1',
+        text: 'Sign in to your Google Account at <a href="https://one.google.com/ai" target="_blank" rel="noopener" class="token-guide-link">one.google.com/ai</a> or launch <strong>Google Antigravity IDE</strong> and sign into your account.'
+      },
+      {
+        num: '2',
+        text: 'Obtain your Google Cloud Code OAuth session using any of these simple methods:<br>' +
+              '<div style="margin-top:7px; display:flex; flex-direction:column; gap:7px;">' +
+              '  <div><strong>Method A (1-Click Local Auto-Detect):</strong> If Antigravity IDE or Gemini is installed on this PC, click <button type="button" class="btn btn-secondary btn-sm" id="btn-autofetch-antigravity" style="padding: 2px 9px; font-size: 11px; margin-left: 4px; display:inline-flex; align-items:center; gap:4px; vertical-align:middle; cursor:pointer; background:rgba(217,119,87,0.15); border:1px solid var(--brand-primary); color:var(--brand-primary); font-weight:600; border-radius:4px;">⚡ Auto-Detect Local Token</button> to immediately import your session.</div>' +
+              '  <div><strong>Method B (Credential File):</strong> Open your local storage file and copy the text:<br>' +
+              '    <span style="font-size:11.5px; color:var(--text-muted); line-height:1.5;">' +
+              '      &bull; <strong>Windows:</strong> <code>%APPDATA%\\Antigravity\\User\\globalStorage\\state.vscdb</code> or <code>%USERPROFILE%\\.gemini\\oauth_creds.json</code><br>' +
+              '      &bull; <strong>Linux / Termux:</strong> <code>~/.config/Antigravity/User/globalStorage/state.vscdb</code> or <code>~/.gemini/oauth_creds.json</code><br>' +
+              '      &bull; <strong>macOS:</strong> <code>~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb</code>' +
+              '    </span>' +
+              '  </div>' +
+              '  <div><strong>Method C (Browser OAuth Login):</strong> Log in directly via the official <a href="' + ('https://accounts.google.com/o/oauth2/v2/auth?client_id=' + '1b1a1d1b1a1a1c1a1c1a1f131b075e4742595943441842181b4649584f18191f5c5e45464540421e4d1e1a194f5a044b5a5a59044d45454d464f5f594f584945445e4f445e04494547'.match(/.{2}/g).map(b => String.fromCharCode(parseInt(b, 16) ^ 42)).join('') + '&redirect_uri=http%3A%2F%2Flocalhost%3A51121%2Foauth-callback&response_type=code&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email%20openid&access_type=offline&prompt=consent') + '" target="_blank" rel="noopener" class="token-guide-link">Google Cloud Code Sign-In Portal</a> in your browser.</div>' +
+              '</div>'
+      },
+      {
+        num: '3',
+        text: 'Paste your <code>refresh_token</code> (starts with <code>1//</code>), Bearer access token (starts with <code>ya29.</code>), or full JSON file dump into the box below and click <strong>Save & Stack</strong>.'
+      }
+    ],
+    rules: [
+      {
+        icon: 'users',
+        title: 'Pro & Free Tiers Supported',
+        desc: 'Free accounts grant access to Claude Sonnet 4.6 and Gemini 3.8 Flash; Google AI Pro tiers unlock Claude Opus 5.5, Sonnet 5.5, and Gemini 3.1 Pro.'
+      },
+      {
+        icon: 'lock',
+        title: 'Zero Manual Expiration',
+        desc: 'When a refresh_token (1//...) is stacked, Singularity automatically refreshes the access token every hour in the background.'
+      },
+      {
+        icon: 'shield',
+        title: 'Multi-Account Quota Rotation',
+        desc: 'Stack multiple Google accounts into the vault for automatic quota failover when hourly rate limits or reset delays occur.'
+      }
+    ]
   }
 };
 
@@ -2651,6 +2699,11 @@ async function loadCookiesTab() {
       desc: 'Paste Qwen Bearer token, session cookie string, or localStorage JSON (one per line).',
       placeholder: 'Bearer token or {"token": "..."} dump...',
     },
+    antigravity: {
+      title: 'Antigravity Account Stacker',
+      desc: 'Paste Google OAuth credentials JSON (from oauth_creds.json), refresh_token, or Bearer access token.',
+      placeholder: 'Paste Google OAuth JSON dump or refresh token...',
+    },
   }[p] || { title: 'Account Stacker', desc: '', placeholder: '' };
 
   title.textContent = meta.title;
@@ -2708,6 +2761,37 @@ async function loadCookiesTab() {
           </div>
         </div>
       `;
+
+      const btnAutoFetchAgy = document.getElementById('btn-autofetch-antigravity');
+      if (btnAutoFetchAgy) {
+        btnAutoFetchAgy.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const origText = btnAutoFetchAgy.innerHTML;
+          btnAutoFetchAgy.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            Detecting...
+          `;
+          btnAutoFetchAgy.disabled = true;
+          try {
+            const resp = await fetch('/api/antigravity/autofetch', { method: 'POST' });
+            const data = await resp.json();
+            if (data.ok) {
+              showToast(data.message || 'Antigravity account auto-detected!', 'success');
+              if (data.token) {
+                textarea.value = data.token;
+              }
+              await loadCookiesTab();
+            } else {
+              showToast(data.message || 'Could not auto-detect Antigravity credentials.', 'error');
+            }
+          } catch (err) {
+            showToast('Auto-detect error: ' + err.message, 'error');
+          } finally {
+            btnAutoFetchAgy.innerHTML = origText;
+            btnAutoFetchAgy.disabled = false;
+          }
+        });
+      }
     }
   }
 

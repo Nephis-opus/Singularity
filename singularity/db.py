@@ -812,6 +812,60 @@ def parse_credential(provider: str, raw: str) -> Optional[Dict[str, Any]]:
             "metadata": json.dumps({"email": email, "uid": uid, "cookies": cookies}),
         }
 
+    # 9. Google Antigravity (AGY)
+    # 9. Google Antigravity (AGY)
+    elif provider in ("antigravity", "agy", "google-antigravity"):
+        raw_str = raw.strip()
+        email = ""
+        access_token = ""
+        refresh_token = ""
+        project_id = "aicode-consumers"
+        plan = "Google AI Pro (Antigravity)"
+
+        if raw_str.startswith("{"):
+            try:
+                d = json.loads(raw_str)
+                if isinstance(d, dict):
+                    email = d.get("email") or d.get("user") or ""
+                    access_token = d.get("access_token") or d.get("accessToken") or ""
+                    refresh_token = d.get("refresh_token") or d.get("refreshToken") or ""
+                    project_id = d.get("project_id") or d.get("project") or project_id
+                    if not email and d.get("active"):
+                        email = d.get("active")
+            except Exception:
+                pass
+
+        if not email and access_token:
+            jwt = _decode_jwt_payload(access_token)
+            if jwt:
+                email = jwt.get("email") or ""
+
+        if not email and not refresh_token and not access_token:
+            if raw_str.startswith("ya29."):
+                access_token = raw_str
+            else:
+                refresh_token = raw_str
+
+        identifier = (email or (f"agy_{refresh_token[:16]}" if refresh_token else f"agy_{access_token[:16]}")).strip().lower()
+        name = f"AGY ({email.split('@')[0]})" if email and "@" in email else f"Antigravity ({identifier[:10]}...)"
+
+        return {
+            "provider": "antigravity",
+            "identifier": identifier,
+            "name": name,
+            "token": raw_str,
+            "plan": plan,
+            "status": "active",
+            "metadata": json.dumps({
+                "email": email,
+                "project_id": project_id,
+                "refresh_token": refresh_token,
+                "access_token": access_token,
+                "has_refresh_token": bool(refresh_token),
+                "has_access_token": bool(access_token),
+            }),
+        }
+
     return None
 
 
@@ -1041,6 +1095,20 @@ def import_all_json(data: Any) -> Dict[str, Any]:
 
     if not isinstance(data, dict):
         raise ValueError("Invalid credentials payload: expected JSON object")
+
+    # Check if single account dictionary was passed
+    if "provider" in data and ("token" in data or "refresh_token" in data or "access_token" in data or "raw" in data):
+        prov = data["provider"]
+        tok = data.get("token") or (json.dumps(data) if "refresh_token" in data else data.get("refresh_token") or data.get("access_token") or data.get("raw"))
+        name = data.get("name") or data.get("email")
+        plan = data.get("plan")
+        status = data.get("status", "active")
+        ok, _ = save_account(prov, str(tok), name=name, plan=plan, status=status)
+        return {
+            "status": "ok",
+            "imported_accounts": 1 if ok else 0,
+            "message": f"Successfully imported {1 if ok else 0} accounts across providers.",
+        }
 
     providers_data = data.get("providers") if "providers" in data else data
     imported_count = 0
@@ -2808,21 +2876,37 @@ def get_connect_card(bot_id: str) -> Optional[Dict[str, Any]]:
         return _format_connect_card_row(dict(row))
 
 
-def list_connect_cards(q: str = "", unmasked_only: bool = False, limit: int = 60) -> List[Dict[str, Any]]:
-    """List character cards matching search filters."""
+def list_connect_cards(
+    q: str = "",
+    unmasked_only: bool = False,
+    limit: int = 60,
+    sort: str = "trending",
+    exclude_saved: bool = False
+) -> List[Dict[str, Any]]:
+    """List character cards matching search filters with proper popularity ordering."""
     query_parts = ["SELECT * FROM connect_cards WHERE 1=1"]
     params = []
     
     clean_q = str(q or "").strip().lower()
     if clean_q:
-        query_parts.append("(lower(name) LIKE ? OR lower(creator_name) LIKE ? OR lower(description) LIKE ? OR lower(tags_json) LIKE ?)")
+        query_parts.append("AND (lower(name) LIKE ? OR lower(creator_name) LIKE ? OR lower(description) LIKE ? OR lower(tags_json) LIKE ?)")
         wild = f"%{clean_q}%"
         params.extend([wild, wild, wild, wild])
     
     if unmasked_only:
-        query_parts.append("is_unmasked = 1")
+        query_parts.append("AND is_unmasked = 1")
+
+    if exclude_saved:
+        query_parts.append("AND bot_id NOT IN (SELECT bot_id FROM connect_saved_cards)")
     
-    query_parts.append("ORDER BY updated_at DESC LIMIT ?")
+    clean_sort = str(sort or "trending").strip().lower()
+    if clean_sort in ("trending", "popular", "chats"):
+        query_parts.append("ORDER BY chats DESC, messages DESC LIMIT ?")
+    elif clean_sort == "latest":
+        query_parts.append("ORDER BY created_at DESC, updated_at DESC LIMIT ?")
+    else:
+        query_parts.append("ORDER BY updated_at DESC LIMIT ?")
+        
     params.append(limit)
     
     with closing(get_db_connection()) as conn:

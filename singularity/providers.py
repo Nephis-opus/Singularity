@@ -81,6 +81,7 @@ ENV_CREDENTIALS = {
     "deepseek": ("DEEPSEEK_TOKEN",),
     "qwen": ("QWEN_TOKEN", "QWEN_COOKIES"),
     "grok": ("GROK_COOKIE",),
+    "antigravity": ("AGY_TOKEN", "AGY_REFRESH_TOKEN", "GOOGLE_OAUTH_TOKEN"),
 }
 
 
@@ -237,10 +238,271 @@ PROVIDERS_CONFIG = {
         "cookie_placeholder": "Paste chat.qwen.ai Bearer token, Cookie string, or localStorage JSON",
         "auth_header": "Bearer qwen2api",
     },
+    "antigravity": {
+        "id": "antigravity",
+        "name": "Antigravity",
+        "port": 8090,
+        "host": os.getenv("ANTIGRAVITY_HOST", PROVIDER_HOST),
+        "badge": "DeepMind AGY",
+        "color": "#4285F4",
+        "start_script": "start_antigravity.sh",
+        "stop_script": "stop_antigravity.sh",
+        "health_path": "/v1/models",
+        "cookie_type": "oauth_token_or_json",
+        "cookie_label": "Google OAuth Credentials (JSON or Refresh Token)",
+        "cookie_placeholder": "Paste Google OAuth JSON dump, refresh_token, or access_token...",
+        "auth_header": "Bearer antigravity2api",
+    },
 }
 
-# Dynamic Comprehensive Catalog (226 models across 8 providers)
+# Dynamic Comprehensive Catalog (253 models across 9 providers)
 MODELS_CATALOG = [
+    # -------------------------------------------------------------------
+    # Google Antigravity (DeepMind AGY Cloud Code Frontier Models)
+    # -------------------------------------------------------------------
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Flagship Claude Opus 5.5 in Antigravity with deep high-budget multi-step reasoning.',
+        'id': 'agy-claude-opus-5-5-high',
+        'locked': False,
+        'name': 'Claude Opus 5.5 (High Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Balanced Claude Opus 5.5 in Antigravity with medium reasoning budget.',
+        'id': 'agy-claude-opus-5-5-medium',
+        'locked': False,
+        'name': 'Claude Opus 5.5 (Medium Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Rapid responsive Claude Opus 5.5 in Antigravity with low reasoning budget.',
+        'id': 'agy-claude-opus-5-5-low',
+        'locked': False,
+        'name': 'Claude Opus 5.5 (Low Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Default alias for Claude Opus 5.5 in Antigravity with balanced reasoning.',
+        'id': 'agy-claude-opus-5-5',
+        'locked': False,
+        'name': 'Claude Opus 5.5',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Frontier Claude Sonnet 5.5 in Antigravity with deep high-budget reasoning.',
+        'id': 'agy-claude-sonnet-5-5-high',
+        'locked': False,
+        'name': 'Claude Sonnet 5.5 (High Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Balanced Claude Sonnet 5.5 in Antigravity with medium reasoning budget.',
+        'id': 'agy-claude-sonnet-5-5-medium',
+        'locked': False,
+        'name': 'Claude Sonnet 5.5 (Medium Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Fast responsive Claude Sonnet 5.5 in Antigravity with low reasoning budget.',
+        'id': 'agy-claude-sonnet-5-5-low',
+        'locked': False,
+        'name': 'Claude Sonnet 5.5 (Low Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Default alias for Claude Sonnet 5.5 in Antigravity with balanced reasoning.',
+        'id': 'agy-claude-sonnet-5-5',
+        'locked': False,
+        'name': 'Claude Sonnet 5.5',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Claude Opus 4.6 with chain-of-thought thinking via Antigravity.',
+        'id': 'agy-claude-opus-4-6-thinking',
+        'locked': False,
+        'name': 'Claude Opus 4.6 (Thinking)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Claude Sonnet 4.6 with chain-of-thought thinking via Antigravity.',
+        'id': 'agy-claude-sonnet-4-6-thinking',
+        'locked': False,
+        'name': 'Claude Sonnet 4.6 (Thinking)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Google DeepMind Gemini 3.8 Flash in Antigravity with deep high-budget reasoning.',
+        'id': 'agy-gemini-3-8-flash-high',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash (High Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Balanced Google DeepMind Gemini 3.8 Flash in Antigravity with medium reasoning.',
+        'id': 'agy-gemini-3-8-flash-medium',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash (Medium Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Rapid Google DeepMind Gemini 3.8 Flash in Antigravity with low reasoning budget.',
+        'id': 'agy-gemini-3-8-flash-low',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash (Low Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Default alias for Gemini 3.8 Flash in Antigravity with balanced reasoning.',
+        'id': 'agy-gemini-3-8-flash',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Google DeepMind Gemini 3.7 Flash in Antigravity with deep high-budget reasoning.',
+        'id': 'agy-gemini-3-7-flash-high',
+        'locked': False,
+        'name': 'Gemini 3.7 Flash (High Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Balanced Google DeepMind Gemini 3.7 Flash in Antigravity with medium reasoning.',
+        'id': 'agy-gemini-3-7-flash-medium',
+        'locked': False,
+        'name': 'Gemini 3.7 Flash (Medium Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Rapid Google DeepMind Gemini 3.7 Flash in Antigravity with low reasoning.',
+        'id': 'agy-gemini-3-7-flash-low',
+        'locked': False,
+        'name': 'Gemini 3.7 Flash (Low Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Default alias for Gemini 3.7 Flash in Antigravity with balanced reasoning.',
+        'id': 'agy-gemini-3-7-flash',
+        'locked': False,
+        'name': 'Gemini 3.7 Flash',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Google DeepMind Gemini 3.6 Flash in Antigravity with deep high reasoning.',
+        'id': 'agy-gemini-3-6-flash-high',
+        'locked': False,
+        'name': 'Gemini 3.6 Flash (High Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Balanced Google DeepMind Gemini 3.6 Flash in Antigravity with medium reasoning.',
+        'id': 'agy-gemini-3-6-flash-medium',
+        'locked': False,
+        'name': 'Gemini 3.6 Flash (Medium Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Rapid Google DeepMind Gemini 3.6 Flash in Antigravity with low reasoning.',
+        'id': 'agy-gemini-3-6-flash-low',
+        'locked': False,
+        'name': 'Gemini 3.6 Flash (Low Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Default alias for Gemini 3.6 Flash in Antigravity with balanced reasoning.',
+        'id': 'agy-gemini-3-6-flash',
+        'locked': False,
+        'name': 'Gemini 3.6 Flash',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '2M tokens',
+        'description': 'Flagship Google DeepMind Gemini 3.1 Pro in Antigravity with deep reasoning.',
+        'id': 'agy-gemini-3-1-pro-high',
+        'locked': False,
+        'name': 'Gemini 3.1 Pro (High Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '2M tokens',
+        'description': 'Fast Google DeepMind Gemini 3.1 Pro in Antigravity with low reasoning budget.',
+        'id': 'agy-gemini-3-1-pro-low',
+        'locked': False,
+        'name': 'Gemini 3.1 Pro (Low Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '2M tokens',
+        'description': 'Default alias for Gemini 3.1 Pro in Antigravity.',
+        'id': 'agy-gemini-3-1-pro',
+        'locked': False,
+        'name': 'Gemini 3.1 Pro',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
+        'context': '128K tokens',
+        'description': 'Open-weights 120B parameter reasoning model in Antigravity with medium reasoning.',
+        'id': 'agy-gpt-oss-120b-medium',
+        'locked': False,
+        'name': 'GPT-OSS 120B (Medium Reasoning)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
+        'context': '128K tokens',
+        'description': 'Default alias for GPT-OSS 120B in Antigravity.',
+        'id': 'agy-gpt-oss-120b',
+        'locked': False,
+        'name': 'GPT-OSS 120B',
+        'provider': 'antigravity'
+    },
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '1M tokens',
@@ -2843,11 +3105,58 @@ async def get_all_limits() -> Dict[str, Any]:
         "accounts": qwen_data,
     }
 
+    # 9. Google Antigravity (AGY) limits
+    agy_accounts = db.get_accounts("antigravity")
+    agy_data = []
+    for acc in agy_accounts:
+        plan = (acc.get("plan") or "Google AI Pro").upper()
+        ident = acc.get("identifier") or acc.get("name") or "Antigravity Account"
+        meta = acc.get("metadata", {})
+        if isinstance(meta, str) and meta.startswith("{"):
+            try:
+                meta = json.loads(meta)
+            except Exception:
+                meta = {}
+        email = meta.get("email") or ident
+
+        agy_data.append({
+            "email": email,
+            "type": plan,
+            "status": "Normal" if acc.get("status") == "active" else "Disabled",
+            "reason_remaining": "Unlimited (Frontier Pool)",
+            "claude_quota": "Pro Tier (Sonnet 5.5 / Opus 5.5)",
+            "gemini_quota": "Pro Tier (Gemini 3.8 Flash / 3.1 Pro)",
+            "file_upload": "Unlimited Workspace Context",
+            "concurrency": "5 concurrent streams",
+            "restore_at": "Rolling (Per-Account OAuth)",
+        })
+
+    if not agy_data:
+        local_creds = Path.home() / ".gemini" / "oauth_creds.json"
+        status_label = "Auto-Discovered Local Session" if local_creds.exists() else "No Account Stacked"
+        agy_data.append({
+            "email": "Google Cloud Code AGY",
+            "type": "PRO (Antigravity)",
+            "status": status_label,
+            "reason_remaining": "Unlimited (Frontier Pool)",
+            "claude_quota": "Claude Opus 5.5 / Sonnet 5.5",
+            "gemini_quota": "Gemini 3.8 Flash / 3.1 Pro",
+            "file_upload": "Unlimited Workspace Context",
+            "concurrency": "5 concurrent streams",
+            "restore_at": "Rolling (Per-Account OAuth)",
+        })
+
+    limits["antigravity"] = {
+        "title": "Google Antigravity (AGY) Quotas",
+        "accounts_count": len(agy_data),
+        "accounts": agy_data,
+    }
+
     return limits
 
 
 def get_stored_cookies() -> Dict[str, Any]:
-    """Read stacked cookies/accounts for all 8 providers from unified SQLite DB."""
+    """Read stacked cookies/accounts for all 9 providers from unified SQLite DB."""
     result: Dict[str, Any] = {}
 
     label_map = {
@@ -2859,6 +3168,7 @@ def get_stored_cookies() -> Dict[str, Any]:
         "chatgpt": ("json_or_token", "ChatGPT Accounts"),
         "deepseek": ("token_or_json", "DeepSeek userToken or Login JSON"),
         "qwen": ("token_or_json", "Qwen Bearer Token or Session JSON"),
+        "antigravity": ("oauth_token_or_json", "Google OAuth Credentials (JSON or Refresh Token)"),
     }
 
     for p, (ctype, clabel) in label_map.items():

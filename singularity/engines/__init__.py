@@ -21,6 +21,7 @@ from .claude import stream_claude_chat
 from .deepseek import stream_deepseek_chat, generate_deepseek_chat
 from .qwen import stream_qwen_chat, generate_qwen_chat
 from .openai_compat import stream_openai_compat_chat
+from .antigravity import stream_antigravity_chat, generate_antigravity_chat
 
 
 async def stream_chat(
@@ -112,6 +113,12 @@ async def stream_chat(
                 pass
 
         async for chunk in stream_glm_chat(model, messages, raw_token=token, stream=stream, **kwargs):
+            yield chunk
+        return
+
+    # 9. Google Antigravity (AGY)
+    if pid in ("antigravity", "agy", "google-antigravity"):
+        async for chunk in stream_antigravity_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
             yield chunk
         return
 

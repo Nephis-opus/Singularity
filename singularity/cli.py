@@ -298,6 +298,28 @@ def cmd_limits(args):
         print_table(headers, rows)
     else:
         print("    No Qwen accounts configured in vault.")
+
+    # 9. Google Antigravity (AGY)
+    agy_obj = data.get("antigravity", {})
+    agy_accounts = agy_obj.get("accounts", [])
+    print(f"\n[9] {agy_obj.get('title', 'Google Antigravity (AGY) Quotas')} ({len(agy_accounts)} accounts)")
+    if agy_accounts:
+        headers = ["Account / Session", "Plan", "Status", "Reasoning / CoT", "Claude Models", "Gemini Models", "Workspace Context", "Reset Window"]
+        rows = []
+        for a in agy_accounts:
+            rows.append([
+                a.get("email", "—"),
+                a.get("type", "Google AI Pro"),
+                a.get("status", "Active"),
+                str(a.get("reason_remaining", "Unlimited")),
+                str(a.get("claude_quota", "Opus 5.5 / Sonnet 5.5")),
+                str(a.get("gemini_quota", "Gemini 3.8 Flash / 3.1 Pro")),
+                str(a.get("file_upload", "Unlimited")),
+                str(a.get("restore_at", "Per-Account OAuth")),
+            ])
+        print_table(headers, rows)
+    else:
+        print("    No Antigravity accounts configured in vault.")
     print()
 
 

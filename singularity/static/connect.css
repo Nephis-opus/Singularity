@@ -512,35 +512,166 @@ body.is-janitor-chat-active .cards-nav-capsule {
 }
 
 /* ==========================================================================
-   DESKTOP NAVIGATION (>= 769px): Centered Floating Top Capsule
+   DESKTOP NAVIGATION (>= 769px): Sticky Top Menu Bar with Unboxed Tabs
    ========================================================================== */
 @media (min-width: 769px) {
+  /* Show sticky top menu bar across the full width */
+  .cards-top-nav-bar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    height: 56px !important;
+    padding: 0 24px !important;
+    position: sticky !important;
+    top: 0 !important;
+    width: 100% !important;
+    background: rgba(10, 10, 14, 0.88) !important;
+    backdrop-filter: blur(24px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    z-index: 1000 !important;
+    box-sizing: border-box !important;
+  }
+
+  [data-theme="light"] .cards-top-nav-bar {
+    background: rgba(250, 250, 249, 0.92) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Back Button on Desktop: Part of header on the left side */
+  .cards-top-back-btn {
+    position: absolute !important;
+    left: 24px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    display: none;
+    align-items: center !important;
+    gap: 6px !important;
+    height: 34px !important;
+    padding: 0 10px !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+    color: var(--text-primary, #ffffff) !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: background 0.15s ease, opacity 0.15s ease !important;
+    z-index: 100003 !important;
+  }
+
+  .cards-top-back-btn:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+  }
+
+  .cards-top-back-btn svg {
+    width: 15px !important;
+    height: 15px !important;
+    stroke-width: 2.2 !important;
+  }
+
+  [data-theme="light"] .cards-top-back-btn {
+    color: #1c1917 !important;
+  }
+
+  [data-theme="light"] .cards-top-back-btn:hover {
+    background: rgba(0, 0, 0, 0.06) !important;
+  }
+
+  body.is-sconnect-detail-view .cards-top-back-btn {
+    display: inline-flex !important;
+  }
+
+  /* Center Nav Tabs: Remove capsule borders and background (unboxed) */
   body[data-active-tab="connect"] .cards-nav-capsule,
   :root[data-active-tab="connect"] .cards-nav-capsule {
     position: fixed !important;
-    top: 14px !important;
+    top: 0 !important;
     bottom: auto !important;
     left: 50% !important;
     right: auto !important;
     transform: translateX(-50%) !important;
     width: auto !important;
     max-width: fit-content !important;
-    height: auto !important;
-    padding: 4px !important;
-    border-radius: var(--c-radius-full) !important;
-    background: var(--c-surface-1) !important;
-    border: 1px solid var(--c-border) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    z-index: 1000 !important;
+    height: 56px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    z-index: 1002 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 4px !important;
+    gap: 6px !important;
   }
 
-  .cards-top-nav-bar {
+  .cards-nav-pill-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 7px 14px !important;
+    font-size: 0.84rem !important;
+    font-weight: 500 !important;
+    color: rgba(255, 255, 255, 0.65) !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    white-space: nowrap !important;
+  }
+
+  .cards-nav-pill-btn:hover {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.07) !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .cards-nav-pill-btn.is-active {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    font-weight: 600 !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  [data-theme="light"] .cards-nav-pill-btn {
+    color: rgba(0, 0, 0, 0.6) !important;
+  }
+
+  [data-theme="light"] .cards-nav-pill-btn:hover {
+    color: #000000 !important;
+    background: rgba(0, 0, 0, 0.05) !important;
+  }
+
+  [data-theme="light"] .cards-nav-pill-btn.is-active {
+    color: #000000 !important;
+    background: rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* PFP Avatar button on the right side */
+  .cards-top-user-wrap {
+    position: absolute !important;
+    right: 24px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    display: flex !important;
+    align-items: center !important;
+    z-index: 100004 !important;
+  }
+
+  /* Hide redundant inline back buttons inside detail views on desktop */
+  .bot-detail-page > .back-nav-btn {
     display: none !important;
   }
 }
@@ -611,10 +742,11 @@ body.is-janitor-chat-active .cards-nav-capsule {
     text-shadow: none !important;
   }
 
-  /* 4. Top Back Button (Part of the top header, shifted next to avatar button) */
+  /* 4. Top Back Button (Part of the top header, on the left side) */
   .cards-top-back-btn {
     position: absolute !important;
-    right: 52px !important;
+    left: 14px !important;
+    right: auto !important;
     top: calc(50% + (env(safe-area-inset-top, 0px) / 2)) !important;
     transform: translateY(-50%) !important;
     display: none;
@@ -626,7 +758,7 @@ body.is-janitor-chat-active .cards-nav-capsule {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    border-radius: 0 !important;
+    border-radius: 8px !important;
     color: var(--text-primary, #ffffff) !important;
     font-size: 0.85rem !important;
     font-weight: 500 !important;
@@ -634,6 +766,10 @@ body.is-janitor-chat-active .cards-nav-capsule {
     -webkit-tap-highlight-color: transparent !important;
     transition: opacity 0.15s ease !important;
     z-index: 100003 !important;
+  }
+
+  body.is-sconnect-detail-view #singularity-sidebar-toggle {
+    display: none !important;
   }
 
   .cards-top-user-wrap {
@@ -1223,22 +1359,36 @@ body.is-janitor-chat-active .cards-nav-capsule {
 .bot-cards-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--c-space-4);
+  gap: 10px;
   width: 100%;
   box-sizing: border-box;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 520px) {
   .bot-cards-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--c-space-5);
+    gap: 12px;
   }
 }
 
-@media (min-width: 960px) {
+@media (min-width: 760px) {
   .bot-cards-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--c-space-5);
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1020px) {
+  .bot-cards-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (min-width: 1220px) {
+  .bot-cards-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 14px;
   }
 }
 
@@ -1305,7 +1455,305 @@ body.is-janitor-chat-active .cards-nav-capsule {
   z-index: 3;
 }
 
-/* Frosted Category Badge (e.g. 🏷️ FICTIONAL, 👥 MULTIPLE, 🔥 FEMALE, 👑 MALE) */
+/* Shifted Creator Info Pill in Top Left (Replaces big category chip) */
+.bot-card-creator-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 8px);
+  padding: 3px 8px 3px 4px;
+  border-radius: 9999px;
+  background: rgba(14, 14, 18, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: all var(--c-duration-fast) var(--c-ease-out);
+  user-select: none;
+  z-index: 4;
+}
+
+.bot-card-creator-pill:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.bot-card-creator-pill .bot-card-creator-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.bot-card-creator-pill .bot-card-creator-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #f3f4f6;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  /* Never truncate creator names */
+}
+
+/* =====================================================================
+   MOST RECENT CHATS SECTION (Above Community Characters Header)
+   ===================================================================== */
+.home-recent-chats-container {
+  margin: 18px 0 24px;
+  width: 100%;
+}
+
+.janitor-recent-chats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.janitor-recent-chats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.janitor-recent-chats-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.janitor-recent-view-all-btn {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--c-accent, #d97757);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.janitor-recent-view-all-btn:hover {
+  color: #ea580c;
+  background: rgba(217, 119, 87, 0.12);
+}
+
+.janitor-recent-chats-scroll {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .janitor-recent-chats-scroll {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 12px;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Individual Recent Chat Card (Singularity Dark / Edge-to-Edge Theme) */
+.janitor-recent-card {
+  position: relative;
+  background: rgba(18, 18, 22, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+  min-width: 320px;
+  min-height: 265px;
+  scroll-snap-align: start;
+}
+
+.janitor-recent-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.6);
+}
+
+/* Top: Lock Icon & Chat Name */
+.janitor-recent-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.janitor-recent-lock-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.janitor-recent-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+/* Middle: Big Dominant Image on left (Edge-to-Edge), Bio on right */
+.janitor-recent-card-mid {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  margin: 2px 0 4px;
+}
+
+.janitor-recent-avatar-container {
+  position: relative;
+  flex: 0 0 46%;
+  width: 175px;
+  min-width: 150px;
+  height: 185px;
+}
+
+@media (max-width: 600px) {
+  .janitor-recent-avatar-container {
+    flex: 0 0 45%;
+    width: 145px;
+    min-width: 135px;
+    height: 155px;
+  }
+}
+
+.janitor-recent-bot-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.65);
+}
+
+.janitor-recent-persona-img {
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #121216;
+  background: #1c1c20;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.85);
+  z-index: 2;
+}
+
+@media (max-width: 600px) {
+  .janitor-recent-persona-img {
+    width: 40px;
+    height: 40px;
+    bottom: -6px;
+    right: -6px;
+  }
+}
+
+.janitor-recent-bio-box {
+  flex: 1;
+  min-width: 0;
+  height: 185px;
+  max-height: 185px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-left: 2px;
+}
+
+@media (max-width: 600px) {
+  .janitor-recent-bio-box {
+    height: 155px;
+    max-height: 155px;
+  }
+}
+
+.janitor-recent-bio-text {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #d4d4d8;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 7;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* Bottom: Meta on left, Continue button on right */
+.janitor-recent-card-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: auto;
+  padding: 8px 2px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.janitor-recent-meta-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.janitor-recent-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.janitor-recent-meta-line svg {
+  color: #71717a;
+  flex-shrink: 0;
+}
+
+.janitor-recent-continue-btn {
+  background: #FFFFFF !important;
+  color: #09090B !important;
+  border: 1px solid rgba(255, 255, 255, 0.95) !important;
+  border-radius: 9px;
+  padding: 8px 24px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.01em;
+}
+
+.janitor-recent-continue-btn:hover {
+  background: #E4E4E7 !important;
+  color: #000000 !important;
+  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+/* Frosted Category Badge (legacy/optional fallback) */
 .bot-card-cat-chip {
   font-size: 10px;
   font-weight: 700;
@@ -1365,80 +1813,257 @@ body.is-janitor-chat-active .cards-nav-capsule {
   border-color: #FFFFFF;
 }
 
+/* Top Bar Inside Card */
+.bot-card-top-bar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.bot-card-top-bar > * {
+  pointer-events: auto;
+}
+
+/* Card Action Hover Buttons (Top-Left) */
+.bot-card-actions-group {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px) scale(0.92);
+  transition: all var(--c-duration-fast) var(--c-ease-out);
+}
+
+.bot-card:hover .bot-card-actions-group {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+/* Glassmorphism Stats Pill (Chats & Msgs on Top Right - Overflow Protected) */
+.bot-card-stats-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(12, 12, 16, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9px;
+  padding: 3px 7px;
+  color: #FFFFFF;
+  font-size: 0.72rem;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.01em;
+  margin-left: auto;
+  white-space: nowrap;
+  user-select: none;
+  flex-shrink: 0;
+  max-width: calc(100% - 6px);
+}
+
+.bot-card-stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.bot-card-stat-item svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+@media (max-width: 600px) {
+  .bot-card-top-bar {
+    top: 6px;
+    left: 6px;
+    right: 6px;
+  }
+  .bot-card-stats-pill {
+    padding: 2px 5px;
+    font-size: 0.67rem;
+    gap: 4px;
+    border-radius: 7px;
+  }
+  .bot-card-stat-item svg {
+    width: 10px;
+    height: 10px;
+  }
+  .bot-card-content-area {
+    padding: 8px 10px 10px !important;
+  }
+  .bot-card-title {
+    font-size: 0.92rem !important;
+  }
+}
+
 /* Bottom Content Area */
 .bot-card-content-area {
   position: relative;
   z-index: 3;
-  padding: 12px 14px;
+  padding: 12px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-}
-
-.bot-card-stat-pills-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.bot-card-stat-pill {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--c-text-muted);
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 2px 6px;
-  border-radius: var(--c-radius-xs);
-}
-
-.bot-card-stat-pill svg {
-  width: 11px;
-  height: 11px;
+  gap: 4px;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.75) 50%, rgba(0, 0, 0, 0.96) 100%);
 }
 
 .bot-card-title {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: #FFFFFF;
   margin: 0;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
+}
+
+/* Creator Row Below Title: No boxing, no bordering */
+.bot-card-creator-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #cbd5e1;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 2px 0 0;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  max-width: 100%;
+}
+
+.bot-card-creator-row:hover {
+  color: #FFFFFF;
+}
+
+.bot-card-creator-handle {
+  font-weight: 600;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.25;
 }
 
-.bot-card-creator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  color: var(--c-text-secondary);
-}
-
-.bot-card-creator-avatar {
+.bot-card-creator-avatar-inline {
   width: 18px;
   height: 18px;
-  border-radius: var(--c-radius-full);
+  border-radius: 50%;
   object-fit: cover;
+  border: none !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
 }
 
-.bot-card-tags-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+/* Smooth Hover Bio Preview (Text only, stripped of images & tags) */
+.bot-card-bio-hover-preview {
+  max-height: 0;
+  opacity: 0;
   overflow: hidden;
-  margin-top: 2px;
+  transform: translateY(8px);
+  transition: max-height 0.36s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.28s ease,
+              transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              margin-top 0.28s ease;
+  margin-top: 0;
 }
 
-.bot-card-tag {
-  font-size: 10px;
-  color: var(--c-text-muted);
-  background: rgba(255, 255, 255, 0.04);
-  padding: 1px 5px;
-  border-radius: var(--c-radius-xs);
-  white-space: nowrap;
+.bot-card:hover .bot-card-bio-hover-preview {
+  max-height: 80px;
+  opacity: 1;
+  transform: translateY(0);
+  margin-top: 6px;
+}
+
+.bot-card-bio-hover-text {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #f1f5f9;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.95);
+  word-break: break-word;
+}
+
+/* Load More Characters Button (Sleek Frosted Capsule) */
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 36px 0 44px;
+  width: 100%;
+}
+
+.load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(22, 22, 28, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f1f5f9;
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 11px 28px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+  letter-spacing: -0.01em;
+  user-select: none;
+  outline: none;
+}
+
+.load-more-btn:hover {
+  background: rgba(34, 34, 44, 0.98);
+  border-color: rgba(255, 255, 255, 0.32);
+  color: #FFFFFF;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+}
+
+.load-more-btn:active {
+  transform: translateY(0);
+}
+
+.load-more-btn svg {
+  transition: transform 0.2s ease;
+  stroke: currentColor;
+  flex-shrink: 0;
+}
+
+.load-more-btn:hover svg {
+  transform: translateY(2px);
+}
+
+.load-more-btn.is-loading {
+  opacity: 0.65;
+  cursor: wait;
+  pointer-events: none;
 }
 
 /* Skeletons */
@@ -7396,3 +8021,437 @@ html.is-janitor-chat-active .sidebar-toggle-btn {
   line-height: 1.4;
   white-space: pre-wrap;
 }
+
+/* ==========================================================================
+   Live JanitorAI Bot Reviews & Comments Section
+   ========================================================================== */
+
+.bot-reviews-section {
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--c-border, rgba(255, 255, 255, 0.08));
+}
+
+.reviews-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.reviews-header-left {
+  display: flex;
+  align-items: center;
+}
+
+.reviews-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--c-text-primary, #ffffff);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.reviews-title svg {
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.reviews-count-badge {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--c-text-muted, #a1a1aa);
+  margin-left: 2px;
+}
+
+.reviews-header-right {
+  display: flex;
+  align-items: center;
+}
+
+.reviews-sort-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.reviews-sort-btn {
+  background: transparent;
+  border: none;
+  color: var(--c-text-muted, #a1a1aa);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.reviews-sort-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.reviews-sort-btn.is-active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-card {
+  background: var(--c-surface-1, rgba(18, 18, 22, 0.7));
+  border: 1px solid var(--c-border, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  padding: 16px 18px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  position: relative;
+}
+
+.review-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.review-card.is-pinned {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.05) 0%, var(--c-surface-1, rgba(18, 18, 22, 0.7)) 100%);
+}
+
+.review-pinned-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #f59e0b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+  background: rgba(245, 158, 11, 0.12);
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  width: fit-content;
+}
+
+.review-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.review-user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.review-avatar-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #27272a;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.review-avatar-wrap.is-small {
+  width: 28px;
+  height: 28px;
+}
+
+.review-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.review-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #e4e4e7;
+  background: #3f3f46;
+}
+
+.review-avatar-fallback.is-small {
+  font-size: 0.68rem;
+}
+
+.review-user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.review-user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.review-user-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--c-text-primary, #ffffff);
+  line-height: 1.2;
+}
+
+.review-user-name.is-reply {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.review-plus-pill {
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #ec4899, #8b5cf6);
+  color: #ffffff;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.review-verified-pill {
+  font-size: 0.72rem;
+  color: #38bdf8;
+  font-weight: bold;
+}
+
+.review-timestamp {
+  font-size: 0.74rem;
+  color: var(--c-text-muted, #71717a);
+}
+
+.review-card-body {
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--c-text-secondary, #d4d4d8);
+  margin-bottom: 12px;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.review-link {
+  color: #38bdf8;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.review-link:hover {
+  text-decoration: underline;
+}
+
+.review-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.review-likes-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--c-text-muted, #a1a1aa);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.review-likes-pill svg {
+  color: #a1a1aa;
+}
+
+.review-replies-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #38bdf8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.review-replies-btn:hover {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.review-replies-btn.is-open .replies-chevron {
+  transform: rotate(180deg);
+}
+
+.replies-chevron {
+  transition: transform 0.2s ease;
+}
+
+.review-replies-container {
+  margin-top: 14px;
+  padding-left: 18px;
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: fadeInReviews 0.2s ease;
+}
+
+.review-reply-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.review-reply-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.review-reply-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.review-reply-body {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--c-text-secondary, #d4d4d8);
+  word-break: break-word;
+}
+
+.review-reply-actions {
+  display: flex;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.review-reply-likes {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--c-text-muted, #71717a);
+}
+
+.review-load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 16px;
+  transition: all 0.2s ease;
+}
+
+.review-load-more-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.review-load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  transform: none;
+}
+
+.reviews-empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--c-text-muted, #71717a);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.reviews-empty-state svg {
+  margin-bottom: 10px;
+  color: #52525b;
+}
+
+.reviews-empty-state h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #d4d4d8;
+  margin-bottom: 6px;
+}
+
+.reviews-empty-state p {
+  font-size: 0.8125rem;
+  color: #71717a;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.reviews-end-indicator {
+  text-align: center;
+  padding: 16px;
+  font-size: 0.78rem;
+  color: var(--c-text-muted, #71717a);
+  font-weight: 500;
+}
+
+.review-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: reviewSpin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes reviewSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeInReviews {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

@@ -409,6 +409,14 @@ def auto_fetch_janitor_token() -> Dict[str, Any]:
     Auto-fetches the freshest, valid JanitorAI authentication token from local browsers.
     Returns structured result with token, expiration, remaining time, and browser origin.
     """
+    import importlib
+    for _m in ('singularity.connect', 'connect', 'singularity.db', 'db'):
+        if _m in sys.modules:
+            try:
+                importlib.reload(sys.modules[_m])
+            except Exception:
+                pass
+
     now = time.time()
     candidates = discover_janitor_tokens()
 

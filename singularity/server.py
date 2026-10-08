@@ -225,6 +225,8 @@ def resolve_model_provider(model_name: str) -> str:
             return item["provider"]
 
     # 2. Explicit prefixes or known names
+    if m.startswith("agy-") or m.startswith("antigravity-") or m.startswith("agy_") or m.startswith("antigravity_"):
+        return "antigravity"
     if m.startswith("claude") or "fable" in m or "flable" in m or "opus" in m or "sonnet" in m or "haiku" in m:
         return "claude"
     if m.startswith("gemini") or m.startswith("imagen") or m.startswith("nano-banana") or m.startswith("veo") or m.startswith("google-omni") or m == "omni" or m.startswith("omni-"):
@@ -2979,6 +2981,42 @@ async def api_janitor_autofetch(request: Request):
         }, status_code=500)
 
 
+@app.post("/api/antigravity/autofetch")
+async def api_antigravity_autofetch(request: Request):
+    """Auto-detects active Google Antigravity IDE credentials from local machine and saves to vault."""
+    try:
+        from singularity.engines import antigravity
+        creds = antigravity._load_local_fallback_credentials()
+        if not creds:
+            return JSONResponse({
+                "ok": False,
+                "message": "No local Antigravity credentials found in local IDE storage or ~/.gemini."
+            }, status_code=404)
+
+        saved_count = 0
+        token_str = ""
+        for c in creds:
+            raw = c.get("token") or ""
+            if raw:
+                token_str = raw
+                parsed = db.parse_credential("antigravity", raw)
+                if parsed:
+                    db.add_account("antigravity", parsed)
+                    saved_count += 1
+
+        return JSONResponse({
+            "ok": True,
+            "message": f"Successfully auto-detected {saved_count} Antigravity account(s)!",
+            "token": token_str,
+            "accounts": db.get_accounts("antigravity"),
+        })
+    except Exception as exc:
+        return JSONResponse({
+            "ok": False,
+            "message": f"Auto-detect failed: {str(exc)}"
+        }, status_code=500)
+
+
 @app.post("/api/janitor/deploy")
 async def api_janitor_deploy(request: Request):
     """Directly deploy/patch character description on JanitorAI using user UUID and Access Token."""
@@ -3065,7 +3103,10 @@ async def api_connect_search(request: Request):
     page = int(request.query_params.get("page", 1))
     limit = int(request.query_params.get("limit", 24))
     unmasked = request.query_params.get("unmasked", "").lower() in ("1", "true")
-    from singularity import connect
+    import importlib
+    from singularity import connect, db
+    importlib.reload(db)
+    importlib.reload(connect)
     res = await connect.search_cards(q=q, sort=sort, tag=tag, page=page, limit=limit, unmasked_only=unmasked)
     return JSONResponse(res)
 
@@ -3077,6 +3118,24 @@ async def api_connect_get_bot(bot_id: str):
     if not bot:
         raise HTTPException(status_code=404, detail="Character bot not found")
     return JSONResponse({"success": True, "data": bot})
+
+
+@app.get("/api/connect/reviews")
+async def api_connect_get_reviews(request: Request):
+    bot_id = request.query_params.get("bot_id", "") or request.query_params.get("character_id", "")
+    page = int(request.query_params.get("page", 1))
+    size = int(request.query_params.get("size", 20))
+    sort_by = request.query_params.get("sortBy", "") or request.query_params.get("sort_by", "likes")
+    from singularity import connect
+    res = await connect.fetch_bot_reviews(bot_id=bot_id, page=page, size=size, sort_by=sort_by)
+    return JSONResponse(res)
+
+
+@app.get("/api/connect/reviews/{review_id}/replies")
+async def api_connect_get_review_replies(review_id: str):
+    from singularity import connect
+    res = await connect.fetch_review_replies(review_id=review_id)
+    return JSONResponse(res)
 
 
 @app.post("/api/connect/bot/{bot_id}/unmask")
@@ -4395,7 +4454,7 @@ async def on_startup():
     _ensure_packages()
     try:
         worker.ensure_supervisor_running()
-        for p in ["chatgpt", "kimi", "grok", "glm", "deepseek", "qwen"]:
+        for p in ["chatgpt", "kimi", "grok", "glm", "deepseek", "qwen", "antigravity"]:
             try:
                 start_provider(p)
             except Exception:
@@ -4537,7 +4596,7 @@ def main():
 
     try:
         worker.ensure_supervisor_running()
-        for p in ["chatgpt", "kimi", "grok", "glm", "deepseek", "qwen"]:
+        for p in ["chatgpt", "kimi", "grok", "glm", "deepseek", "qwen", "antigravity"]:
             try:
                 start_provider(p)
             except Exception:

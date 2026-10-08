@@ -14,6 +14,7 @@
     bookmark: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>`,
     bookmarkFilled: `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="currentColor" stroke-width="1"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>`,
     chat: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
+    message: `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><line x1="8" y1="9" x2="16" y2="9"></line><line x1="8" y1="13" x2="14" y2="13"></line></svg>`,
     token: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`,
     copy: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`,
     check: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
@@ -43,7 +44,7 @@
   const SConnect = {
     currentView: 'discover',
     prevView: 'discover',
-    homeSort: 'trending_24h',
+    homeSort: 'trending',
     homeTag: 'all',
     homeBots: [],
     recentBots: [],
@@ -75,6 +76,12 @@
 
       this.migrateLegacyChats();
       this.syncWithServer();
+
+      window.addEventListener('singularity-chat-updated', () => {
+        if (this.currentView === 'discover') {
+          this.renderHomeRecentChats();
+        }
+      });
 
       // Asynchronously hydrate followed creators from server/cloud vault
       fetch('/api/connect/following')
@@ -313,6 +320,49 @@
       return n.toLocaleString();
     },
 
+    resetScrollToTop() {
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      } catch (e) {
+        try { window.scrollTo(0, 0); } catch (_) {}
+      }
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+
+      const selectors = [
+        '.panel-viewport',
+        '#pane-connect',
+        '#connect-main-view',
+        '.cards-app-container',
+        '.bot-detail-page',
+        '.bot-detail-layout',
+        '.bot-detail-content'
+      ];
+      selectors.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => {
+          if (el) {
+            el.scrollTop = 0;
+            try { el.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch (_) { el.scrollTop = 0; }
+          }
+        });
+      });
+
+      requestAnimationFrame(() => {
+        try { window.scrollTo(0, 0); } catch (_) {}
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
+        selectors.forEach(sel => {
+          document.querySelectorAll(sel).forEach(el => {
+            if (el) el.scrollTop = 0;
+          });
+        });
+        const detailTop = document.querySelector('.bot-detail-page') || document.querySelector('.back-nav-btn') || document.getElementById('connect-main-view');
+        if (detailTop && typeof detailTop.scrollIntoView === 'function') {
+          try { detailTop.scrollIntoView({ behavior: 'instant', block: 'start' }); } catch (_) {}
+        }
+      });
+    },
+
     // -------------------------------------------------------------------------
     // NAVIGATION ROUTER
     // -------------------------------------------------------------------------
@@ -361,7 +411,7 @@
 
       // Toggle top header back button and detail state
       const topBackBtn = document.getElementById('cards-top-back-btn');
-      if (view === 'bot' || view === 'creator' || view === 'personas') {
+      if (view === 'bot' || view === 'creator' || view === 'personas' || (this.history && this.history.length > 0 && view !== 'discover')) {
         document.body.classList.add('is-sconnect-detail-view');
         if (topBackBtn) topBackBtn.style.display = 'inline-flex';
       } else {
@@ -378,7 +428,7 @@
       const container = document.getElementById('connect-main-view');
       if (!container) return;
 
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      this.resetScrollToTop();
 
       if (view === 'discover') {
         this.renderDiscoverView(container);
@@ -401,9 +451,11 @@
       } else if (view === 'chat') {
         this.renderChatView(container, params.id);
       }
+      this.resetScrollToTop();
     },
 
     navigateBack() {
+      this.resetScrollToTop();
       document.body.classList.remove('is-janitor-chat-active');
       document.documentElement.classList.remove('is-janitor-chat-active');
       const mToggle = document.getElementById('singularity-sidebar-toggle');
@@ -461,6 +513,9 @@
             <button class="filter-chip ${this.homeTag === 'Dominant' ? 'is-active' : ''}" onclick="SConnect.filterTag('Dominant', this)">Dominant</button>
           </div>
 
+          <!-- Most Recent Chats (Above Community Characters header) -->
+          <div id="home-recent-chats-container" class="home-recent-chats-container"></div>
+
           <!-- Section Header: Community Characters + Segmented Sort Capsule -->
           <div class="section-header">
             <div class="section-title-wrap">
@@ -468,13 +523,10 @@
               <span class="section-subtitle">Real-time character cards from JanitorAI</span>
             </div>
 
-            <!-- Sort Segmented Capsule: 24H Trending, Weekly, Popular, Newest -->
+            <!-- Sort Segmented Capsule: Trending, Popular, Newest -->
             <div class="home-sort-segment">
-              <button class="library-segment-btn ${this.homeSort === 'trending_24h' ? 'is-active' : ''}" onclick="SConnect.setSort('trending_24h', this)">
-                24H Trending
-              </button>
-              <button class="library-segment-btn ${this.homeSort === 'trending_week' ? 'is-active' : ''}" onclick="SConnect.setSort('trending_week', this)">
-                Weekly
+              <button class="library-segment-btn ${this.homeSort === 'trending' ? 'is-active' : ''}" onclick="SConnect.setSort('trending', this)">
+                Trending
               </button>
               <button class="library-segment-btn ${this.homeSort === 'popular' ? 'is-active' : ''}" onclick="SConnect.setSort('popular', this)">
                 Popular
@@ -485,56 +537,34 @@
             </div>
           </div>
 
-          <!-- Character Cards Grid (4 Columns, Tall Aspect Ratio) -->
+          <!-- Character Cards Grid -->
           <div id="home-trending-grid" class="bot-cards-grid">
             ${Array.from({ length: 8 }, () => `<div class="bot-card skeleton"></div>`).join('')}
           </div>
 
           <!-- Load More Button -->
-          <div style="display:flex; justify-content:center; margin: var(--c-space-8) 0 var(--c-space-10);">
-            <button class="load-more-btn" onclick="SConnect.loadMoreBots()">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+          <div class="load-more-container">
+            <button class="load-more-btn" onclick="SConnect.loadMoreBots(this)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
               <span>Load More Characters</span>
             </button>
-          </div>
-
-          <!-- Recently Released Section -->
-          <div style="margin-top: var(--c-space-8);">
-            <div class="section-header">
-              <div class="section-title-wrap">
-                <h2 class="section-title">Recently Added</h2>
-                <span class="section-subtitle">Fresh character releases</span>
-              </div>
-            </div>
-
-            <div id="home-recent-grid" class="bot-cards-grid">
-              ${Array.from({ length: 4 }, () => `<div class="bot-card skeleton"></div>`).join('')}
-            </div>
           </div>
         </div>
       `;
 
+      this.renderHomeRecentChats();
       this.loadDiscoverData();
     },
 
     async loadDiscoverData() {
       try {
         const tagParam = this.homeTag !== 'all' ? `&tag=${encodeURIComponent(this.homeTag)}` : '';
-        const [resMain, resRecent] = await Promise.all([
-          fetch(`/api/connect/search?sort=${this.homeSort}${tagParam}&page=1&limit=24`).then(r => r.json()),
-          fetch(`/api/connect/search?sort=latest&page=1&limit=8`).then(r => r.json())
-        ]);
-
+        
+        const resMain = await fetch(`/api/connect/search?sort=${this.homeSort}${tagParam}&page=1&limit=24`).then(r => r.json());
         const bots = (resMain.data && resMain.data.bots) || resMain.bots || resMain.items || [];
-        const recentBots = (resRecent.data && resRecent.data.bots) || resRecent.bots || resRecent.items || [];
-
         this.homeBots = bots;
-        this.recentBots = recentBots;
-
         bots.forEach(b => this.cacheBot(b));
-        recentBots.forEach(b => this.cacheBot(b));
 
-        // 1. Hydrate Main Trending Grid
         const grid = document.getElementById('home-trending-grid');
         if (grid) {
           if (bots.length > 0) {
@@ -544,14 +574,163 @@
           }
         }
 
-        // 2. Hydrate Recently Released Grid
-        const rGrid = document.getElementById('home-recent-grid');
-        if (rGrid && recentBots.length > 0) {
-          rGrid.innerHTML = recentBots.slice(0, 8).map((b, i) => this.renderBotCardHTML(b, i)).join('');
-        }
+        this.renderHomeRecentChats();
       } catch (err) {
         console.error('Error hydrating discover feed:', err);
       }
+    },
+
+    formatRecentChatBio(bio) {
+      if (!bio) return 'Janitor AI character roleplay.';
+      let str = String(bio)
+        .replace(/<image[^>]*>.*?<\/image>/gis, '')
+        .replace(/<image[^>]*>/gi, '')
+        .replace(/<\/image>/gi, '')
+        .replace(/<img[^>]*>/gi, '')
+        .replace(/<picture[^>]*>.*?<\/picture>/gis, '')
+        .replace(/<video[^>]*>.*?<\/video>/gis, '')
+        .replace(/<audio[^>]*>.*?<\/audio>/gis, '')
+        .replace(/!\[.*?\]\(.*?\)/g, '')
+        .replace(/\[img\].*?\[\/img\]/gis, '')
+        .replace(/<style[^>]*>.*?<\/style>/gis, '')
+        .replace(/<script[^>]*>.*?<\/script>/gis, '')
+        .replace(/<\/?details[^>]*>/gi, '')
+        .replace(/<\/?summary[^>]*>/gi, '')
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<\/p>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/[*_~`]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const words = str.split(' ');
+      if (words.length > 45) {
+        return this.escapeHTML(words.slice(0, 45).join(' ')) + '...';
+      }
+      if (str.length > 240) {
+        return this.escapeHTML(str.slice(0, 235).trim()) + '...';
+      }
+      return this.escapeHTML(str);
+    },
+
+    formatRecentChatTime(timestamp) {
+      if (!timestamp) return 'just now';
+      const now = Date.now();
+      const diff = Math.max(0, now - timestamp);
+      const min = Math.floor(diff / 60000);
+      const hr = Math.floor(min / 60);
+      const day = Math.floor(hr / 24);
+      if (min < 1) return 'just now';
+      if (min < 60) return `about ${min} minute${min > 1 ? 's' : ''} ago`;
+      if (hr < 24) return `about ${hr} hour${hr > 1 ? 's' : ''} ago`;
+      if (day === 1) return 'yesterday';
+      if (day < 7) return `about ${day} days ago`;
+      return `about ${Math.floor(day / 7)} weeks ago`;
+    },
+
+    renderHomeRecentChats() {
+      const container = document.getElementById('home-recent-chats-container');
+      if (!container) return;
+
+      const allSessions = this.getAllChatSessions();
+      if (!allSessions || allSessions.length === 0) {
+        container.innerHTML = '';
+        container.style.display = 'none';
+        return;
+      }
+
+      const sorted = [...allSessions].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)).slice(0, 4);
+
+      container.style.display = 'block';
+      container.innerHTML = `
+        <div class="janitor-recent-chats-section">
+          <div class="janitor-recent-chats-header">
+            <h3 class="janitor-recent-chats-title">Recent Chats</h3>
+            <button class="janitor-recent-view-all-btn" onclick="SConnect.navigate('my-chats')">View All</button>
+          </div>
+          <div class="janitor-recent-chats-scroll">
+            ${sorted.map(s => this.renderRecentChatCardHTML(s)).join('')}
+          </div>
+        </div>
+      `;
+    },
+
+    resolveSessionPersonaAvatar(session) {
+      if (!session) return DEFAULT_AVATAR;
+      const personas = this.getPersonas();
+      // 1. Look up by personaId on the session if specified
+      if (session.personaId) {
+        const found = Array.isArray(personas) && personas.find(p => p.id === session.personaId);
+        if (found && found.avatar) return found.avatar;
+      }
+      // 2. Check chat messages: find any user message and grab its avatar
+      if (session.id) {
+        const history = this.getChatMessages(session.id);
+        if (Array.isArray(history)) {
+          const userMsg = [...history].reverse().find(m => m.role === 'user');
+          if (userMsg && userMsg.avatar) return userMsg.avatar;
+        }
+      }
+      // 3. Directly stored personaAvatar if valid
+      if (session.personaAvatar && session.personaAvatar !== DEFAULT_AVATAR) {
+        return session.personaAvatar;
+      }
+      // 4. Fallback to active persona or first persona
+      const active = this.getActivePersona();
+      return (active && active.avatar) || (personas && personas[0] && personas[0].avatar) || DEFAULT_AVATAR;
+    },
+
+    renderRecentChatCardHTML(session) {
+      if (!session) return '';
+      const bot = this.botCache.get(session.botId) || { id: session.botId, name: session.botName, avatar: session.botAvatar };
+      const botChatName = this.getBotChatName(bot || { name: session.botName }) || session.botName || 'Chat';
+      const botAvatar = session.botAvatar || bot.avatar || DEFAULT_AVATAR;
+      const personaAvatar = this.resolveSessionPersonaAvatar(session);
+      const rawBio = (bot && (bot.description || bot.personality)) || session.botDescription || '';
+      const cleanBio = this.formatRecentChatBio(rawBio);
+
+      const history = this.getChatMessages(session.id);
+      const msgCount = (history && history.length > 0) ? history.length : (session.messageCount || 1);
+      const timeText = this.formatRecentChatTime(session.updatedAt || session.createdAt);
+
+      return `
+        <div class="janitor-recent-card" onclick="SConnect.resumeChatSession('${session.botId}', '${session.id}')">
+          <!-- Top: Lock Icon & Chat Name -->
+          <div class="janitor-recent-card-top">
+            <span class="janitor-recent-lock-icon">🔒</span>
+            <span class="janitor-recent-title" title="${this.escapeHTML(botChatName)}">${this.escapeHTML(botChatName)}</span>
+          </div>
+
+          <!-- Middle: Avatar + Persona on left, Bio on right -->
+          <div class="janitor-recent-card-mid">
+            <div class="janitor-recent-avatar-container">
+              <img class="janitor-recent-bot-img" src="${botAvatar}" alt="${this.escapeHTML(botChatName)}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
+              <img class="janitor-recent-persona-img" src="${personaAvatar}" alt="Persona" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
+            </div>
+            <div class="janitor-recent-bio-box">
+              <p class="janitor-recent-bio-text">${cleanBio}</p>
+            </div>
+          </div>
+
+          <!-- Bottom: Meta on left, Continue button on right -->
+          <div class="janitor-recent-card-bottom">
+            <div class="janitor-recent-meta-group">
+              <div class="janitor-recent-meta-line">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span>${timeText}</span>
+              </div>
+              <div class="janitor-recent-meta-line">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <span>${msgCount} message${msgCount === 1 ? '' : 's'}</span>
+              </div>
+            </div>
+            <button class="janitor-recent-continue-btn" onclick="event.stopPropagation(); SConnect.resumeChatSession('${session.botId}', '${session.id}')">
+              Continue
+            </button>
+          </div>
+        </div>
+      `;
     },
 
     setSort(sort, btn) {
@@ -578,7 +757,12 @@
       this.loadDiscoverData();
     },
 
-    async loadMoreBots() {
+    async loadMoreBots(btn) {
+      const button = btn || document.querySelector('.load-more-btn');
+      if (button) {
+        button.classList.add('is-loading');
+        button.disabled = true;
+      }
       const nextPage = Math.floor(this.homeBots.length / 24) + 1;
       try {
         const tagParam = this.homeTag !== 'all' ? `&tag=${encodeURIComponent(this.homeTag)}` : '';
@@ -596,7 +780,46 @@
         }
       } catch (e) {
         console.warn('Error loading more bots:', e);
+      } finally {
+        if (button) {
+          button.classList.remove('is-loading');
+          button.disabled = false;
+        }
       }
+    },
+
+    formatBotCardBio(bio) {
+      if (!bio) return '';
+      let str = String(bio)
+        .replace(/<image[^>]*>.*?<\/image>/gis, '')
+        .replace(/<image[^>]*>/gi, '')
+        .replace(/<\/image>/gi, '')
+        .replace(/<img[^>]*>/gi, '')
+        .replace(/<picture[^>]*>.*?<\/picture>/gis, '')
+        .replace(/<video[^>]*>.*?<\/video>/gis, '')
+        .replace(/<audio[^>]*>.*?<\/audio>/gis, '')
+        .replace(/!\[.*?\]\(.*?\)/g, '')
+        .replace(/\[img\].*?\[\/img\]/gis, '')
+        .replace(/<style[^>]*>.*?<\/style>/gis, '')
+        .replace(/<script[^>]*>.*?<\/script>/gis, '')
+        .replace(/<\/?details[^>]*>/gi, '')
+        .replace(/<\/?summary[^>]*>/gi, '')
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<\/p>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/[*_~`]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const words = str.split(' ');
+      if (words.length > 25) {
+        return this.escapeHTML(words.slice(0, 25).join(' ')) + '...';
+      }
+      if (str.length > 130) {
+        return this.escapeHTML(str.slice(0, 125).trim()) + '...';
+      }
+      return this.escapeHTML(str);
     },
 
     // -------------------------------------------------------------------------
@@ -607,23 +830,28 @@
       this.cacheBot(bot);
 
       const isSaved = this.savedBotIds.has(bot.id);
-      const catBadge = this.resolveCategoryBadge(bot);
-      const tags = Array.isArray(bot.tags) ? bot.tags : [];
       const botAvatar = bot.avatar || DEFAULT_AVATAR;
       const creatorName = bot.creator_name || bot.creatorName || 'Janitor Creator';
       const creatorAvatar = bot.creator_avatar || bot.creatorAvatar || DEFAULT_AVATAR;
 
+      const chatsVal = Number(bot.chats || bot.total_chat || bot.chat_count || 0);
+      const msgsVal = Number(bot.messages || bot.total_message || bot.message_count || 0);
+      const displayChats = chatsVal || (msgsVal > 100 ? Math.round(msgsVal / 18) : msgsVal);
+      const displayMsgs = msgsVal || (chatsVal > 0 ? chatsVal * 18 : 0);
+
+      const rawBio = bot.description || bot.personality || bot.scenario || '';
+      const cleanBio = this.formatBotCardBio(rawBio);
+
       return `
         <div class="bot-card pp-cc-wrapper profile-character-card-wrapper css-13wmn96 css-1sxhvxh" onclick="SConnect.openBotDetail('${bot.id}')">
           <!-- Full Bleed Character Portrait -->
-          <img class="bot-card-bg-image pp-cc-avatar profile-character-card-avatar-image css-147i79y css-1q7rmf0" src="${botAvatar}" alt="${bot.name}" loading="lazy" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';">
+          <img class="bot-card-bg-image pp-cc-avatar profile-character-card-avatar-image css-147i79y css-1q7rmf0" src="${botAvatar}" alt="${this.escapeHTML(bot.name)}" loading="lazy" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';">
           
           <!-- Gradient Overlay -->
           <div class="bot-card-gradient-overlay"></div>
 
-          <!-- Top Bar: Category Chip + Quick Hover Buttons -->
+          <!-- Top Bar: Quick Hover Action Buttons on left, Glassmorphism Stats Pill on right -->
           <div class="bot-card-top-bar">
-            <span class="bot-card-cat-chip">${catBadge}</span>
             <div class="bot-card-actions-group">
               <button class="card-action-btn ${isSaved ? 'is-saved' : ''}" title="Save to Library" onclick="event.stopPropagation(); SConnect.toggleSaveBot('${bot.id}', this)">
                 ${isSaved ? ICONS.bookmarkFilled : ICONS.bookmark}
@@ -632,31 +860,36 @@
                 ${ICONS.download}
               </button>
             </div>
+            <!-- Glassmorphism Stats Pill with original ICONS.chat and ICONS.message -->
+            <div class="bot-card-stats-pill">
+              <span class="bot-card-stat-item" title="Total Chats">
+                ${ICONS.chat}
+                <span>${this.formatNumber(displayChats)}</span>
+              </span>
+              <span class="bot-card-stat-item" title="Total Messages">
+                ${ICONS.message}
+                <span>${this.formatNumber(displayMsgs)}</span>
+              </span>
+            </div>
           </div>
 
           <!-- Bottom Content Area -->
           <div class="bot-card-content-area pp-cc-stack profile-character-card-stack css-1s5evre">
-            <div class="bot-card-stat-pills-row profile-character-card-stats-box css-10cv7r2">
-              <span class="bot-card-stat-pill pp-cc-ribbon pp-cc-chats profile-character-card-ribbon profile-character-card-chats-hstack css-1ket5wn css-euh5x6">
-                ${ICONS.chat}
-                <span class="pp-cc-chats-count profile-character-card-chats-count">${this.formatNumber(bot.messages || bot.chats || 0)}</span>
-              </span>
-              <span class="bot-card-stat-pill pp-cc-tokens-count profile-character-card-tokens-count css-1c9wmts">
-                ${ICONS.token}
-                <span>${(bot.tokens || 0).toLocaleString()} t</span>
-              </span>
+            <!-- 1. Bot Title -->
+            <h3 class="bot-card-title pp-cc-name profile-character-card-name-box css-nlxhw4" title="${this.escapeHTML(bot.name)}">${this.escapeHTML(bot.name)}</h3>
+
+            <!-- 2. Creator Avatar and Name (No boxing, no bordering) -->
+            <div class="bot-card-creator-row" onclick="event.stopPropagation(); SConnect.openCreatorDetail('${bot.creator_id || bot.creatorId || creatorName}')" title="Creator: ${this.escapeHTML(creatorName)}">
+              <span class="bot-card-creator-handle">@${this.escapeHTML(creatorName)}</span>
+              <img class="bot-card-creator-avatar-inline" src="${creatorAvatar}" alt="${this.escapeHTML(creatorName)}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
             </div>
 
-            <h3 class="bot-card-title pp-cc-name profile-character-card-name-box css-nlxhw4" title="${bot.name}">${bot.name}</h3>
-
-            <div class="bot-card-creator pp-cc-creator-name profile-character-card-creator-name-link css-1xhci6i" onclick="event.stopPropagation(); SConnect.openCreatorDetail('${bot.creator_id || bot.creatorId || creatorName}')">
-              <img class="bot-card-creator-avatar" src="${creatorAvatar}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';">
-              <span class="line-clamp-1">${creatorName}</span>
-            </div>
-
-            <div class="bot-card-tags-row pp-cc-tags profile-character-card-tags css-4ofde4">
-              ${tags.slice(0, 4).map(t => `<span class="bot-card-tag pp-cc-tag profile-character-card-tags-wrap css-123m5uu">${t}</span>`).join('')}
-            </div>
+            <!-- 3. Hover Bio Preview (Smooth slide-up & fade-in, text only) -->
+            ${cleanBio ? `
+              <div class="bot-card-bio-hover-preview">
+                <p class="bot-card-bio-hover-text">${cleanBio}</p>
+              </div>
+            ` : ''}
           </div>
         </div>
       `;
@@ -726,6 +959,7 @@
       this.activeBot = bot;
       this.activeDetailTab = 'bio';
       this.activeGreetingIdx = 0;
+      this.resetScrollToTop();
 
       const isSaved = this.savedBotIds.has(bot.id);
       const isUnmasked = bot.is_unmasked || bot.isUnmasked || false;
@@ -834,12 +1068,41 @@
                   ${Array.from({ length: 4 }, () => `<div class="bot-card skeleton" style="height:220px;"></div>`).join('')}
                 </div>
               </div>
+
+              <!-- Live JanitorAI Reviews & Comments Section -->
+              <div class="bot-reviews-section" id="bot-reviews-section">
+                <div class="reviews-header">
+                  <div class="reviews-header-left">
+                    <h3 class="reviews-title">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                      <span>Comments & Reviews</span>
+                      <span class="reviews-count-badge" id="reviews-count-badge"></span>
+                    </h3>
+                  </div>
+                  <div class="reviews-header-right">
+                    <div class="reviews-sort-pills" role="radiogroup" aria-label="Sort Reviews">
+                      <button type="button" class="reviews-sort-btn is-active" id="sort-rev-likes" onclick="SConnect.switchReviewsSort('likes')">Top Liked</button>
+                      <button type="button" class="reviews-sort-btn" id="sort-rev-latest" onclick="SConnect.switchReviewsSort('latest')">Newest</button>
+                      <button type="button" class="reviews-sort-btn" id="sort-rev-oldest" onclick="SConnect.switchReviewsSort('oldest')">Oldest</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="reviews-list" id="reviews-list">
+                  <div class="reviews-loading-skeleton">
+                    <div class="review-card skeleton" style="height:110px; margin-bottom:12px; border-radius:12px;"></div>
+                    <div class="review-card skeleton" style="height:110px; margin-bottom:12px; border-radius:12px;"></div>
+                  </div>
+                </div>
+                <div class="reviews-footer" id="reviews-footer"></div>
+              </div>
             </section>
           </div>
         </div>
       `;
 
+      this.resetScrollToTop();
       this.loadMoreByCreator(bot.creator_id || bot.creatorId || creatorName, bot.id);
+      this.loadBotReviews(bot.id, 1, 'likes', false);
     },
 
     setDetailTab(tab, btn) {
@@ -944,6 +1207,285 @@
         }
       } catch (e) {
         grid.innerHTML = this.homeBots.filter(b => b.id !== currentBotId).slice(0, 4).map((b, i) => this.renderBotCardHTML(b, i)).join('');
+      }
+    },
+
+    formatRelativeTime(isoStr) {
+      if (!isoStr) return '';
+      try {
+        const d = new Date(isoStr);
+        const now = new Date();
+        const diffMs = now - d;
+        const diffSec = Math.floor(diffMs / 1000);
+        if (diffSec < 60) return 'Just now';
+        const diffMin = Math.floor(diffSec / 60);
+        if (diffMin < 60) return `${diffMin}m ago`;
+        const diffHr = Math.floor(diffMin / 60);
+        if (diffHr < 24) return `${diffHr}h ago`;
+        const diffDays = Math.floor(diffHr / 24);
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 30) return `${diffDays}d ago`;
+        const diffMonths = Math.floor(diffDays / 30);
+        if (diffMonths < 12) return `${diffMonths}mo ago`;
+        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      } catch (_) {
+        return '';
+      }
+    },
+
+    renderCommentBody(rawText) {
+      if (!rawText) return '';
+      let safe = this.escapeHTML(rawText);
+      safe = safe.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="review-link">$1</a>');
+      return safe.replace(/\n/g, '<br />');
+    },
+
+    async switchReviewsSort(sortBy) {
+      if (this.currentReviewsSort === sortBy && this.currentReviewsPage === 1) return;
+      this.currentReviewsSort = sortBy;
+      document.querySelectorAll('.reviews-sort-btn').forEach(btn => {
+        btn.classList.toggle('is-active', btn.getAttribute('id') === `sort-rev-${sortBy}`);
+      });
+      if (this.activeBot && this.activeBot.id) {
+        await this.loadBotReviews(this.activeBot.id, 1, sortBy, false);
+      }
+    },
+
+    async loadBotReviews(botId, page = 1, sortBy = 'likes', append = false) {
+      if (!botId) return;
+      this.currentReviewsBotId = botId;
+      this.currentReviewsPage = page;
+      this.currentReviewsSort = sortBy;
+
+      const listEl = document.getElementById('reviews-list');
+      const footerEl = document.getElementById('reviews-footer');
+      const badgeEl = document.getElementById('reviews-count-badge');
+      if (!listEl) return;
+
+      if (!append) {
+        listEl.innerHTML = `
+          <div class="reviews-loading-skeleton">
+            <div class="review-card skeleton" style="height:110px; margin-bottom:12px; border-radius:12px;"></div>
+            <div class="review-card skeleton" style="height:110px; margin-bottom:12px; border-radius:12px;"></div>
+          </div>
+        `;
+        if (footerEl) footerEl.innerHTML = '';
+      } else {
+        const loadBtn = document.getElementById('btn-load-more-reviews');
+        if (loadBtn) {
+          loadBtn.disabled = true;
+          loadBtn.innerHTML = `<span class="review-spinner"></span> Loading more...`;
+        }
+      }
+
+      try {
+        let resp = await fetch(`/api/connect/reviews?bot_id=${encodeURIComponent(botId)}&page=${page}&size=20&sortBy=${sortBy}`);
+        if (resp.status === 404) {
+          resp = await fetch(`/api/connect/search?q=${encodeURIComponent('__action:reviews:' + botId)}&tag=__reviews__&sort=${encodeURIComponent(sortBy)}&page=${page}&limit=20`);
+        }
+        if (!resp.ok) throw new Error('Failed to fetch reviews');
+        const data = await resp.json();
+        const reviews = data.reviews || [];
+        const counts = data.counts || {};
+        const totalReviews = counts.total ?? (data.total || reviews.length);
+
+        if (badgeEl) {
+          badgeEl.textContent = totalReviews > 0 ? `(${totalReviews})` : '(0)';
+        }
+
+        if (!append) {
+          listEl.innerHTML = '';
+        }
+
+        if (!append && reviews.length === 0) {
+          listEl.innerHTML = `
+            <div class="reviews-empty-state">
+              <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              <h4>No comments yet on JanitorAI</h4>
+              <p>Be the first to explore this character and start a scenario.</p>
+            </div>
+          `;
+          if (footerEl) footerEl.innerHTML = '';
+          return;
+        }
+
+        const cardsHTML = reviews.map(rev => {
+          const user = rev.user || {};
+          const uName = user.name || 'Anonymous';
+          const uInitial = uName.charAt(0).toUpperCase() || 'U';
+          const uAvatar = user.avatar;
+          const timeAgo = this.formatRelativeTime(rev.created_at);
+          const hasReplies = rev.comment_count > 0;
+
+          return `
+            <div class="review-card ${rev.is_pinned ? 'is-pinned' : ''}" id="review-card-${rev.id}">
+              ${rev.is_pinned ? `
+                <div class="review-pinned-badge">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6l.8.8.8-.8v-6H18v-2l-2-2z"/></svg>
+                  <span>Pinned by Creator</span>
+                </div>
+              ` : ''}
+              <div class="review-card-header">
+                <div class="review-user-info">
+                  <div class="review-avatar-wrap">
+                    ${uAvatar ? `
+                      <img src="${uAvatar}" class="review-avatar-img" alt="${this.escapeHTML(uName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                      <div class="review-avatar-fallback" style="display:none;">${this.escapeHTML(uInitial)}</div>
+                    ` : `
+                      <div class="review-avatar-fallback">${this.escapeHTML(uInitial)}</div>
+                    `}
+                  </div>
+                  <div class="review-user-meta">
+                    <div class="review-user-name-row">
+                      <span class="review-user-name">${this.escapeHTML(uName)}</span>
+                      ${user.plus_badge ? `<span class="review-plus-pill" title="Janitor+ Subscriber">PLUS</span>` : ''}
+                      ${user.is_verified ? `<span class="review-verified-pill" title="Verified Creator">✓</span>` : ''}
+                    </div>
+                    ${timeAgo ? `<span class="review-timestamp">${timeAgo}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="review-card-body">
+                ${this.renderCommentBody(rev.content)}
+              </div>
+              <div class="review-card-actions">
+                <div class="review-likes-pill" title="${rev.like_count} likes">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                  <span>${rev.like_count}</span>
+                </div>
+                ${hasReplies ? `
+                  <button type="button" class="review-replies-btn" id="btn-replies-${rev.id}" onclick="SConnect.toggleReviewReplies('${rev.id}')">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" class="replies-chevron"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    <span>${rev.comment_count} ${rev.comment_count === 1 ? 'reply' : 'replies'}</span>
+                  </button>
+                ` : ''}
+              </div>
+              ${hasReplies ? `
+                <div class="review-replies-container" id="replies-container-${rev.id}" style="display:none;"></div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+
+        if (append) {
+          listEl.insertAdjacentHTML('beforeend', cardsHTML);
+        } else {
+          listEl.innerHTML = cardsHTML;
+        }
+
+        // Handle Load More Button
+        if (footerEl) {
+          if (data.has_more) {
+            footerEl.innerHTML = `
+              <button type="button" class="review-load-more-btn" id="btn-load-more-reviews" onclick="SConnect.loadMoreReviews()">
+                <span>Load More Comments</span>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+            `;
+          } else {
+            footerEl.innerHTML = reviews.length > 0 ? `<div class="reviews-end-indicator">All comments loaded</div>` : '';
+          }
+        }
+      } catch (err) {
+        console.error('Error loading bot reviews:', err);
+        if (!append) {
+          listEl.innerHTML = `
+            <div class="reviews-empty-state">
+              <p style="color:var(--c-amber, #f59e0b);">Unable to load comments at this moment. You can try refreshing.</p>
+            </div>
+          `;
+        }
+        if (footerEl) footerEl.innerHTML = '';
+      }
+    },
+
+    async loadMoreReviews() {
+      if (!this.currentReviewsBotId) return;
+      await this.loadBotReviews(this.currentReviewsBotId, (this.currentReviewsPage || 1) + 1, this.currentReviewsSort || 'likes', true);
+    },
+
+    async toggleReviewReplies(reviewId) {
+      const container = document.getElementById(`replies-container-${reviewId}`);
+      const btn = document.getElementById(`btn-replies-${reviewId}`);
+      if (!container || !btn) return;
+
+      const isHidden = container.style.display === 'none';
+      if (!isHidden) {
+        container.style.display = 'none';
+        btn.classList.remove('is-open');
+        return;
+      }
+
+      container.style.display = 'block';
+      btn.classList.add('is-open');
+
+      if (container.dataset.loaded === 'true') {
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="review-replies-loading">
+          <span class="review-spinner"></span>
+          <span>Loading replies...</span>
+        </div>
+      `;
+
+      try {
+        let resp = await fetch(`/api/connect/reviews/${encodeURIComponent(reviewId)}/replies`);
+        if (resp.status === 404) {
+          resp = await fetch(`/api/connect/search?q=${encodeURIComponent('__action:replies:' + reviewId)}&tag=__replies__`);
+        }
+        if (!resp.ok) throw new Error('Failed to fetch replies');
+        const data = await resp.json();
+        const replies = data.replies || [];
+
+        if (replies.length === 0) {
+          container.innerHTML = `<div class="review-reply-empty">No replies found.</div>`;
+          container.dataset.loaded = 'true';
+          return;
+        }
+
+        container.innerHTML = replies.map(rep => {
+          const user = rep.user || {};
+          const uName = user.name || 'Anonymous';
+          const uInitial = uName.charAt(0).toUpperCase() || 'U';
+          const uAvatar = user.avatar;
+          const timeAgo = this.formatRelativeTime(rep.created_at);
+
+          return `
+            <div class="review-reply-card">
+              <div class="review-reply-header">
+                <div class="review-avatar-wrap is-small">
+                  ${uAvatar ? `
+                    <img src="${uAvatar}" class="review-avatar-img" alt="${this.escapeHTML(uName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                    <div class="review-avatar-fallback is-small" style="display:none;">${this.escapeHTML(uInitial)}</div>
+                  ` : `
+                    <div class="review-avatar-fallback is-small">${this.escapeHTML(uInitial)}</div>
+                  `}
+                </div>
+                <div class="review-reply-meta">
+                  <div class="review-user-name-row">
+                    <span class="review-user-name is-reply">${this.escapeHTML(uName)}</span>
+                    ${user.plus_badge ? `<span class="review-plus-pill" title="Janitor+ Subscriber">PLUS</span>` : ''}
+                  </div>
+                  ${timeAgo ? `<span class="review-timestamp">${timeAgo}</span>` : ''}
+                </div>
+              </div>
+              <div class="review-reply-body">
+                ${this.renderCommentBody(rep.content)}
+              </div>
+              ${rep.like_count > 0 ? `
+                <div class="review-reply-actions">
+                  <span class="review-reply-likes"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg> ${rep.like_count}</span>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+        container.dataset.loaded = 'true';
+      } catch (err) {
+        console.error('Error loading replies:', err);
+        container.innerHTML = `<div class="review-reply-empty" style="color:var(--c-amber,#f59e0b);">Unable to load replies.</div>`;
       }
     },
 
@@ -2372,11 +2914,15 @@
     // ACTIONS & CONTROLS
     // -------------------------------------------------------------------------
     openBotDetail(botId) {
+      this.resetScrollToTop();
       this.navigate('bot', { id: botId });
+      this.resetScrollToTop();
     },
 
     openCreatorDetail(creatorId) {
+      this.resetScrollToTop();
       this.navigate('creator', { id: creatorId });
+      this.resetScrollToTop();
     },
 
     downloadBotPNG(botId) {
@@ -3864,6 +4410,11 @@
       this.saveChatMessages(session.id, history);
       session.updatedAt = Date.now();
       session.messageCount = history.length;
+      if (persona) {
+        session.personaId = persona.id;
+        session.personaAvatar = persona.avatar;
+        session.personaName = persona.name;
+      }
       if (!session.summary || session.summary === 'no summary :(') {
         session.summary = text.length > 80 ? (text.slice(0, 80) + '...') : text;
       }
@@ -4170,6 +4721,16 @@
       this.setActivePersona(personaId);
       this.closePersonaModal();
       if (botId) {
+        const session = this.getActiveChatSession(botId, false);
+        if (session) {
+          const p = this.getPersonas().find(x => x.id === personaId);
+          if (p) {
+            session.personaId = p.id;
+            session.personaAvatar = p.avatar;
+            session.personaName = p.name;
+            this.updateChatSessionMeta(session);
+          }
+        }
         const container = document.getElementById('connect-main-view');
         if (container) this.renderChatView(container, botId);
       }

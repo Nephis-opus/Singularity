@@ -37,6 +37,10 @@ def get_persona_config(model_name: str) -> Optional[PersonaConfig]:
     """
     m = (model_name or "").lower().strip()
 
+    # Guard: Antigravity (agy-*) models are authentic upstream models and must never be intercepted
+    if m.startswith("agy-") or m.startswith("antigravity-") or m.startswith("agy_") or m.startswith("antigravity_"):
+        return None
+
     # Guard: Default Sol, Sonnet, Opus, Haiku, Terra, Luna must be completely unaffected!
     if "gpt-5" in m or "gpt-5-6" in m or "gpt-5.6" in m or m in ("sol", "gpt-5-6-sol", "gpt-5.6-sol", "terra", "luna"):
         return None

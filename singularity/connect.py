@@ -78,6 +78,8 @@ def resolve_media_url(raw_url: Optional[str]) -> str:
         return f"{JANITOR_CDN_URL}/{u}"
     if u.startswith("media-approved/"):
         return f"{JANITOR_CDN_URL}/{u}"
+    if "/" not in u and (u.endswith(".webp") or u.endswith(".jpg") or u.endswith(".png") or u.endswith(".jpeg")):
+        return f"{JANITOR_CDN_URL}/bot-avatars/{u}"
     if u.startswith("_") and (u.endswith(".webp") or u.endswith(".jpg") or u.endswith(".png")):
         return f"{JANITOR_CDN_URL}/bot-avatars/{u}"
 
@@ -136,7 +138,14 @@ def normalize_card_payload(raw: Dict[str, Any]) -> Dict[str, Any]:
         except Exception:
             tags = [t.strip() for t in raw_tags.split(",") if t.strip()]
     elif isinstance(raw_tags, list):
-        tags = [str(t) for t in raw_tags]
+        tags = []
+        for t in raw_tags:
+            if isinstance(t, dict):
+                t_name = str(t.get("name") or t.get("slug") or "").strip()
+                if t_name:
+                    tags.append(t_name)
+            elif isinstance(t, str) and t.strip():
+                tags.append(t.strip())
     else:
         tags = []
 
@@ -183,7 +192,12 @@ def normalize_card_payload(raw: Dict[str, Any]) -> Dict[str, Any]:
     description = str(raw.get("description") or "").strip()
 
     is_unmasked = bool(raw.get("is_unmasked") or raw.get("isUnmasked") or (personality and len(personality) > 0 and not raw.get("definition_private") and not raw.get("definitionPrivate")))
-    definition_private = bool((raw.get("definition_private") or raw.get("definitionPrivate")) and not is_unmasked)
+    definition_private = bool((raw.get("definition_private") or raw.get("definitionPrivate") or not raw.get("showdefinition", True)) and not is_unmasked)
+
+    stats_dict = raw.get("stats") if isinstance(raw.get("stats"), dict) else {}
+    chats = int(stats_dict.get("chat") or raw.get("chats") or raw.get("chat") or raw.get("total_chat") or raw.get("chat_count") or 0)
+    messages = int(stats_dict.get("message") or raw.get("messages") or raw.get("message") or raw.get("total_message") or raw.get("message_count") or 0)
+    tokens = int(raw.get("total_tokens") or raw.get("tokens") or (len(personality) // 4 if personality else 0))
 
     return {
         "id": bot_id,
@@ -194,9 +208,9 @@ def normalize_card_payload(raw: Dict[str, Any]) -> Dict[str, Any]:
         "creator_avatar": creator_avatar,
         "category": category,
         "tags": tags,
-        "tokens": int(raw.get("tokens") or (len(personality) // 4 if personality else 0)),
-        "chats": int(raw.get("chats") or 0),
-        "messages": int(raw.get("messages") or 0),
+        "tokens": tokens,
+        "chats": chats,
+        "messages": messages,
         "description": description,
         "personality": personality,
         "scenario": scenario,
@@ -209,7 +223,7 @@ def normalize_card_payload(raw: Dict[str, Any]) -> Dict[str, Any]:
         "definition_private": definition_private,
         "definitionPrivate": definition_private,
         "is_nsfw": bool(raw.get("is_nsfw") or raw.get("isNsfw", True)),
-        "source": str(raw.get("source") or "domcord"),
+        "source": str(raw.get("source") or "JanitorAI"),
         "created_at": raw.get("created_at") or raw.get("createdAt") or "",
         "updated_at": time.time()
     }
@@ -219,6 +233,10 @@ def normalize_card_payload(raw: Dict[str, Any]) -> Dict[str, Any]:
 # Remote Fetch & Search Handlers (Domcord Backend / Janitor Fallback)
 # =====================================================================
 
+_FEED_CACHE: Dict[str, Dict[str, Any]] = {}
+_FEED_CACHE_EXPIRY: Dict[str, float] = {}
+_FEED_CACHE_TTL = 300.0  # 5 minutes in-memory freshness
+
 async def search_cards(
     q: str = "",
     sort: str = "trending",
@@ -227,14 +245,40 @@ async def search_cards(
     limit: int = 24,
     unmasked_only: bool = False
 ) -> Dict[str, Any]:
-    """Search cards through Domcord API with automatic SQLite vault caching and fallback."""
+    """Search cards through Domcord API with automatic caching, robust timeout, and leak-proof fallback."""
     clean_q = str(q or "").strip()
     clean_sort = str(sort or "trending").strip()
     clean_tag = str(tag or "").strip()
 
+    if clean_tag == "__reviews__" or clean_q.startswith("__action:reviews:"):
+        target_bot_id = clean_q.replace("__action:reviews:", "").strip()
+        sort_by = clean_sort if clean_sort in ("likes", "latest", "oldest") else "likes"
+        return await fetch_bot_reviews(bot_id=target_bot_id, page=page, size=limit, sort_by=sort_by)
+
+    if clean_tag == "__replies__" or clean_q.startswith("__action:replies:"):
+        target_rev_id = clean_q.replace("__action:replies:", "").strip()
+        return await fetch_review_replies(review_id=target_rev_id)
+
+    cache_key = f"{clean_q.lower()}:{clean_sort.lower()}:{clean_tag.lower()}:{page}:{limit}:{bool(unmasked_only)}"
+    now = time.time()
+
+    # 1. Fast in-memory cache hit if still fresh
+    if cache_key in _FEED_CACHE and now < _FEED_CACHE_EXPIRY.get(cache_key, 0):
+        return _FEED_CACHE[cache_key]
+
+    clean_sort_lower = clean_sort.lower()
+    if "trend" in clean_sort_lower:
+        backend_sort = "trending"
+    elif clean_sort_lower in ("popular", "chats"):
+        backend_sort = "popular"
+    elif clean_sort_lower in ("latest", "newest"):
+        backend_sort = "latest"
+    else:
+        backend_sort = "trending"
+
     params = {
         "q": clean_q,
-        "sort": clean_sort,
+        "sort": backend_sort,
         "page": page,
         "limit": min(50, max(1, limit))
     }
@@ -242,9 +286,85 @@ async def search_cards(
         params["tags"] = clean_tag
         params["tag"] = clean_tag
 
-    # 1. Attempt live query to Domcord backend
+    # 2. First priority: Live JanitorAI Official API using curl_cffi Chrome impersonation
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        from singularity import janitor
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        try:
+            tok_data = janitor.auto_fetch_janitor_token()
+            if tok_data and tok_data.get("ok") and tok_data.get("token"):
+                headers["Authorization"] = f"Bearer {tok_data['token']}"
+        except Exception:
+            pass
+
+        j_params = {
+            "mode": "all",
+            "sort": backend_sort,
+            "page": page
+        }
+        if clean_q:
+            j_params["search"] = clean_q
+        if clean_tag and clean_tag.lower() != "all":
+            j_params["tags"] = clean_tag.lower()
+
+        def _live_fetch():
+            from curl_cffi import requests as c_requests
+            return c_requests.get(
+                "https://janitorai.com/mb/characters",
+                params=j_params,
+                headers=headers,
+                impersonate="chrome124",
+                timeout=12.0
+            )
+
+        j_resp = await asyncio.to_thread(_live_fetch)
+        if j_resp.status_code == 200:
+            raw_bots = j_resp.json().get("data") or []
+            if raw_bots:
+                normalized_bots = []
+                for item in raw_bots:
+                    if not isinstance(item, dict):
+                        continue
+                    norm = normalize_card_payload(item)
+                    if unmasked_only and not norm.get("is_unmasked"):
+                        continue
+                    try:
+                        db.save_connect_card(norm)
+                    except Exception:
+                        pass
+                    normalized_bots.append(norm)
+
+                if normalized_bots:
+                    payload = {
+                        "success": True,
+                        "data": {
+                            "bots": normalized_bots,
+                            "creators": [],
+                            "totalBots": len(normalized_bots),
+                            "page": page,
+                            "limit": limit
+                        },
+                        "items": normalized_bots,
+                        "bots": normalized_bots,
+                        "creators": [],
+                        "total": len(normalized_bots),
+                        "page": page,
+                        "limit": limit,
+                        "source": "janitor_live"
+                    }
+                    _FEED_CACHE[cache_key] = payload
+                    _FEED_CACHE_EXPIRY[cache_key] = now + _FEED_CACHE_TTL
+                    return payload
+    except Exception as exc:
+        logger.debug(f"Janitor live API fetch error: {exc}")
+
+    # 3. Secondary Fallback: Query Domcord backend
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
             resp = await client.get(
                 f"{DOMCORD_BACKEND_URL}/api/search",
                 params=params,
@@ -298,28 +418,48 @@ async def search_cards(
                             "hasPlus": bool(c.get("hasPlus"))
                         })
 
-                return {
-                    "success": True,
-                    "data": {
+                # If remote provided bots, cache and return them
+                if normalized_bots:
+                    payload = {
+                        "success": True,
+                        "data": {
+                            "bots": normalized_bots,
+                            "creators": normalized_creators,
+                            "totalBots": total_count,
+                            "page": page,
+                            "limit": limit
+                        },
+                        "items": normalized_bots,
                         "bots": normalized_bots,
                         "creators": normalized_creators,
-                        "totalBots": total_count,
+                        "total": total_count,
                         "page": page,
-                        "limit": limit
-                    },
-                    "items": normalized_bots,
-                    "bots": normalized_bots,
-                    "creators": normalized_creators,
-                    "total": total_count,
-                    "page": page,
-                    "limit": limit,
-                    "source": "remote"
-                }
+                        "limit": limit,
+                        "source": "remote"
+                    }
+
+                    # Store in memory cache
+                    _FEED_CACHE[cache_key] = payload
+                    _FEED_CACHE_EXPIRY[cache_key] = now + _FEED_CACHE_TTL
+                    return payload
     except Exception as exc:
         pass
 
-    # 2. Seamless Fallback: Query local SQLite vault
-    local_items = db.list_connect_cards(q=clean_q, unmasked_only=unmasked_only, limit=limit)
+    # 3. If upstream timed out but we have a prior cache entry, serve it
+    if cache_key in _FEED_CACHE:
+        return _FEED_CACHE[cache_key]
+
+    # 4. Seamless Fallback: Query local SQLite vault sorted by popularity/sort
+    # strictly excluding saved library cards when browsing public discover feed!
+    exclude_saved = not clean_q
+    fallback_q = clean_q or (clean_tag if clean_tag and clean_tag.lower() != "all" else "")
+    local_items = db.list_connect_cards(
+        q=fallback_q,
+        unmasked_only=unmasked_only,
+        limit=limit,
+        sort=backend_sort,
+        exclude_saved=exclude_saved
+    )
     return {
         "success": True,
         "data": {
@@ -884,3 +1024,211 @@ def handle_incoming_proxy_completion(body: Dict[str, Any]) -> Tuple[Dict[str, An
     }
 
     return response_payload, intercept_id
+
+
+# =====================================================================
+# Live JanitorAI Comments & Reviews Engine
+# =====================================================================
+
+def resolve_user_avatar_url(avatar: Any) -> str:
+    """Resolve JanitorAI user avatar CDN URL safely."""
+    raw = str(avatar or "").strip()
+    if not raw or raw.lower() == "none" or raw.lower() == "null":
+        return ""
+    if raw.startswith("http://") or raw.startswith("https://") or raw.startswith("data:"):
+        return raw
+    clean = raw.lstrip("/")
+    return f"https://ella.janitorai.com/avatars/{clean}"
+
+
+async def fetch_bot_reviews(
+    bot_id: str,
+    page: int = 1,
+    size: int = 20,
+    sort_by: str = "likes"
+) -> Dict[str, Any]:
+    """Fetch live comments/reviews for a JanitorAI character with pagination, likes, and pinned status."""
+    clean_bot_id = str(bot_id or "").strip()
+    if not clean_bot_id:
+        return {"success": False, "error": "Missing bot ID", "reviews": [], "total": 0}
+
+    valid_sort = sort_by if sort_by in ("likes", "latest", "oldest") else "likes"
+    target_page = max(1, int(page))
+    target_size = min(max(1, int(size)), 50)
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://janitorai.com/",
+        "Origin": "https://janitorai.com",
+    }
+    try:
+        token = janitor.auto_fetch_janitor_token()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+    except Exception:
+        pass
+
+    def _execute_requests():
+        from curl_cffi import requests as c_requests
+
+        # 1. Fetch review counts
+        counts_data = {"likes": 0, "dislikes": 0, "total": 0}
+        try:
+            r_c = c_requests.get(
+                f"https://janitorai.com/mb/reviews/counts/{clean_bot_id}",
+                headers=headers,
+                impersonate="chrome124",
+                timeout=8.0
+            )
+            if r_c.status_code == 200:
+                cj = r_c.json()
+                if isinstance(cj, dict):
+                    counts_data = {
+                        "likes": int(cj.get("likes") or 0),
+                        "dislikes": int(cj.get("dislikes") or 0),
+                        "total": int(cj.get("total") or 0)
+                    }
+        except Exception as err:
+            logger.debug(f"Failed to fetch review counts for {clean_bot_id}: {err}")
+
+        # 2. Fetch paginated reviews list
+        r_list = c_requests.get(
+            f"https://janitorai.com/mb/reviews/{clean_bot_id}",
+            params={
+                "page": target_page,
+                "size": target_size,
+                "sortBy": valid_sort
+            },
+            headers=headers,
+            impersonate="chrome124",
+            timeout=12.0
+        )
+        raw_reviews = r_list.json() if r_list.status_code == 200 else []
+        return counts_data, raw_reviews
+
+    try:
+        counts, raw_reviews = await asyncio.to_thread(_execute_requests)
+    except Exception as exc:
+        logger.error(f"Error fetching live reviews for bot {clean_bot_id}: {exc}")
+        return {
+            "success": False,
+            "error": str(exc),
+            "bot_id": clean_bot_id,
+            "reviews": [],
+            "total": 0,
+            "page": target_page,
+            "has_more": False
+        }
+
+    normalized: List[Dict[str, Any]] = []
+    if isinstance(raw_reviews, list):
+        for item in raw_reviews:
+            if not isinstance(item, dict):
+                continue
+            u_prof = item.get("user_profiles") if isinstance(item.get("user_profiles"), dict) else {}
+            u_avatar = resolve_user_avatar_url(u_prof.get("avatar"))
+            u_name = str(u_prof.get("user_name") or "Anonymous").strip()
+
+            normalized.append({
+                "id": str(item.get("id") or ""),
+                "character_id": str(item.get("character_id") or clean_bot_id),
+                "content": str(item.get("content") or "").strip(),
+                "like_count": int(item.get("like_count") or 0),
+                "dislike_count": int(item.get("dislike_count") or 0),
+                "comment_count": int(item.get("comment_count") or 0),
+                "is_pinned": bool(item.get("is_pinned")),
+                "pinned_at": item.get("pinned_at") or "",
+                "created_at": item.get("created_at") or "",
+                "is_like": bool(item.get("is_like", True)),
+                "user": {
+                    "id": str(item.get("user_id") or ""),
+                    "name": u_name,
+                    "avatar": u_avatar,
+                    "plus_badge": bool(u_prof.get("plusbadge")),
+                    "is_verified": bool(u_prof.get("is_verified"))
+                }
+            })
+
+    total_count = counts.get("total") or len(normalized)
+    has_more = len(normalized) >= target_size
+
+    return {
+        "success": True,
+        "bot_id": clean_bot_id,
+        "page": target_page,
+        "size": target_size,
+        "sort_by": valid_sort,
+        "counts": counts,
+        "total": total_count,
+        "has_more": has_more,
+        "reviews": normalized
+    }
+
+
+async def fetch_review_replies(review_id: str) -> Dict[str, Any]:
+    """Fetch live replies/comments for a specific character review thread."""
+    clean_rev_id = str(review_id or "").strip()
+    if not clean_rev_id:
+        return {"success": False, "error": "Missing review ID", "replies": []}
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://janitorai.com/",
+        "Origin": "https://janitorai.com",
+    }
+    try:
+        token = janitor.auto_fetch_janitor_token()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+    except Exception:
+        pass
+
+    def _fetch_replies():
+        from curl_cffi import requests as c_requests
+        r = c_requests.get(
+            f"https://janitorai.com/mb/reviews/comments/{clean_rev_id}",
+            headers=headers,
+            impersonate="chrome124",
+            timeout=10.0
+        )
+        return r.json() if r.status_code == 200 else []
+
+    try:
+        raw_replies = await asyncio.to_thread(_fetch_replies)
+    except Exception as exc:
+        logger.error(f"Error fetching replies for review {clean_rev_id}: {exc}")
+        return {"success": False, "error": str(exc), "review_id": clean_rev_id, "replies": []}
+
+    normalized: List[Dict[str, Any]] = []
+    if isinstance(raw_replies, list):
+        for rep in raw_replies:
+            if not isinstance(rep, dict):
+                continue
+            u_prof = rep.get("user_profiles") if isinstance(rep.get("user_profiles"), dict) else {}
+            u_avatar = resolve_user_avatar_url(u_prof.get("avatar"))
+            u_name = str(u_prof.get("user_name") or "Anonymous").strip()
+
+            normalized.append({
+                "id": str(rep.get("id") or ""),
+                "review_id": str(rep.get("review_id") or clean_rev_id),
+                "content": str(rep.get("content") or "").strip(),
+                "like_count": int(rep.get("like_count") or 0),
+                "dislike_count": int(rep.get("dislike_count") or 0),
+                "created_at": rep.get("created_at") or "",
+                "user": {
+                    "id": str(rep.get("user_id") or ""),
+                    "name": u_name,
+                    "avatar": u_avatar,
+                    "plus_badge": bool(u_prof.get("plusbadge")),
+                    "is_verified": bool(u_prof.get("is_verified"))
+                }
+            })
+
+    return {
+        "success": True,
+        "review_id": clean_rev_id,
+        "total": len(normalized),
+        "replies": normalized
+    }
