@@ -9473,10 +9473,10 @@ function initPwa() {
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         if (isIOS) {
           showToast('Tap Safari Share button (⎋), then select "Add to Home Screen".', 'info', 6000);
-        } else if (window.matchMedia('(display-mode: standalone)').matches) {
-          showToast('Singularity is already running in standalone app mode!', 'info');
+        } else if (!window.isSecureContext) {
+          showToast('PWA requires HTTPS or localhost. If on phone via LAN IP, use ngrok tunnel (./singular tunnel start) or chrome://flags.', 'error', 6000);
         } else {
-          showToast('Tap browser menu (⋮) -> "Add to Home Screen" to install.', 'info', 5000);
+          showToast('Tap browser menu (⋮) -> "Add to Home Screen" or "Install App".', 'info', 5000);
         }
       }
     });

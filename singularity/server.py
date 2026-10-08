@@ -4564,6 +4564,8 @@ async def serve_favicon():
 
 @app.get("/manifest.json")
 @app.head("/manifest.json")
+@app.get("/static/manifest.json")
+@app.head("/static/manifest.json")
 async def serve_manifest():
     manifest_path = STATIC_DIR / "manifest.json"
     headers = {"Cache-Control": "no-cache, must-revalidate"}
@@ -4572,6 +4574,8 @@ async def serve_manifest():
 
 @app.get("/sw.js")
 @app.head("/sw.js")
+@app.get("/static/sw.js")
+@app.head("/static/sw.js")
 async def serve_sw():
     sw_path = STATIC_DIR / "sw.js"
     headers = {

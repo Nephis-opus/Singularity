@@ -8,6 +8,7 @@
   "orientation": "any",
   "background_color": "#141414",
   "theme_color": "#141414",
+  "id": "/",
   "categories": ["productivity", "utilities"],
   "icons": [
     {
@@ -33,12 +34,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/static/logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
     }
   ]
 }
