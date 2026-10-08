@@ -9476,7 +9476,13 @@ function initPwa() {
         } else if (!window.isSecureContext) {
           showToast('PWA requires HTTPS or localhost. If on phone via LAN IP, use ngrok tunnel (./singular tunnel start) or chrome://flags.', 'error', 6000);
         } else {
-          showToast('Tap browser menu (⋮) -> "Add to Home Screen" or "Install App".', 'info', 5000);
+          const isAndroid = /Android/i.test(navigator.userAgent);
+          const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          if (isAndroid && isLocal) {
+            showToast('Note: Chrome on Android requires a public HTTPS URL (./singular tunnel start) for WebAPK minting, or use menu (⋮) -> Add to Home screen.', 'info', 7000);
+          } else {
+            showToast('Tap browser menu (⋮) -> "Add to Home Screen" or "Install App".', 'info', 5000);
+          }
         }
       }
     });
