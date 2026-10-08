@@ -22,6 +22,7 @@ from .deepseek import stream_deepseek_chat, generate_deepseek_chat
 from .qwen import stream_qwen_chat, generate_qwen_chat
 from .openai_compat import stream_openai_compat_chat
 from .antigravity import stream_antigravity_chat, generate_antigravity_chat
+from .aistudio import stream_aistudio_chat, generate_aistudio_chat, generate_aistudio_speech
 
 
 async def stream_chat(
@@ -76,7 +77,13 @@ async def stream_chat(
 
     # 2. Google Gemini
     if pid in ("gemini", "google"):
-        async for chunk in stream_gemini_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
+        import importlib, sys
+        for mod_name in list(sys.modules.keys()):
+            if mod_name in ("singularity.engines.gemini", "engines.gemini") or mod_name.endswith(".engines.gemini"):
+                try: importlib.reload(sys.modules[mod_name])
+                except Exception: pass
+        from . import gemini as _gemini_mod
+        async for chunk in _gemini_mod.stream_gemini_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
             yield chunk
         return
 
@@ -119,6 +126,18 @@ async def stream_chat(
     # 9. Google Antigravity (AGY)
     if pid in ("antigravity", "agy", "google-antigravity"):
         async for chunk in stream_antigravity_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
+            yield chunk
+        return
+
+    # 10. Google AI Studio (MakerSuite)
+    if pid in ("aistudio", "ais", "google-aistudio", "makersuite"):
+        import importlib, sys
+        for mod_name in list(sys.modules.keys()):
+            if mod_name in ("singularity.engines.aistudio", "engines.aistudio") or mod_name.endswith(".engines.aistudio"):
+                try: importlib.reload(sys.modules[mod_name])
+                except Exception: pass
+        from . import aistudio as _aistudio_mod
+        async for chunk in _aistudio_mod.stream_aistudio_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
             yield chunk
         return
 

@@ -680,13 +680,16 @@
             if (toggle) toggle.checked = val;
           }
 
-          if (sett.selectedModel) {
-            localStorage.setItem('singularity_selected_model', sett.selectedModel);
-            if (window.state) window.state.selectedModel = sett.selectedModel;
-            const modelLabel = document.getElementById('model-select-label');
-            if (modelLabel) {
-              modelLabel.textContent = typeof formatModelDisplayName === 'function' ? formatModelDisplayName(sett.selectedModel) : sett.selectedModel;
-            }
+          const localModel = localStorage.getItem('singularity_selected_model');
+          const finalModel = localModel || sett.selectedModel;
+          if (finalModel) {
+            localStorage.setItem('singularity_selected_model', finalModel);
+            if (window.state) window.state.selectedModel = finalModel;
+            const name = typeof formatModelDisplayName === 'function' ? formatModelDisplayName(finalModel) : finalModel;
+            ['model-select-label', 'claude-top-model-name', 'input-model-name', 'param-model-selected-label'].forEach(id => {
+              const el = document.getElementById(id);
+              if (el) el.textContent = name;
+            });
           }
 
           if (sett.portalTheme) {

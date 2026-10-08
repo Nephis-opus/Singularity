@@ -11,7 +11,7 @@ const state = {
   models: [],
   activeCookieProvider: 'chatgpt',
   cookiesData: {},
-  selectedModel: 'gpt-5.6-sol',
+  selectedModel: localStorage.getItem('singularity_selected_model') || 'gpt-5.6-sol',
   chatMessages: [],
   isStreaming: false,
   playgroundModality: 'all',
@@ -24,6 +24,11 @@ const state = {
   artifactWorkbenchOpen: false,
   toolsEnabled: false,
   toolsInfo: null,
+  voiceModeEnabled: localStorage.getItem('singularity_voice_mode') === 'true',
+  voiceModel: localStorage.getItem('singularity_voice_model') || 'ais-gemini-3.8-flash-tts',
+  voiceTimbre: localStorage.getItem('singularity_voice_timbre') || 'Puck',
+  voiceAutoSpeak: localStorage.getItem('singularity_voice_autospeak') !== 'false',
+  currentAudio: null,
 };
 
 // ===================================================================
@@ -2069,6 +2074,7 @@ const PROVIDER_METAS = {
   deepseek: { name: 'DeepSeek', icon: '/static/icons/deepseek.svg' },
   qwen: { name: 'Qwen', icon: '/static/icons/qwen.svg' },
   antigravity: { name: 'Antigravity', icon: '/static/icons/antigravity.svg' },
+  aistudio: { name: 'AI Studio', icon: '/static/icons/aistudio.svg' },
   external: { name: 'API Connections', icon: '/static/icons/chatgpt.svg' },
 };
 
@@ -2084,7 +2090,7 @@ function initModelFilters() {
       pills.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      if (['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'antigravity', 'external'].includes(filter)) {
+      if (['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'antigravity', 'aistudio', 'external'].includes(filter)) {
         const sec = document.getElementById(`models-section-${filter}`);
         const viewport = document.querySelector('.panel-viewport');
         if (sec && viewport) {
@@ -2241,7 +2247,7 @@ function renderModels() {
     return true;
   });
 
-  const providerOrder = ['antigravity', 'chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'external'];
+  const providerOrder = ['antigravity', 'aistudio', 'chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'external'];
   const grouped = {};
   providerOrder.forEach(p => grouped[p] = []);
 
@@ -2287,11 +2293,24 @@ function renderModels() {
 }
 
 function selectAndTestModel(modelId) {
+  if (!modelId) return;
   state.selectedModel = modelId;
+  localStorage.setItem('singularity_selected_model', modelId);
+  window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
+  if (typeof window.pushSettings === 'function') {
+    window.pushSettings();
+  }
   const label = document.getElementById('model-select-label');
   if (label) label.textContent = formatModelDisplayName(modelId);
+  const topLabel = document.getElementById('claude-top-model-name');
+  if (topLabel) topLabel.textContent = formatModelDisplayName(modelId);
+  const topChip = document.getElementById('claude-top-model-chip');
+  if (topChip) topChip.classList.remove('active');
   const inputModel = document.getElementById('input-model-name');
   if (inputModel) inputModel.textContent = formatModelDisplayName(modelId);
+  const paramLabel = document.getElementById('param-model-selected-label');
+  if (paramLabel) paramLabel.textContent = formatModelDisplayName(modelId);
+  renderCustomSelectOptions();
   if (typeof loadModelSettings === 'function') {
     loadModelSettings(modelId);
   }
@@ -2624,6 +2643,35 @@ const TOKEN_GUIDES = {
         desc: 'Stack multiple Google accounts into the vault for automatic quota failover when hourly rate limits or reset delays occur.'
       }
     ]
+  },
+  aistudio: {
+    title: 'How to Connect Google AI Studio (MakerSuite)',
+    steps: [
+      {
+        num: '1',
+        text: 'Sign in to <a href="https://aistudio.google.com" target="_blank" rel="noopener" class="token-guide-link">aistudio.google.com</a> in your browser with your Google Account.'
+      },
+      {
+        num: '2',
+        text: 'Open DevTools (<kbd>F12</kbd>) &rarr; <strong>Network</strong> tab &rarr; Click any request &rarr; Under <strong>Request Headers</strong> copy the full <code>Cookie:</code> string (containing <code>__Secure-1PSID</code> and <code>SAPISID</code>).'
+      },
+      {
+        num: '3',
+        text: 'Alternatively, paste your AI Studio API Key (starts with <code>AIzaSy...</code>) or let Singularity share existing stacked Gemini session cookies.'
+      }
+    ],
+    rules: [
+      {
+        icon: 'volume-2',
+        title: 'Studio Neural Speech & Voice',
+        desc: 'Unlocks Gemini 3.8 Flash TTS, Gemini 3.8 Live Voice, and low-latency audio conversations with natural emotional cadence.'
+      },
+      {
+        icon: 'cpu',
+        title: 'Dual-Channel Failover',
+        desc: 'Singularity balances between MakerSuite Build and Playground RPC pipelines for maximum rate limit resilience.'
+      }
+    ]
   }
 };
 
@@ -2703,6 +2751,11 @@ async function loadCookiesTab() {
       title: 'Antigravity Account Stacker',
       desc: 'Paste Google OAuth credentials JSON (from oauth_creds.json), refresh_token, or Bearer access token.',
       placeholder: 'Paste Google OAuth JSON dump or refresh token...',
+    },
+    aistudio: {
+      title: 'Google AI Studio Stacker',
+      desc: 'Paste Google AI Studio cookie header (__Secure-1PSID=...; SAPISID=...), Playwright storageState JSON, or AI Studio API key.',
+      placeholder: 'Paste Google AI Studio cookies, API key, or storageState dump...',
     },
   }[p] || { title: 'Account Stacker', desc: '', placeholder: '' };
 
@@ -3081,6 +3134,7 @@ function initCustomSelect() {
   const trigger = document.getElementById('model-select-trigger');
   const popover = document.getElementById('model-select-popover');
   const searchInput = document.getElementById('model-filter-input');
+  const topChip = document.getElementById('claude-top-model-chip');
 
   const label = document.getElementById('model-select-label');
   if (label) {
@@ -3090,31 +3144,39 @@ function initCustomSelect() {
   if (topLabel) {
     topLabel.textContent = formatModelDisplayName(state.selectedModel);
   }
+  const inputModel = document.getElementById('input-model-name');
+  if (inputModel) {
+    inputModel.textContent = formatModelDisplayName(state.selectedModel);
+  }
 
-  trigger.addEventListener('click', (e) => {
-    e.stopPropagation();
+  function toggleModelPopover(e) {
+    if (e) e.stopPropagation();
     window.triggerHaptic?.(8);
     const isOpen = popover.classList.toggle('open');
-    trigger.classList.toggle('active', isOpen);
-    const topChip = document.getElementById('claude-top-model-chip');
+    if (trigger) trigger.classList.toggle('active', isOpen);
     if (topChip) topChip.classList.toggle('active', isOpen);
     if (isOpen) {
-      searchInput.focus();
+      renderCustomSelectOptions(searchInput ? searchInput.value.toLowerCase().trim() : '');
+      if (searchInput) searchInput.focus();
     }
-  });
+  }
+
+  if (trigger) trigger.addEventListener('click', toggleModelPopover);
+  if (topChip) topChip.addEventListener('click', toggleModelPopover);
 
   document.addEventListener('click', (e) => {
-    const topChip = document.getElementById('claude-top-model-chip');
-    if (!popover.contains(e.target) && !trigger.contains(e.target) && (!topChip || !topChip.contains(e.target))) {
+    if (!popover.contains(e.target) && (!trigger || !trigger.contains(e.target)) && (!topChip || !topChip.contains(e.target))) {
       popover.classList.remove('open');
-      trigger.classList.remove('active');
+      if (trigger) trigger.classList.remove('active');
       if (topChip) topChip.classList.remove('active');
     }
   });
 
-  searchInput.addEventListener('input', () => {
-    renderCustomSelectOptions(searchInput.value.toLowerCase().trim());
-  });
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      renderCustomSelectOptions(searchInput.value.toLowerCase().trim());
+    });
+  }
 }
 
 function renderCustomSelectOptions(query = '') {
@@ -3124,6 +3186,12 @@ function renderCustomSelectOptions(query = '') {
   const modality = state.playgroundModality || 'all';
 
   const filtered = state.models.filter(m => {
+    // Exclude voice, TTS, speech, and transcribe models from the normal model dropdown
+    const isVoiceOrAudio = (m.capabilities && (m.capabilities.includes('tts') || m.capabilities.includes('speech') || m.capabilities.includes('audio') || m.capabilities.includes('transcribe') || m.capabilities.includes('voice'))) ||
+      /(?:-tts\b|-live\b|-transcribe\b)/i.test(m.id) ||
+      /(tts|speech|transcribe|real-time voice)/i.test(m.name || '');
+    if (isVoiceOrAudio) return false;
+
     // Modality filter
     if (modality === 'image') {
       const isImg = (m.capabilities && (m.capabilities.includes('image') || m.capabilities.includes('image_generation'))) ||
@@ -3161,6 +3229,9 @@ function renderCustomSelectOptions(query = '') {
       state.selectedModel = modelId;
       localStorage.setItem('singularity_selected_model', modelId);
       window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
+      if (typeof window.pushSettings === 'function') {
+        window.pushSettings();
+      }
       const label = document.getElementById('model-select-label');
       if (label) label.textContent = formatModelDisplayName(modelId);
       const topLabel = document.getElementById('claude-top-model-name');
@@ -3169,8 +3240,11 @@ function renderCustomSelectOptions(query = '') {
       if (topChip) topChip.classList.remove('active');
       const inputModel = document.getElementById('input-model-name');
       if (inputModel) inputModel.textContent = formatModelDisplayName(modelId);
+      const paramLabel = document.getElementById('param-model-selected-label');
+      if (paramLabel) paramLabel.textContent = formatModelDisplayName(modelId);
       document.getElementById('model-select-popover').classList.remove('open');
-      document.getElementById('model-select-trigger').classList.remove('active');
+      const trigger = document.getElementById('model-select-trigger');
+      if (trigger) trigger.classList.remove('active');
       window.dispatchEvent(new CustomEvent('singularity-bottomsheet-change'));
       renderCustomSelectOptions();
       if (typeof loadModelSettings === 'function') {
@@ -3185,6 +3259,9 @@ function selectModelFromParamsModal(modelId) {
   state.selectedModel = modelId;
   localStorage.setItem('singularity_selected_model', modelId);
   window.dispatchEvent(new CustomEvent('singularity-settings-updated'));
+  if (typeof window.pushSettings === 'function') {
+    window.pushSettings();
+  }
 
   // 1. Update Parameters Modal display
   const paramLabel = document.getElementById('param-model-selected-label');
@@ -3233,6 +3310,12 @@ function renderParamModelSelectOptions(query = '') {
 
   const q = (query || '').toLowerCase().trim();
   const filtered = models.filter(m => {
+    // Exclude voice, TTS, speech, and transcribe models from parameters dropdown
+    const isVoiceOrAudio = (m.capabilities && (m.capabilities.includes('tts') || m.capabilities.includes('speech') || m.capabilities.includes('audio') || m.capabilities.includes('transcribe') || m.capabilities.includes('voice'))) ||
+      /(?:-tts\b|-live\b|-transcribe\b)/i.test(m.id) ||
+      /(tts|speech|transcribe|real-time voice)/i.test(m.name || '');
+    if (isVoiceOrAudio) return false;
+
     if (!q) return true;
     const nameMatch = m.name && m.name.toLowerCase().includes(q);
     const idMatch = m.id && m.id.toLowerCase().includes(q);
@@ -6181,9 +6264,6 @@ function initPlayground() {
   document.getElementById('btn-voice-input')?.addEventListener('click', () => {
     showToast('Voice dictation ready (Microphone active)', 'info');
   });
-  document.getElementById('btn-voice-chat')?.addEventListener('click', () => {
-    showToast('Voice conversation mode ready', 'info');
-  });
   // Clear Chat Button Handler
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
@@ -6226,9 +6306,866 @@ function cleanTextForSpeech(raw) {
     .replace(/<[^>]+>/g, '')
     .replace(/```[\s\S]*?```/g, 'Code block omitted.')
     .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
     .replace(/[*_#~>]/g, '')
+    .replace(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/g, '')
+    .replace(/https?:\/\/[^\s]+/g, 'link')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// Fast client-side audio cache for immediate replay
+const _clientAudioBlobCache = new Map();
+
+function splitTextIntoSpeechChunks(text) {
+  if (text.length <= 180) return [text];
+  // Break on sentence boundaries (. ! ? \n)
+  const sentences = text.match(/[^.!?\n]+[.!?\n]*/g) || [text];
+  const chunks = [];
+  let currentChunk = '';
+  for (const s of sentences) {
+    const trimmed = s.trim();
+    if (!trimmed) continue;
+    if ((currentChunk + ' ' + trimmed).length > 200 && currentChunk) {
+      chunks.push(currentChunk.trim());
+      currentChunk = trimmed;
+    } else {
+      currentChunk = currentChunk ? (currentChunk + ' ' + trimmed) : trimmed;
+    }
+  }
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+  return chunks.length > 0 ? chunks : [text];
+}
+
+async function playAssistantAudio(text, containerEl = null, onFinish = null) {
+  const speechText = cleanTextForSpeech(text);
+  if (!speechText) {
+    if (onFinish) onFinish();
+    return;
+  }
+
+  // Stop any active audio
+  if (state.currentAudio) {
+    try {
+      state.currentAudio.pause();
+      state.currentAudio = null;
+    } catch (e) {}
+  }
+  if (window.speechSynthesis && window.speechSynthesis.speaking) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
+  }
+
+  const voiceModel = state.voiceModel || 'ais-gemini-3.8-flash-tts';
+  const voiceTimbre = state.voiceTimbre || 'Puck';
+
+  // Create UI Player Bar if container is provided
+  let playerBar = null;
+  let playBtn = null;
+  if (containerEl && !containerEl.querySelector('.assistant-voice-bar')) {
+    playerBar = document.createElement('div');
+    playerBar.className = 'assistant-voice-bar';
+    playerBar.innerHTML = `
+      <button type="button" class="assistant-voice-play-btn" title="Pause audio">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="4" width="4" height="16"></rect>
+          <rect x="14" y="4" width="4" height="16"></rect>
+        </svg>
+      </button>
+      <span style="font-weight:600;">Speaking (${escapeHtml(voiceTimbre)})</span>
+      <span style="opacity:0.75; font-size:10px; margin-left:auto;">${escapeHtml(formatModelDisplayName(voiceModel))}</span>
+    `;
+    playBtn = playerBar.querySelector('.assistant-voice-play-btn');
+    playBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!state.currentAudio) return;
+      if (state.currentAudio.paused) {
+        state.currentAudio.play();
+        playBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+      } else {
+        state.currentAudio.pause();
+        playBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+      }
+    });
+    containerEl.appendChild(playerBar);
+  }
+
+  // Progressive streaming audio chunks for fast time-to-first-sound
+  const chunks = splitTextIntoSpeechChunks(speechText);
+  let isCancelled = false;
+
+  async function fetchAudioBlob(chunkText) {
+    const cacheKey = `${voiceTimbre}:${chunkText}`;
+    if (_clientAudioBlobCache.has(cacheKey)) {
+      return _clientAudioBlobCache.get(cacheKey);
+    }
+    const res = await fetch('/v1/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: chunkText,
+        model: voiceModel,
+        voice: voiceTimbre,
+        response_format: 'mp3',
+      }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error?.message || `HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    if (blob.size < 200) {
+      throw new Error('Invalid audio data received');
+    }
+    _clientAudioBlobCache.set(cacheKey, blob);
+    return blob;
+  }
+
+  try {
+    // 1. Fetch first chunk to start speech rapidly
+    const firstBlob = await fetchAudioBlob(chunks[0]);
+    if (isCancelled) return;
+
+    // Concurrently prefetch remaining chunks
+    const chunkPromises = chunks.slice(1).map(chunk => fetchAudioBlob(chunk).catch(e => {
+      console.warn('Subsequent chunk fetch error:', e);
+      return null;
+    }));
+
+    // Sequential audio playback
+    let currentIdx = 0;
+    const playNextChunk = async (blob) => {
+      if (!blob || isCancelled) {
+        if (playerBar) playerBar.remove();
+        state.currentAudio = null;
+        if (onFinish) onFinish();
+        return;
+      }
+
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      state.currentAudio = audio;
+
+      audio.onended = async () => {
+        currentIdx++;
+        if (currentIdx < chunks.length) {
+          const nextBlob = await chunkPromises[currentIdx - 1];
+          playNextChunk(nextBlob);
+        } else {
+          if (playerBar) playerBar.remove();
+          state.currentAudio = null;
+          if (onFinish) onFinish();
+        }
+      };
+
+      audio.onerror = () => {
+        if (playerBar) playerBar.remove();
+        state.currentAudio = null;
+        if (onFinish) onFinish();
+      };
+
+      await audio.play();
+    };
+
+    await playNextChunk(firstBlob);
+
+  } catch (err) {
+    console.error('Gemini TTS playback error:', err);
+    if (playerBar) playerBar.remove();
+    state.currentAudio = null;
+    showToast(`Gemini TTS Error: ${err.message}`, 'error');
+    if (onFinish) onFinish();
+  }
+}
+
+function initVoiceModeControls() {
+  const btn = document.getElementById('btn-voice-chat');
+  const popover = document.getElementById('voice-models-popover');
+  const masterToggle = document.getElementById('voice-mode-master-toggle');
+  const autoSpeakToggle = document.getElementById('voice-auto-speak-checkbox');
+  const previewBtn = document.getElementById('btn-preview-voice');
+  const timbreChips = document.getElementById('voice-timbre-chips');
+  const timbreLabel = document.getElementById('voice-timbre-display-label');
+  const statusSubtitle = document.getElementById('voice-status-subtitle');
+
+  if (!btn || !popover) return;
+  if (btn._voiceControlsInit) return;
+  btn._voiceControlsInit = true;
+
+  // Prevent internal interactions (toggles, chips, model selections) from bubbling to document dismiss handler
+  popover.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  // Guarantee popover starts completely hidden
+  popover.style.display = 'none';
+  popover.classList.remove('open');
+  btn.classList.remove('open');
+  btn.setAttribute('aria-expanded', 'false');
+
+  // Restore state
+  state.voiceModeEnabled = localStorage.getItem('singularity_voice_mode') === 'true';
+  state.voiceModel = localStorage.getItem('singularity_voice_model') || 'ais-gemini-3.8-flash-tts';
+  state.voiceTimbre = localStorage.getItem('singularity_voice_timbre') || 'Puck';
+  state.voiceAutoSpeak = localStorage.getItem('singularity_voice_autospeak') !== 'false';
+
+  if (masterToggle) masterToggle.checked = state.voiceModeEnabled;
+  if (autoSpeakToggle) autoSpeakToggle.checked = state.voiceAutoSpeak;
+  btn.classList.toggle('active', state.voiceModeEnabled);
+  if (timbreLabel) timbreLabel.textContent = state.voiceTimbre;
+  if (statusSubtitle) {
+    statusSubtitle.textContent = state.voiceModeEnabled ? 'Live Voice Active • Auto-speaking' : 'Neural Speech Synthesis';
+  }
+
+  if (timbreChips) {
+    timbreChips.querySelectorAll('.voice-timbre-chip').forEach(chip => {
+      chip.classList.toggle('active', chip.dataset.voice === state.voiceTimbre);
+    });
+  }
+
+  function renderVoiceModelsList() {
+    const listEl = document.getElementById('voice-models-options-list');
+    if (!listEl) return;
+
+    let voiceModels = state.models.filter(m => {
+      return (m.capabilities && (m.capabilities.includes('tts') || m.capabilities.includes('speech') || m.capabilities.includes('audio') || m.capabilities.includes('transcribe') || m.capabilities.includes('voice'))) ||
+        /(?:-tts\b|-live\b|-transcribe\b)/i.test(m.id) ||
+        /(tts|speech|transcribe|real-time voice)/i.test(m.name || '');
+    });
+
+    if (voiceModels.length === 0) {
+      voiceModels = [
+        { id: 'ais-gemini-3.8-flash-tts', name: 'Gemini 3.8 Flash TTS', description: 'Studio-grade expressive voice generation' },
+        { id: 'ais-gemini-3.8-flash-lite-tts', name: 'Gemini 3.8 Flash-Lite TTS', description: 'Low-latency streaming speech synthesis' },
+        { id: 'ais-gemini-3.8-live', name: 'Gemini 3.8 Live', description: 'Bidirectional real-time voice conversation' },
+        { id: 'ais-gemini-3.8-live-thinking', name: 'Gemini 3.8 Live Thinking', description: 'Real-time voice with extended reasoning' },
+        { id: 'ais-gemini-3.5-transcribe', name: 'Gemini 3.5 Transcribe', description: 'Structured audio transcription & analysis' },
+      ];
+    }
+
+    listEl.innerHTML = voiceModels.map(m => {
+      const isSel = m.id === state.voiceModel;
+      return `
+        <div class="voice-model-item ${isSel ? 'active' : ''}" data-id="${escapeHtml(m.id)}">
+          <div class="voice-model-info">
+            <span class="voice-model-title">${escapeHtml(m.name)}</span>
+            <span class="voice-model-desc">${escapeHtml(m.description || m.id)}</span>
+          </div>
+          <svg class="voice-model-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('.voice-model-item').forEach(item => {
+      item.addEventListener('click', () => {
+        window.triggerHaptic?.(8);
+        const mId = item.dataset.id;
+        state.voiceModel = mId;
+        localStorage.setItem('singularity_voice_model', mId);
+        renderVoiceModelsList();
+        showToast(`Voice model: ${formatModelDisplayName(mId)}`, 'info');
+      });
+    });
+  }
+
+  renderVoiceModelsList();
+  window.addEventListener('singularity-models-loaded', renderVoiceModelsList);
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isCurrentlyOpen = popover.classList.contains('open') && popover.style.display !== 'none';
+    if (!isCurrentlyOpen) {
+      popover.style.display = 'flex';
+      void popover.offsetWidth; // trigger layout reflow
+      popover.classList.add('open');
+      btn.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      renderVoiceModelsList();
+    } else {
+      popover.classList.remove('open');
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+      setTimeout(() => {
+        if (!popover.classList.contains('open')) {
+          popover.style.display = 'none';
+        }
+      }, 180);
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!popover.contains(e.target) && !btn.contains(e.target)) {
+      if (popover.classList.contains('open') || popover.style.display !== 'none') {
+        popover.classList.remove('open');
+        btn.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+        setTimeout(() => {
+          if (!popover.classList.contains('open')) {
+            popover.style.display = 'none';
+          }
+        }, 180);
+      }
+    }
+  });
+
+  masterToggle?.addEventListener('change', (e) => {
+    state.voiceModeEnabled = e.target.checked;
+    localStorage.setItem('singularity_voice_mode', String(state.voiceModeEnabled));
+    btn.classList.toggle('active', state.voiceModeEnabled);
+    if (statusSubtitle) {
+      statusSubtitle.textContent = state.voiceModeEnabled ? 'Live Voice Active • Auto-speaking' : 'Neural Speech Synthesis';
+    }
+    showToast(state.voiceModeEnabled ? 'Voice Conversation Mode enabled' : 'Voice Mode disabled', state.voiceModeEnabled ? 'success' : 'info');
+  });
+
+  autoSpeakToggle?.addEventListener('change', (e) => {
+    state.voiceAutoSpeak = e.target.checked;
+    localStorage.setItem('singularity_voice_autospeak', String(state.voiceAutoSpeak));
+  });
+
+  timbreChips?.addEventListener('click', (e) => {
+    const chip = e.target.closest('.voice-timbre-chip');
+    if (!chip) return;
+    const voiceName = chip.dataset.voice;
+    state.voiceTimbre = voiceName;
+    localStorage.setItem('singularity_voice_timbre', voiceName);
+    if (timbreLabel) timbreLabel.textContent = voiceName;
+    timbreChips.querySelectorAll('.voice-timbre-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    showToast(`Voice timbre: ${voiceName}`, 'info');
+  });
+
+  const openStudioBtn = document.getElementById('btn-open-voice-studio');
+  openStudioBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openVoiceStudioModal();
+  });
+
+  previewBtn?.addEventListener('click', async () => {
+    if (previewBtn.classList.contains('playing')) {
+      if (state.currentAudio) {
+        state.currentAudio.pause();
+        state.currentAudio = null;
+      }
+      previewBtn.classList.remove('playing');
+      return;
+    }
+
+    const testPhrases = {
+      Puck: 'Hello! I am ready to converse with you using natural, studio-quality speech.',
+      Charon: 'Greetings. The system is active, and I am prepared for your questions.',
+      Aoede: 'Welcome! I look forward to assisting you in our voice conversation.',
+      Fenrir: 'Singularity audio engine initialized. Let us begin.',
+      Kore: 'Voice channel online. Clarity and responsiveness optimized.',
+      'The Meditation Guide': 'Take a slow, deep breath in... and let it go. You are safe here, relaxed and completely at ease.',
+      'The Grizzled Detective': 'It was two in the morning when she walked into my office. Rain was hitting the blinds, and trouble was right behind her.',
+      'The Hype Announcer': 'Ladies and gentlemen, welcome to the main event! Make some noise!',
+      'The Regal Monarch': 'Silence. When the crown speaks, the realm listens with utmost reverence.',
+      'The Everyday Assistant': 'Good morning! I have prepared your schedule and notes for today. How can I assist you?',
+      'The Guarded NPC': 'Halt, traveler. What business brings you to our gates at this hour?',
+      'The Energetic Co-Host': 'Welcome back to the stream, everyone! We have got an amazing topic lined up today.',
+      'The Master Storyteller': 'Deep within the forgotten ruins of the ancient world, a secret was waiting to be unveiled.',
+    };
+    const sample = testPhrases[state.voiceTimbre] || `Hello! You are listening to the ${state.voiceTimbre} voice persona on Gemini 3.8 Flash TTS.`;
+
+    previewBtn.classList.add('playing');
+    const labelSpan = previewBtn.querySelector('span');
+    if (labelSpan) labelSpan.textContent = 'Playing...';
+
+    await playAssistantAudio(sample, null, () => {
+      previewBtn.classList.remove('playing');
+      if (labelSpan) labelSpan.textContent = 'Preview';
+    });
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Voice Design Studio & Extended Voice Library (Google Gemini 3.8 Flash TTS)
+// -----------------------------------------------------------------------------
+let _voiceStudioInitialized = false;
+let _studioAuditionAudio = null;
+let _allVoicesList = [];
+let _lastAuditionedVoice = null;
+let _activeCardAudio = null;
+let _activePlayingCardBtn = null;
+
+function openVoiceStudioModal() {
+  initVoiceStudio();
+  const modal = document.getElementById('voice-studio-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  void modal.offsetWidth;
+  modal.classList.add('open');
+  updateVoiceStudioActiveLabel();
+  loadAndRenderVoiceLibrary();
+}
+
+function closeVoiceStudioModal() {
+  const modal = document.getElementById('voice-studio-modal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  if (_studioAuditionAudio) {
+    _studioAuditionAudio.pause();
+    _studioAuditionAudio = null;
+  }
+  if (_activeCardAudio) {
+    _activeCardAudio.pause();
+    _activeCardAudio = null;
+  }
+  if (_activePlayingCardBtn) {
+    _activePlayingCardBtn.classList.remove('playing');
+    _activePlayingCardBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+    _activePlayingCardBtn = null;
+  }
+  setTimeout(() => {
+    if (!modal.classList.contains('open')) {
+      modal.style.display = 'none';
+    }
+  }, 220);
+}
+
+function updateVoiceStudioActiveLabel() {
+  const lbl = document.getElementById('voice-studio-current-active-label');
+  if (lbl) lbl.textContent = state.voiceTimbre || 'Puck';
+}
+
+function initVoiceStudio() {
+  if (_voiceStudioInitialized) return;
+  _voiceStudioInitialized = true;
+
+  const modal = document.getElementById('voice-studio-modal');
+  const dialog = modal?.querySelector('.voice-studio-dialog');
+  const closeBtn = document.getElementById('btn-close-voice-studio');
+  const tabExplore = document.getElementById('tab-btn-explore-voices');
+  const tabDesign = document.getElementById('tab-btn-design-voice');
+  const panelExplore = document.getElementById('panel-explore-voices');
+  const panelDesign = document.getElementById('panel-design-voice');
+  const searchInput = document.getElementById('voice-library-search');
+  const filterChips = document.getElementById('voice-category-filters');
+  const nameInput = document.getElementById('input-design-voice-name');
+  const promptInput = document.getElementById('textarea-design-voice-prompt');
+  const charCounter = document.getElementById('voice-prompt-counter');
+  const generateBtn = document.getElementById('btn-generate-custom-voice');
+  const saveBtn = document.getElementById('btn-save-use-custom-voice');
+  const auditionPlayBtn = document.getElementById('btn-audition-toggle-play');
+
+  closeBtn?.addEventListener('click', closeVoiceStudioModal);
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) closeVoiceStudioModal();
+  });
+  dialog?.addEventListener('click', (e) => e.stopPropagation());
+
+  // Tab switching
+  tabExplore?.addEventListener('click', () => {
+    tabExplore.classList.add('active');
+    tabDesign?.classList.remove('active');
+    if (panelExplore) panelExplore.style.display = 'flex';
+    if (panelDesign) panelDesign.style.display = 'none';
+  });
+
+  tabDesign?.addEventListener('click', () => {
+    tabDesign.classList.add('active');
+    tabExplore?.classList.remove('active');
+    if (panelDesign) panelDesign.style.display = 'flex';
+    if (panelExplore) panelExplore.style.display = 'none';
+  });
+
+  // Prompt counter
+  promptInput?.addEventListener('input', () => {
+    if (charCounter) charCounter.textContent = `${promptInput.value.length} chars`;
+  });
+
+  // Inspiration chips
+  document.querySelectorAll('.voice-insp-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (promptInput) promptInput.value = chip.dataset.prompt || '';
+      if (nameInput) nameInput.value = chip.dataset.name || '';
+      if (charCounter && promptInput) charCounter.textContent = `${promptInput.value.length} chars`;
+    });
+  });
+
+  // Search filtering
+  searchInput?.addEventListener('input', () => {
+    filterAndRenderCards();
+  });
+
+  // Category filters
+  filterChips?.addEventListener('click', (e) => {
+    const chip = e.target.closest('.voice-filter-chip');
+    if (!chip) return;
+    filterChips.querySelectorAll('.voice-filter-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    filterAndRenderCards();
+  });
+
+  // Generate / Synthesize custom voice
+  generateBtn?.addEventListener('click', async () => {
+    const prompt = (promptInput?.value || '').trim();
+    const name = (nameInput?.value || '').trim() || 'Custom Persona';
+    if (!prompt) {
+      showToast('Please describe the vocal persona in the prompt box', 'warning');
+      promptInput?.focus();
+      return;
+    }
+
+    generateBtn.classList.add('loading');
+    generateBtn.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
+        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+        <path d="M12 2a10 10 0 0 1 10 10" stroke-width="2.5"></path>
+      </svg>
+      <span>Synthesizing Voice Persona...</span>
+    `;
+
+    try {
+      const res = await fetch('/v1/audio/voices/design', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, prompt }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      _lastAuditionedVoice = data;
+
+      // Update preview card
+      const nameLbl = document.getElementById('voice-preview-name-label');
+      const descLbl = document.getElementById('voice-preview-desc-label');
+      const playerBox = document.getElementById('voice-audition-player');
+      if (nameLbl) nameLbl.textContent = data.name;
+      if (descLbl) descLbl.textContent = data.description || prompt;
+      if (playerBox) playerBox.style.display = 'flex';
+      if (saveBtn) saveBtn.disabled = false;
+
+      // Play audio sample
+      if (data.sample_audio) {
+        playAuditionSample("data:audio/wav;base64," + data.sample_audio);
+      } else {
+        const sampleText = `Hello! I am ${name}. ${prompt}`;
+        auditionVoiceWithText(name, sampleText);
+      }
+      showToast(`Voice '${name}' synthesized successfully!`, 'success');
+    } catch (err) {
+      console.error('Voice Design error:', err);
+      showToast('Failed to synthesize custom voice. Check backend log.', 'error');
+    } finally {
+      generateBtn.classList.remove('loading');
+      generateBtn.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        <span>Synthesize & Audition Voice</span>
+      `;
+    }
+  });
+
+  // Audition toggle play
+  auditionPlayBtn?.addEventListener('click', () => {
+    if (_studioAuditionAudio) {
+      if (_studioAuditionAudio.paused) {
+        _studioAuditionAudio.play();
+        setAuditionPlayingState(true);
+      } else {
+        _studioAuditionAudio.pause();
+        setAuditionPlayingState(false);
+      }
+    } else if (_lastAuditionedVoice) {
+      const sampleText = `Hello! I am ${_lastAuditionedVoice.name}. ${_lastAuditionedVoice.prompt}`;
+      auditionVoiceWithText(_lastAuditionedVoice.name, sampleText);
+    }
+  });
+
+  // Save & Use Custom Voice
+  saveBtn?.addEventListener('click', () => {
+    if (!_lastAuditionedVoice) return;
+    const voiceName = _lastAuditionedVoice.name;
+    setActiveVoice(voiceName);
+    showToast(`Voice '${voiceName}' set as active speech persona!`, 'success');
+    if (tabExplore) tabExplore.click();
+    loadAndRenderVoiceLibrary();
+  });
+}
+
+function setAuditionPlayingState(isPlaying) {
+  const btn = document.getElementById('btn-audition-toggle-play');
+  const wave = document.querySelector('.voice-audition-wave-visualizer');
+  if (wave) wave.classList.toggle('playing', isPlaying);
+  if (btn) {
+    btn.innerHTML = isPlaying
+      ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>'
+      : '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+  }
+}
+
+function playAuditionSample(audioSrc) {
+  if (_studioAuditionAudio) {
+    _studioAuditionAudio.pause();
+    _studioAuditionAudio = null;
+  }
+  const audio = new Audio(audioSrc);
+  _studioAuditionAudio = audio;
+  audio.onplay = () => setAuditionPlayingState(true);
+  audio.onended = () => setAuditionPlayingState(false);
+  audio.onerror = () => setAuditionPlayingState(false);
+  audio.play().catch(() => {});
+}
+
+async function auditionVoiceWithText(voiceNameOrId, text) {
+  try {
+    setAuditionPlayingState(true);
+    const res = await fetch('/v1/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: text,
+        model: 'ais-gemini-3.8-flash-tts',
+        voice: voiceNameOrId,
+        response_format: 'mp3',
+      }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error?.message || `HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    if (blob.size < 200) throw new Error('Received invalid audio data');
+    playAuditionSample(URL.createObjectURL(blob));
+  } catch (err) {
+    console.error('Audition error:', err);
+    setAuditionPlayingState(false);
+    showToast(`Audition preview unavailable: ${err.message}`, 'warning');
+  }
+}
+
+async function loadAndRenderVoiceLibrary() {
+  try {
+    const res = await fetch('/v1/audio/voices');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    _allVoicesList = data.voices || [];
+    filterAndRenderCards();
+  } catch (err) {
+    console.warn('Failed to load voices from API, using defaults:', err);
+    _allVoicesList = [
+      { id: 'grizzled-detective', name: 'The Grizzled Detective', description: 'Low, gravelly, world-weary noir narration.', type: 'curated', gender: 'Male / Deep' },
+      { id: 'meditation-guide', name: 'The Meditation Guide', description: 'Airy, hushed, endlessly patient.', type: 'curated', gender: 'Female / Soft' },
+      { id: 'hype-announcer', name: 'The Hype Announcer', description: 'Booming, rapid, arena-sized energy.', type: 'curated', gender: 'Male / Resonant' },
+      { id: 'regal-monarch', name: 'The Regal Monarch', description: 'Measured, precise, quietly commanding.', type: 'curated', gender: 'Female / Noble' },
+      { id: 'everyday-assistant', name: 'The Everyday Assistant', description: 'A helpful and professional personal assistant.', type: 'curated', gender: 'Neutral / Friendly' },
+      { id: 'guarded-npc', name: 'The Guarded NPC', description: 'Creates multi-character dialogue in a fantasy setting.', type: 'curated', gender: 'Male / Gritty' },
+      { id: 'energetic-co-host', name: 'The Energetic Co-Host', description: 'Podcast style conversational delivery.', type: 'curated', gender: 'Female / Dynamic' },
+      { id: 'master-storyteller', name: 'The Master Storyteller', description: 'Crafts rich, immersive storytelling narration.', type: 'curated', gender: 'Male / Rich' },
+      { id: 'Puck', name: 'Puck', description: 'Dynamic, lively, expressive storytelling & natural cadence', type: 'prebuilt', gender: 'Neutral / Expressive' },
+      { id: 'Charon', name: 'Charon', description: 'Calm, authoritative, thoughtful and grounding', type: 'prebuilt', gender: 'Male / Deep' },
+      { id: 'Aoede', name: 'Aoede', description: 'Warm, melodious, empathetic and clear conversational tone', type: 'prebuilt', gender: 'Female / Warm' },
+      { id: 'Fenrir', name: 'Fenrir', description: 'Strong, resonant, confident and energetic pacing', type: 'prebuilt', gender: 'Male / Strong' },
+      { id: 'Kore', name: 'Kore', description: 'Bright, lucid, precise and crisp articulation', type: 'prebuilt', gender: 'Female / Bright' },
+    ];
+    filterAndRenderCards();
+  }
+}
+
+function filterAndRenderCards() {
+  const grid = document.getElementById('voice-cards-grid');
+  if (!grid) return;
+  const search = (document.getElementById('voice-library-search')?.value || '').toLowerCase().trim();
+  const activeCatChip = document.querySelector('#voice-category-filters .voice-filter-chip.active');
+  const cat = activeCatChip?.dataset.cat || 'all';
+
+  const filtered = _allVoicesList.filter(v => {
+    if (cat === 'curated' && v.type !== 'curated') return false;
+    if (cat === 'prebuilt' && v.type !== 'prebuilt') return false;
+    if (cat === 'custom' && v.type !== 'custom') return false;
+    if (search) {
+      const matchName = (v.name || '').toLowerCase().includes(search);
+      const matchDesc = (v.description || '').toLowerCase().includes(search);
+      const matchGender = (v.gender || '').toLowerCase().includes(search);
+      return matchName || matchDesc || matchGender;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1/-1; text-align: center; padding: 40px 20px; color: rgba(255,255,255,0.45); font-size: 13px;">
+        No voices match your search filter. Try designing a custom voice in the 'Design Custom Voice' tab!
+      </div>
+    `;
+    return;
+  }
+
+  const currentActive = state.voiceTimbre || 'Puck';
+
+  grid.innerHTML = filtered.map(v => {
+    const isAct = v.name === currentActive || v.id === currentActive;
+    const typeLabel = v.type === 'custom' ? 'Custom Designed' : (v.type === 'curated' ? 'Curated Persona' : 'Foundational');
+    const badge = v.gender || (v.type === 'custom' ? 'User Vault' : 'Studio');
+    return `
+      <div class="voice-card ${isAct ? 'active' : ''}" data-id="${escapeHtml(v.id || v.name)}" data-name="${escapeHtml(v.name)}">
+        <div class="voice-card-top">
+          <div class="voice-card-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="4" y="9" width="2" height="6" rx="1"></rect>
+              <rect x="8" y="5" width="2" height="14" rx="1"></rect>
+              <rect x="12" y="2" width="2" height="20" rx="1"></rect>
+              <rect x="16" y="6" width="2" height="12" rx="1"></rect>
+              <rect x="20" y="10" width="2" height="4" rx="1"></rect>
+            </svg>
+          </div>
+          <button type="button" class="voice-card-play-btn" title="Audition ${escapeHtml(v.name)}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+          </button>
+        </div>
+        <div class="voice-card-info">
+          <div class="voice-card-title">
+            <span>${escapeHtml(v.name)}</span>
+            <span class="voice-card-badge">${escapeHtml(badge)}</span>
+          </div>
+          <div class="voice-card-desc">${escapeHtml(v.description || 'Natural expressive speech persona.')}</div>
+        </div>
+        <div class="voice-card-footer">
+          <span class="voice-card-type-tag">${escapeHtml(typeLabel)}</span>
+          <button type="button" class="voice-card-select-btn">${isAct ? '✓ Active' : 'Use Voice'}</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const CARD_AUDITION_SAMPLES = {
+    'The Meditation Guide': "Take a slow, deep breath in... and let it go. You are safe here, relaxed and completely at ease.",
+    'meditation-guide': "Take a slow, deep breath in... and let it go. You are safe here, relaxed and completely at ease.",
+    'The Grizzled Detective': "It was two in the morning when she walked into my office. Rain was hitting the blinds, and trouble was right behind her.",
+    'grizzled-detective': "It was two in the morning when she walked into my office. Rain was hitting the blinds, and trouble was right behind her.",
+    'The Hype Announcer': "Ladies and gentlemen, welcome to the main event! Make some noise!",
+    'hype-announcer': "Ladies and gentlemen, welcome to the main event! Make some noise!",
+    'The Regal Monarch': "Silence. When the crown speaks, the realm listens with utmost reverence.",
+    'regal-monarch': "Silence. When the crown speaks, the realm listens with utmost reverence.",
+    'The Everyday Assistant': "Good morning! I have prepared your schedule and notes for today. How can I assist you?",
+    'everyday-assistant': "Good morning! I have prepared your schedule and notes for today. How can I assist you?",
+    'The Guarded NPC': "Halt, traveler. What business brings you to our gates at this hour?",
+    'guarded-npc': "Halt, traveler. What business brings you to our gates at this hour?",
+    'The Energetic Co-Host': "Welcome back to the stream, everyone! We've got an amazing topic lined up today.",
+    'energetic-co-host': "Welcome back to the stream, everyone! We've got an amazing topic lined up today.",
+    'The Master Storyteller': "Deep within the forgotten ruins of the ancient world, a secret was waiting to be unveiled.",
+    'master-storyteller': "Deep within the forgotten ruins of the ancient world, a secret was waiting to be unveiled.",
+    'Puck': "Hello! I am ready to converse with you using natural, studio-quality speech.",
+    'Charon': "Greetings. The system is active, and I am prepared for your questions.",
+    'Aoede': "Welcome! I look forward to assisting you in our voice conversation.",
+    'Fenrir': "Singularity audio engine initialized. Let us begin.",
+    'Kore': "Voice channel online. Clarity and responsiveness optimized.",
+  };
+
+  // Attach card event listeners
+  grid.querySelectorAll('.voice-card').forEach(card => {
+    const vId = card.dataset.id;
+    const vName = card.dataset.name;
+    const playBtn = card.querySelector('.voice-card-play-btn');
+    const selectBtn = card.querySelector('.voice-card-select-btn');
+
+    playBtn?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (_activePlayingCardBtn === playBtn && _activeCardAudio && !_activeCardAudio.paused) {
+        _activeCardAudio.pause();
+        playBtn.classList.remove('playing', 'loading');
+        playBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+        return;
+      }
+      if (_activePlayingCardBtn && _activePlayingCardBtn !== playBtn) {
+        _activePlayingCardBtn.classList.remove('playing', 'loading');
+        _activePlayingCardBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+      }
+      if (_activeCardAudio) {
+        _activeCardAudio.pause();
+        _activeCardAudio = null;
+      }
+
+      playBtn.classList.remove('playing');
+      playBtn.classList.add('loading');
+      playBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spin"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10"></path></svg>';
+      _activePlayingCardBtn = playBtn;
+
+      const sampleText = CARD_AUDITION_SAMPLES[vName] || CARD_AUDITION_SAMPLES[vId] || `Hello! You are listening to the ${vName} speech persona on Gemini 3.8 Flash TTS.`;
+      const cacheKey = `${vName || vId}:${sampleText}`;
+
+      try {
+        let blob = _clientAudioBlobCache.get(cacheKey);
+        if (!blob) {
+          const res = await fetch('/v1/audio/speech', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              input: sampleText,
+              model: 'ais-gemini-3.8-flash-tts',
+              voice: vName || vId,
+              response_format: 'mp3',
+            }),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error?.message || `HTTP ${res.status}`);
+          }
+          blob = await res.blob();
+          if (blob.size < 200) throw new Error('Received invalid audio response');
+          _clientAudioBlobCache.set(cacheKey, blob);
+        }
+
+        if (_activePlayingCardBtn !== playBtn) return;
+
+        playBtn.classList.remove('loading');
+        playBtn.classList.add('playing');
+        playBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+
+        const audio = new Audio(URL.createObjectURL(blob));
+        _activeCardAudio = audio;
+        audio.onended = () => {
+          playBtn.classList.remove('playing', 'loading');
+          playBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+          _activeCardAudio = null;
+          _activePlayingCardBtn = null;
+        };
+        audio.onerror = () => {
+          playBtn.classList.remove('playing', 'loading');
+          playBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+          _activeCardAudio = null;
+          _activePlayingCardBtn = null;
+        };
+        await audio.play();
+      } catch (err) {
+        console.error('Audition error:', err);
+        playBtn.classList.remove('playing', 'loading');
+        playBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+        _activePlayingCardBtn = null;
+        showToast(`Audition failed: ${err.message}`, 'error');
+      }
+    });
+
+    selectBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveVoice(vName || vId);
+      showToast(`Active voice set to: ${vName}`, 'info');
+      filterAndRenderCards();
+    });
+  });
+}
+
+function setActiveVoice(voiceName) {
+  state.voiceTimbre = voiceName;
+  localStorage.setItem('singularity_voice_timbre', voiceName);
+  updateVoiceStudioActiveLabel();
+  const timbreLabel = document.getElementById('voice-timbre-display-label');
+  if (timbreLabel) timbreLabel.textContent = voiceName;
+  const timbreChips = document.getElementById('voice-timbre-chips');
+  if (timbreChips) {
+    timbreChips.querySelectorAll('.voice-timbre-chip').forEach(chip => {
+      chip.classList.toggle('active', chip.dataset.voice === voiceName);
+    });
+  }
 }
 
 function createResponseActionBar(assistantMsgEl, fullContent, promptText, modelName, elapsedMs, timestamp = new Date()) {
@@ -6313,11 +7250,16 @@ function createResponseActionBar(assistantMsgEl, fullContent, promptText, modelN
   `;
   speakBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!('speechSynthesis' in window)) {
-      showToast('Speech synthesis not supported in this browser', 'info');
+    if (state.currentAudio && !state.currentAudio.paused) {
+      state.currentAudio.pause();
+      state.currentAudio = null;
+      document.querySelectorAll('.btn-speak-response.active').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('data-tooltip', 'Read aloud');
+      });
       return;
     }
-    if (window.speechSynthesis.speaking) {
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
       window.speechSynthesis.cancel();
       document.querySelectorAll('.btn-speak-response.active').forEach(b => {
         b.classList.remove('active');
@@ -6329,11 +7271,6 @@ function createResponseActionBar(assistantMsgEl, fullContent, promptText, modelN
     const speakText = cleanTextForSpeech(fullContent);
     if (!speakText) return;
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(speakText);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-
     speakBtn.classList.add('active');
     speakBtn.setAttribute('data-tooltip', 'Stop reading');
 
@@ -6342,16 +7279,13 @@ function createResponseActionBar(assistantMsgEl, fullContent, promptText, modelN
       tip.textContent = 'Stop reading';
     }
 
-    utterance.onend = () => {
+    playAssistantAudio(fullContent, assistantMsgEl, () => {
       speakBtn.classList.remove('active');
       speakBtn.setAttribute('data-tooltip', 'Read aloud');
-    };
-    utterance.onerror = () => {
-      speakBtn.classList.remove('active');
-      speakBtn.setAttribute('data-tooltip', 'Read aloud');
-    };
-
-    window.speechSynthesis.speak(utterance);
+      if (tip && tip.classList.contains('visible')) {
+        tip.textContent = 'Read aloud';
+      }
+    });
   });
   bar.appendChild(speakBtn);
 
@@ -6973,6 +7907,11 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
     // Create Claude-grade interactive response action bar
     createResponseActionBar(assistantMsgEl, fullContent, userText, state.selectedModel, elapsed, new Date());
     window.dispatchEvent(new CustomEvent('singularity-chat-updated'));
+
+    // Voice Conversation Mode: Automatically speak assistant response aloud when active
+    if (state.voiceModeEnabled && state.voiceAutoSpeak) {
+      playAssistantAudio(fullContent, assistantMsgEl);
+    }
 
   } catch (err) {
     if (loaderObj.finish) loaderObj.finish();
@@ -8511,6 +9450,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initCustomSelect();
   initParamModelSelect();
   initPlayground();
+  initVoiceModeControls();
+  initVoiceStudio();
   initCopyAction();
   initTunnelControls();
   initSmoothInputs();
@@ -8986,9 +9927,17 @@ function setToolsTrayOpen(open) {
 
 function initToolsTray() {
   const circle = document.getElementById('btn-tools-menu');
+  const tray = document.getElementById('composer-tools-tray');
   if (!circle) return;
-  circle.addEventListener('click', () => {
+  circle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.triggerHaptic?.(6);
     setToolsTrayOpen(circle.getAttribute('aria-expanded') !== 'true');
+  });
+  document.addEventListener('click', (e) => {
+    if (tray && circle && !tray.contains(e.target) && !circle.contains(e.target)) {
+      setToolsTrayOpen(false);
+    }
   });
   syncToolsMenuButton();
 }

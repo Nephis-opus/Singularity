@@ -961,6 +961,42 @@
       this.activeGreetingIdx = 0;
       this.resetScrollToTop();
 
+      // Render immediately with current cached bot for instantaneous navigation
+      this.drawBotDetailPage(container, bot);
+
+      // Asynchronously fetch complete authentic character dossier from JanitorAI
+      // to guarantee full untruncated bio (not capped at 4096), all greetings, and exact token counts
+      fetch(`/api/connect/bot/${botId}`)
+        .then(r => r.json())
+        .then(res => {
+          const fresh = res.data || res;
+          if (fresh && fresh.id && this.activeBot && this.activeBot.id === fresh.id) {
+            const prevDescLen = (this.activeBot.description || '').length;
+            const newDescLen = (fresh.description || '').length;
+            this.activeBot = Object.assign({}, this.activeBot, fresh);
+            this.cacheBot(this.activeBot);
+
+            // Update bio panel seamlessly if content was lengthened or on bio tab
+            const panel = document.getElementById('detail-tab-panel');
+            if (panel && (this.activeDetailTab === 'bio' || newDescLen > prevDescLen)) {
+              panel.innerHTML = this.renderDetailTabContent();
+            }
+
+            // Update metadata box tokens and counts
+            const metaBox = document.querySelector('.bot-metadata-card');
+            if (metaBox && fresh.tokens) {
+              const lines = metaBox.querySelectorAll('.metadata-line');
+              if (lines.length > 0) {
+                const tokVal = lines[0].querySelector('.metadata-val');
+                if (tokVal) tokVal.textContent = (fresh.tokens || 0).toLocaleString();
+              }
+            }
+          }
+        })
+        .catch(() => {});
+    },
+
+    drawBotDetailPage(container, bot) {
       const isSaved = this.savedBotIds.has(bot.id);
       const isUnmasked = bot.is_unmasked || bot.isUnmasked || false;
       const tags = Array.isArray(bot.tags) ? bot.tags : [];

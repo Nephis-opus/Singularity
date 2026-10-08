@@ -320,6 +320,28 @@ def cmd_limits(args):
         print_table(headers, rows)
     else:
         print("    No Antigravity accounts configured in vault.")
+
+    # 10. Google AI Studio (MakerSuite)
+    ais_obj = data.get("aistudio", {})
+    ais_accounts = ais_obj.get("accounts", [])
+    print(f"\n[10] {ais_obj.get('title', 'Google AI Studio Quotas')} ({len(ais_accounts)} accounts)")
+    if ais_accounts:
+        headers = ["Account / Session", "Plan", "Status", "Reasoning / CoT", "TTS / Speech", "Live Voice", "Context Window", "Reset Window"]
+        rows = []
+        for a in ais_accounts:
+            rows.append([
+                a.get("email", "—"),
+                a.get("type", "Google AI Studio Pro"),
+                a.get("status", "Active"),
+                str(a.get("reason_remaining", "Unlimited")),
+                str(a.get("tts_quota", "Gemini 3.8 Flash TTS")),
+                str(a.get("live_quota", "Gemini 3.8 Live")),
+                str(a.get("file_upload", "128K-1M Tokens")),
+                str(a.get("restore_at", "Dynamic RPC")),
+            ])
+        print_table(headers, rows)
+    else:
+        print("    No AI Studio accounts configured in vault (Auto-shares Gemini cookies if present).")
     print()
 
 

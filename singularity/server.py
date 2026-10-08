@@ -225,6 +225,8 @@ def resolve_model_provider(model_name: str) -> str:
             return item["provider"]
 
     # 2. Explicit prefixes or known names
+    if m.startswith("ais-") or m.startswith("aistudio-") or m.startswith("ais_") or m.startswith("makersuite"):
+        return "aistudio"
     if m.startswith("agy-") or m.startswith("antigravity-") or m.startswith("agy_") or m.startswith("antigravity_"):
         return "antigravity"
     if m.startswith("claude") or "fable" in m or "flable" in m or "opus" in m or "sonnet" in m or "haiku" in m:
@@ -290,6 +292,131 @@ async def list_models():
             "capabilities": m.get("capabilities", []),
         })
     return {"object": "list", "data": data}
+
+
+@app.post("/v1/audio/speech")
+@app.post("/audio/speech")
+@app.post("/api/v1/audio/speech")
+async def audio_speech(request: Request):
+    """OpenAI-compatible speech synthesis endpoint (TTS) using Google AI Studio Gemini 3.8 Flash TTS."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    input_text = body.get("input", "") or body.get("prompt", "") or body.get("text", "")
+    if not input_text:
+        return JSONResponse(
+            {"error": {"message": "Missing required field 'input'", "type": "invalid_request_error"}},
+            status_code=400,
+        )
+
+    model = body.get("model", "ais-gemini-3.8-flash-tts")
+    voice = body.get("voice", "Puck")
+    response_format = body.get("response_format", "mp3")
+
+    # Fetch accounts: prefer aistudio, fallback to gemini accounts in database vault
+    accounts = db.get_accounts("aistudio") or db.get_accounts("gemini")
+
+    try:
+        import importlib
+        import sys
+        if "singularity.engines.aistudio" in sys.modules:
+            aistudio_engine = importlib.reload(sys.modules["singularity.engines.aistudio"])
+        else:
+            from singularity.engines import aistudio as aistudio_engine
+        audio_bytes = await aistudio_engine.generate_aistudio_speech(
+            input_text=input_text,
+            model=model,
+            voice=voice,
+            response_format=response_format,
+            accounts=accounts,
+        )
+    except Exception as e:
+        return JSONResponse(
+            {"error": {"message": f"Speech generation error: {str(e)}", "type": "speech_error"}},
+            status_code=502,
+        )
+
+    media_type = "audio/mpeg" if response_format.lower() in ("mp3", "mpeg") else "audio/wav"
+    return Response(
+        content=audio_bytes,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'inline; filename="speech.{response_format}"',
+            "Cache-Control": "no-cache",
+        },
+    )
+
+
+@app.get("/v1/audio/voices")
+@app.get("/audio/voices")
+async def list_voices():
+    """Return available neural voice timbres, curated studio personas, and custom-designed voices."""
+    base_voices = [
+        {"id": "Puck", "name": "Puck", "gender": "Neutral / Expressive", "description": "Dynamic, lively, expressive storytelling & natural cadence", "type": "prebuilt"},
+        {"id": "Charon", "name": "Charon", "gender": "Male / Deep", "description": "Calm, authoritative, thoughtful and grounding", "type": "prebuilt"},
+        {"id": "Aoede", "name": "Aoede", "gender": "Female / Warm", "description": "Warm, melodious, empathetic and clear conversational tone", "type": "prebuilt"},
+        {"id": "Fenrir", "name": "Fenrir", "gender": "Male / Strong", "description": "Strong, resonant, confident and energetic pacing", "type": "prebuilt"},
+        {"id": "Kore", "name": "Kore", "gender": "Female / Bright", "description": "Bright, lucid, precise and crisp articulation", "type": "prebuilt"},
+    ]
+
+    from singularity.engines.aistudio import CURATED_VOICE_PERSONAS
+    curated = [dict(p, type="curated") for p in CURATED_VOICE_PERSONAS]
+
+    try:
+        custom_db = db.get_custom_voices()
+    except Exception:
+        custom_db = []
+    custom = [dict(c, type="custom", id=c["voice_id"]) for c in custom_db]
+
+    all_voices = base_voices + curated + custom
+    return {
+        "voices": all_voices,
+        "base_voices": base_voices,
+        "curated_personas": curated,
+        "custom_voices": custom,
+    }
+
+
+@app.post("/v1/audio/voices/design")
+@app.post("/v1/audio/voices")
+@app.post("/audio/voices/design")
+async def design_custom_voice(request: Request):
+    """Design a brand-new persistent vocal persona via Google Gemini 3.8 Flash TTS Voice Design."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    name = (body.get("name") or "").strip()
+    prompt = (body.get("prompt") or body.get("description") or "").strip()
+    if not prompt:
+        return JSONResponse(
+            {"error": {"message": "Missing required field 'prompt' describing the vocal persona.", "type": "invalid_request_error"}},
+            status_code=400,
+        )
+    if not name:
+        name = "Custom Persona"
+
+    accounts = db.get_accounts("aistudio") or db.get_accounts("gemini")
+    from singularity.engines.aistudio import create_prompted_voice
+    try:
+        result = await create_prompted_voice(name=name, prompt=prompt, accounts=accounts)
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse(
+            {"error": {"message": f"Voice Design error: {str(e)}", "type": "voice_design_error"}},
+            status_code=502,
+        )
+
+
+@app.delete("/v1/audio/voices/{voice_id}")
+@app.delete("/audio/voices/{voice_id}")
+async def delete_voice_endpoint(voice_id: str):
+    """Delete a user-designed custom voice from SQLite vault."""
+    success = db.delete_custom_voice(voice_id)
+    return JSONResponse({"success": success, "voice_id": voice_id})
 
 
 def is_simulation_mode() -> bool:

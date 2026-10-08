@@ -419,6 +419,18 @@ def _create_tables() -> None:
                 updated_at REAL NOT NULL DEFAULT 0.0
             );
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS custom_voices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                voice_id TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                prompt TEXT NOT NULL DEFAULT '',
+                voice_type TEXT NOT NULL DEFAULT 'prompted',
+                sample_audio TEXT NOT NULL DEFAULT '',
+                created_at REAL NOT NULL DEFAULT 0.0
+            );
+        """)
         conn.execute("UPDATE bench_runs SET status = 'interrupted', finished_at = CURRENT_TIMESTAMP WHERE status = 'running'")
         conn.commit()
 
@@ -692,9 +704,26 @@ def parse_credential(provider: str, raw: str) -> Optional[Dict[str, Any]]:
 
     # 5. Gemini
     elif provider == "gemini":
-        psid_m = re.search(r"__Secure-1PSID=([^;]+)", raw)
-        psidts_m = re.search(r"__Secure-1PSIDTS=([^;]+)", raw)
-        psid = psid_m.group(1).strip() if psid_m else raw[:25]
+        raw_str = raw.strip()
+        if raw_str.lower().startswith("cookie:"):
+            raw_str = raw_str[7:].strip()
+        raw_str = re.sub(r'[\r\n]+', '; ', raw_str)
+        # Check if user passed an AI Studio / Gemini API key
+        if raw_str.startswith("AIzaSy") or raw_str.startswith("AQ."):
+            api_key = raw_str
+            identifier = f"key_{api_key[:12]}"
+            return {
+                "provider": "gemini",
+                "identifier": identifier,
+                "name": f"Gemini API ({api_key[:8]}...)",
+                "token": api_key,
+                "plan": "Google Gemini API Key",
+                "status": "active",
+                "metadata": json.dumps({"api_key": api_key}),
+            }
+        psid_m = re.search(r"__Secure-1PSID=([^;]+)", raw_str)
+        psidts_m = re.search(r"__Secure-1PSIDTS=([^;]+)", raw_str)
+        psid = psid_m.group(1).strip() if psid_m else raw_str[:25]
         has_psidts = bool(psidts_m)
         metadata = {
             "psid": psid,
@@ -707,7 +736,7 @@ def parse_credential(provider: str, raw: str) -> Optional[Dict[str, Any]]:
             "provider": "gemini",
             "identifier": identifier,
             "name": f"Gemini ({psid[:8]}...)",
-            "token": raw,
+            "token": raw_str,
             "plan": "free",
             "status": "active",
             "metadata": json.dumps(metadata),
@@ -864,6 +893,83 @@ def parse_credential(provider: str, raw: str) -> Optional[Dict[str, Any]]:
                 "has_refresh_token": bool(refresh_token),
                 "has_access_token": bool(access_token),
             }),
+        }
+
+    # 10. Google AI Studio (MakerSuite)
+    elif provider in ("aistudio", "ais", "google-aistudio", "makersuite"):
+        raw_str = raw.strip()
+        if raw_str.lower().startswith("cookie:"):
+            raw_str = raw_str[7:].strip()
+        raw_str = re.sub(r'[\r\n]+', '; ', raw_str)
+        email = ""
+        api_key = ""
+        cookie_str = raw_str
+
+        if raw_str.startswith("{") or raw_str.startswith("["):
+            try:
+                d = json.loads(raw_str)
+                if isinstance(d, dict):
+                    email = d.get("email") or d.get("user") or ""
+                    api_key = d.get("api_key") or d.get("apiKey") or d.get("key") or ""
+                    if "cookies" in d:
+                        cookies_val = d["cookies"]
+                        if isinstance(cookies_val, list):
+                            cookie_str = "; ".join(f"{c.get('name')}={c.get('value')}" for c in cookies_val if isinstance(c, dict) and "name" in c and "value" in c)
+                        elif isinstance(cookies_val, str):
+                            cookie_str = cookies_val
+                        elif isinstance(cookies_val, dict):
+                            cookie_str = "; ".join(f"{k}={v}" for k, v in cookies_val.items())
+                    elif "cookie" in d:
+                        cookie_str = str(d["cookie"])
+                elif isinstance(d, list):
+                    cookie_str = "; ".join(f"{c.get('name')}={c.get('value')}" for c in d if isinstance(c, dict) and "name" in c and "value" in c)
+            except Exception:
+                pass
+
+        if not api_key and (raw_str.startswith("AIzaSy") or raw_str.startswith("AQ.")):
+            api_key = raw_str
+
+        if api_key and not cookie_str.startswith("__Secure-"):
+            identifier = f"key_{api_key[:12]}"
+            name = f"AI Studio ({api_key[:8]}...)"
+            return {
+                "provider": "aistudio",
+                "identifier": identifier,
+                "name": name,
+                "token": api_key,
+                "plan": "Google AI Studio API Key",
+                "status": "active",
+                "metadata": json.dumps({"api_key": api_key}),
+            }
+
+        psid_m = re.search(r"__Secure-1PSID=([^;]+)", cookie_str)
+        psidts_m = re.search(r"__Secure-1PSIDTS=([^;]+)", cookie_str)
+        sapisid_m = re.search(r"(?:__Secure-3PAPISID|__Secure-1PAPISID|SAPISID)=([^;]+)", cookie_str)
+        psid = psid_m.group(1).strip() if psid_m else ""
+        has_psidts = bool(psidts_m)
+        has_sapisid = bool(sapisid_m)
+
+        identifier = (email or (f"psid_{psid[:12]}" if psid else (f"key_{api_key[:12]}" if api_key else f"ais_{raw_str[:15]}"))).strip().lower()
+        name = f"AI Studio ({email.split('@')[0]})" if email and "@" in email else (f"AI Studio ({psid[:8]}...)" if psid else f"AI Studio ({identifier[:12]})")
+
+        metadata = {
+            "email": email,
+            "has_psid": bool(psid),
+            "has_psidts": has_psidts,
+            "has_sapisid": has_sapisid,
+            "api_key": api_key,
+        }
+        if not psid and not api_key:
+            metadata["warning"] = "Missing __Secure-1PSID or API key. MakerSuite RPC requires authenticated Google cookies or API key."
+
+        return {
+            "provider": "aistudio",
+            "identifier": identifier,
+            "name": name,
+            "token": raw_str,
+            "plan": "Google AI Studio Pro",
+            "status": "active",
+            "metadata": json.dumps(metadata),
         }
 
     return None
@@ -1063,6 +1169,10 @@ def export_all_json() -> Dict[str, Any]:
         "glm": [],
         "kimi": [],
         "grok": [],
+        "deepseek": [],
+        "qwen": [],
+        "antigravity": [],
+        "aistudio": [],
     }
 
     for acc in accounts:
@@ -2824,7 +2934,7 @@ def save_connect_card(card: Dict[str, Any]) -> None:
                 creator_name = excluded.creator_name,
                 creator_avatar = excluded.creator_avatar,
                 category = excluded.category,
-                description = excluded.description,
+                description = CASE WHEN length(excluded.description) >= length(connect_cards.description) THEN excluded.description ELSE connect_cards.description END,
                 personality = CASE WHEN length(excluded.personality) > 0 THEN excluded.personality ELSE connect_cards.personality END,
                 scenario = CASE WHEN length(excluded.scenario) > 0 THEN excluded.scenario ELSE connect_cards.scenario END,
                 first_message = CASE WHEN length(excluded.first_message) > 0 THEN excluded.first_message ELSE connect_cards.first_message END,
@@ -3295,5 +3405,75 @@ def merge_connect_sync_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         set_connect_vault_val("active_chats", local_active)
 
     return get_full_connect_sync_payload()
+
+
+# -----------------------------------------------------------------------------
+# Custom Voices Vault (Google Gemini 3.8 Flash TTS Voice Design)
+# -----------------------------------------------------------------------------
+
+def save_custom_voice(
+    voice_id: str,
+    name: str,
+    description: str = "",
+    prompt: str = "",
+    voice_type: str = "prompted",
+    sample_audio: str = "",
+) -> Dict[str, Any]:
+    """Save or update a custom-designed voice persona."""
+    init_db()
+    now = time.time()
+    with closing(get_db_connection()) as conn:
+        conn.execute("""
+            INSERT INTO custom_voices (voice_id, name, description, prompt, voice_type, sample_audio, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(voice_id) DO UPDATE SET
+                name = excluded.name,
+                description = excluded.description,
+                prompt = excluded.prompt,
+                voice_type = excluded.voice_type,
+                sample_audio = CASE WHEN excluded.sample_audio != '' THEN excluded.sample_audio ELSE custom_voices.sample_audio END
+        """, (voice_id, name, description, prompt, voice_type, sample_audio, now))
+        conn.commit()
+    return {
+        "voice_id": voice_id,
+        "name": name,
+        "description": description,
+        "prompt": prompt,
+        "voice_type": voice_type,
+        "sample_audio": sample_audio,
+        "created_at": now,
+    }
+
+
+def get_custom_voices() -> List[Dict[str, Any]]:
+    """Retrieve all saved custom-designed voice personas."""
+    init_db()
+    with closing(get_db_connection()) as conn:
+        rows = conn.execute("""
+            SELECT voice_id, name, description, prompt, voice_type, sample_audio, created_at
+            FROM custom_voices
+            ORDER BY created_at DESC
+        """).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_custom_voice(voice_id: str) -> Optional[Dict[str, Any]]:
+    """Get a single custom voice by voice_id."""
+    init_db()
+    with closing(get_db_connection()) as conn:
+        row = conn.execute("""
+            SELECT voice_id, name, description, prompt, voice_type, sample_audio, created_at
+            FROM custom_voices WHERE voice_id = ?
+        """, (voice_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def delete_custom_voice(voice_id: str) -> bool:
+    """Delete a custom voice persona from the vault."""
+    init_db()
+    with closing(get_db_connection()) as conn:
+        cursor = conn.execute("DELETE FROM custom_voices WHERE voice_id = ?", (voice_id,))
+        conn.commit()
+        return cursor.rowcount > 0
 
 

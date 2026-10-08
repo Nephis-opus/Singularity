@@ -60,9 +60,21 @@ MODEL_CONFIGS = {
 _SESSION_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
+def _clean_cookie_str(raw: Optional[str]) -> str:
+    """Sanitize raw cookie string by stripping header labels and line breaks."""
+    if not raw:
+        return ""
+    c = raw.strip()
+    if c.lower().startswith("cookie:"):
+        c = c[7:].strip()
+    c = re.sub(r'[\r\n]+', '; ', c)
+    return c
+
+
 async def _get_gemini_session_context(cookie_str: Optional[str]) -> Tuple[str, str]:
     """Retrieve or dynamically extract SNlM0e XSRF token and active build label for Google Gemini."""
-    cache_key = cookie_str or "guest"
+    clean_cookie = _clean_cookie_str(cookie_str)
+    cache_key = clean_cookie or "guest"
     now = time.time()
     cached = _SESSION_CACHE.get(cache_key)
     if cached and (now - cached.get("ts", 0) < 600.0) and cached.get("snlm0e"):
@@ -76,8 +88,8 @@ async def _get_gemini_session_context(cookie_str: Optional[str]) -> Tuple[str, s
         "Referer": "https://gemini.google.com/",
         "Accept-Language": "en-US,en;q=0.9",
     }
-    if cookie_str:
-        headers["Cookie"] = cookie_str
+    if clean_cookie:
+        headers["Cookie"] = clean_cookie
 
     try:
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
@@ -244,6 +256,9 @@ async def stream_gemini_chat(
     is_image_model = any(k in model.lower() for k in ("nano-banana", "imagen", "image"))
     is_video_model = any(k in model.lower() for k in ("veo", "omni", "video"))
 
+    # Clean and filter candidate cookies
+    candidates = [_clean_cookie_str(c) for c in candidates if _clean_cookie_str(c)]
+
     chosen_cookie = candidates[0] if candidates else ""
     snlm0e = ""
     bl = os.getenv("GEMINI_BL", "boq_assistant-bard-web-server_20260923.22_p0")
@@ -264,10 +279,11 @@ async def stream_gemini_chat(
         "Google Gemini returned: *\"I can search for images, but can't create any for you right now. It's possible you're signed out or image creation isn't available in your location yet.\"*\n\n"
         "### 🔍 Why this happens:\n"
         "1. **Full Cookie Requirement**: Google Gemini's image generation (Imagen) requires authentication via `__Secure-1PSID`, `__Secure-1PSIDTS`, AND `SAPISID` (for SAPISIDHASH token verification).\n"
-        "2. **Account / Workspace Restrictions**: School, Google Workspace, or under-18 accounts have Imagen disabled by Google.\n\n"
+        "2. **Copied from Wrong Page**: Cookies must be copied from **gemini.google.com** while signed in — NOT from `google.com` search.\n"
+        "3. **Account / Workspace Restrictions**: School, Google Workspace, or under-18 accounts have Imagen disabled by Google.\n\n"
         "### 🔑 How to resolve in 30 seconds:\n"
-        "1. Open [gemini.google.com](https://gemini.google.com) in your browser.\n"
-        "2. Open DevTools (`F12`), go to the **Network** tab, type any message in Gemini, click on the `StreamGenerate` or `batchexecute` request.\n"
+        "1. Open [gemini.google.com](https://gemini.google.com) in your browser and sign in.\n"
+        "2. Open DevTools (`F12`), go to the **Network** tab, type any message in Gemini, and click on the `StreamGenerate` or `batchexecute` request.\n"
         "3. In the Request Headers, copy the entire **Cookie** header (which includes `__Secure-1PSID`, `__Secure-1PSIDTS`, and `SAPISID`).\n"
         "4. Paste it into Singularity Control Center -> **Cookie Stacker** -> **Gemini** tab and save!"
     )

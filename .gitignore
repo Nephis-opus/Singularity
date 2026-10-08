@@ -44,4 +44,6 @@ laya/
 niste-sing/
 Janitor-Bio-Stuff*/
 Domcord-Cards/
-domcord-cards/
+# Media & test files
+*.mp3
+*.wav

@@ -21,20 +21,456 @@
     href="https://fonts.googleapis.com/css2?family=Berkshire+Swash&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=Dancing+Script:wght@400..700&family=Fraunces:ital,opsz,wght@0,9..144,400..800;1,9..144,400..800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Jura:wght@400;500;600;700&family=Lexend:wght@400;600;700&family=Monoton&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:ital,wght@0,400;0,600;0,700;1,400&family=Press+Start+2P&family=Rock+Salt&family=VT323&display=swap"
     rel="stylesheet" />
 
-  <link rel="stylesheet" href="/static/tokens.css?v=60" />
+  <link rel="stylesheet" href="/static/tokens.css?v=61" />
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css?v=1" />
-  <link rel="stylesheet" href="/static/style.css?v=77" />
-  <link rel="stylesheet" href="/static/tool-steps.css?v=5" />
-  <link rel="stylesheet" href="/static/message-controls.css?v=3" />
-  <link rel="stylesheet" href="/static/chat-management.css?v=1" />
-  <link rel="stylesheet" href="/static/chat-modes.css?v=6" />
-  <link rel="stylesheet" href="/static/presets.css?v=9" />
-  <link rel="stylesheet" href="/static/glass-dock.css?v=65" />
-  <link rel="stylesheet" href="/static/preloader.css?v=1" />
-  <link rel="stylesheet" href="/static/janitor-bio.css?v=1" />
-  <link rel="stylesheet" href="/static/updates.css?v=1" />
-  <link rel="stylesheet" href="/static/connect.css?v=37" />
-  <link rel="stylesheet" href="/static/login-portal.css?v=1" />
+  <link rel="stylesheet" href="/static/style.css?v=87" />
+  <link rel="stylesheet" href="/static/tool-steps.css?v=7" />
+  <link rel="stylesheet" href="/static/message-controls.css?v=4" />
+  <link rel="stylesheet" href="/static/chat-management.css?v=2" />
+  <link rel="stylesheet" href="/static/chat-modes.css?v=7" />
+  <link rel="stylesheet" href="/static/presets.css?v=10" />
+  <link rel="stylesheet" href="/static/glass-dock.css?v=66" />
+  <link rel="stylesheet" href="/static/preloader.css?v=2" />
+  <link rel="stylesheet" href="/static/janitor-bio.css?v=2" />
+  <link rel="stylesheet" href="/static/updates.css?v=2" />
+  <link rel="stylesheet" href="/static/connect.css?v=38" />
+  <link rel="stylesheet" href="/static/login-portal.css?v=2" />
+
+  <!-- Voice Conversation Mode Styles (Immune to cache) -->
+  <style id="voice-mode-direct-styles">
+    .voice-mode-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .claude-waveform-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 0 6px;
+      width: auto;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted, #9ca3af);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      outline: none;
+    }
+
+    .claude-waveform-btn:hover {
+      color: var(--text-primary, #ffffff);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .claude-waveform-btn .chevron-svg {
+      transition: transform 0.2s ease;
+    }
+
+    .claude-waveform-btn.open .chevron-svg {
+      transform: rotate(180deg);
+    }
+
+    .claude-waveform-btn.active {
+      color: #d97757 !important;
+      background: rgba(217, 119, 87, 0.16) !important;
+      border-color: rgba(217, 119, 87, 0.4) !important;
+      box-shadow: 0 0 12px rgba(217, 119, 87, 0.3) !important;
+    }
+
+    .claude-waveform-btn.active .wave-bar {
+      transform-origin: center;
+      animation: wave-pulse 1.2s ease-in-out infinite alternate;
+    }
+
+    .claude-waveform-btn.active .wb-1 { animation-delay: 0.1s; }
+    .claude-waveform-btn.active .wb-2 { animation-delay: 0.3s; }
+    .claude-waveform-btn.active .wb-3 { animation-delay: 0.0s; }
+    .claude-waveform-btn.active .wb-4 { animation-delay: 0.4s; }
+    .claude-waveform-btn.active .wb-5 { animation-delay: 0.2s; }
+
+    @keyframes wave-pulse {
+      0% { transform: scaleY(0.35); opacity: 0.6; }
+      100% { transform: scaleY(1.3); opacity: 1; }
+    }
+
+    /* Popover Container MUST default to display: none */
+    .voice-mode-popover {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 12px);
+      right: 0;
+      width: 330px;
+      background: #141416 !important;
+      border: 1px solid rgba(255, 255, 255, 0.16) !important;
+      border-radius: 16px !important;
+      box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+      backdrop-filter: blur(28px) !important;
+      -webkit-backdrop-filter: blur(28px) !important;
+      z-index: 9999 !important;
+      padding: 14px 16px;
+      flex-direction: column;
+      gap: 12px;
+      box-sizing: border-box;
+      color: #ededed !important;
+      font-family: inherit;
+    }
+
+    [data-theme="light"] .voice-mode-popover {
+      background: #ffffff !important;
+      border: 1px solid rgba(0, 0, 0, 0.12) !important;
+      box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.06) !important;
+      color: #1a1a1a !important;
+    }
+
+    .voice-mode-popover.open {
+      display: flex !important;
+      animation: voice-popover-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes voice-popover-in {
+      from { opacity: 0; transform: translateY(6px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .voice-popover-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    }
+
+    .voice-popover-title-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .voice-popover-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(217, 119, 87, 0.16);
+      color: #d97757;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .voice-popover-titles {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .voice-popover-title {
+      font-size: 13px;
+      font-weight: 650;
+      color: var(--text-primary, #ffffff);
+      line-height: 1.25;
+    }
+
+    .voice-popover-subtitle {
+      font-size: 10.5px;
+      color: var(--text-muted, #9ca3af);
+    }
+
+    /* Modern Switch */
+    .voice-master-switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+      margin: 0;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .voice-master-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .voice-switch-slider {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      transition: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .voice-switch-slider::before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 2px;
+      bottom: 2px;
+      background-color: #ffffff;
+      border-radius: 50%;
+      transition: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .voice-master-switch input:checked + .voice-switch-slider {
+      background-color: #d97757;
+      border-color: #d97757;
+    }
+
+    .voice-master-switch input:checked + .voice-switch-slider::before {
+      transform: translateX(16px);
+    }
+
+    .voice-popover-section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .voice-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .voice-section-label {
+      font-size: 10.5px;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted, #9ca3af);
+    }
+
+    .voice-badge {
+      font-size: 9.5px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(217, 119, 87, 0.14);
+      color: #d97757;
+      letter-spacing: 0.3px;
+    }
+
+    .voice-timbre-selected-name {
+      font-size: 11px;
+      font-weight: 650;
+      color: #d97757;
+    }
+
+    /* Voice Models Options */
+    .voice-models-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      max-height: 155px;
+      overflow-y: auto;
+      border-radius: 8px;
+      padding-right: 2px;
+    }
+
+    .voice-models-list::-webkit-scrollbar {
+      width: 4px;
+    }
+    .voice-models-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+
+    .voice-model-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: left;
+    }
+
+    .voice-model-item:hover {
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .voice-model-item.active {
+      background: rgba(217, 119, 87, 0.14);
+      border-color: rgba(217, 119, 87, 0.35);
+    }
+
+    .voice-model-info {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 1;
+      padding-right: 6px;
+    }
+
+    .voice-model-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary, #ffffff);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .voice-model-desc {
+      font-size: 10px;
+      color: var(--text-muted, #9ca3af);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+    }
+
+    .voice-model-check {
+      color: #d97757;
+      opacity: 0;
+      flex-shrink: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .voice-model-item.active .voice-model-check {
+      opacity: 1;
+    }
+
+    /* Timbre Chips */
+    .voice-timbre-chips {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+    }
+
+    .voice-timbre-chip {
+      appearance: none !important;
+      -webkit-appearance: none !important;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 2px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-secondary, #d1d5db);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      outline: none;
+    }
+
+    .voice-timbre-chip:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .voice-timbre-chip.active {
+      background: rgba(217, 119, 87, 0.18);
+      border-color: #d97757;
+      color: #ffffff;
+      box-shadow: 0 0 8px rgba(217, 119, 87, 0.25);
+    }
+
+    .timbre-name {
+      font-size: 11px;
+      font-weight: 650;
+      line-height: 1.1;
+    }
+
+    .timbre-tag {
+      font-size: 8.5px;
+      opacity: 0.75;
+      margin-top: 2px;
+    }
+
+    /* Footer */
+    .voice-popover-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    }
+
+    .voice-auto-speak-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--text-secondary, #d1d5db);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .voice-auto-speak-label input {
+      accent-color: #d97757;
+      cursor: pointer;
+    }
+
+    .voice-preview-btn {
+      appearance: none !important;
+      -webkit-appearance: none !important;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary, #ffffff);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      outline: none;
+    }
+
+    .voice-preview-btn:hover {
+      border-color: #d97757;
+      color: #d97757;
+      background: rgba(217, 119, 87, 0.12);
+    }
+
+    .voice-preview-btn.playing {
+      background: #d97757 !important;
+      color: #ffffff !important;
+      border-color: #d97757 !important;
+      box-shadow: 0 0 10px rgba(217, 119, 87, 0.4);
+    }
+
+    .assistant-voice-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 6px 10px;
+      background: rgba(217, 119, 87, 0.1);
+      border: 1px solid rgba(217, 119, 87, 0.28);
+      border-radius: 8px;
+      font-size: 11px;
+      color: #d97757;
+    }
+
+    .assistant-voice-play-btn {
+      background: #d97757;
+      color: #ffffff;
+      border: none;
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+  </style>
   <!-- Immediate Auth URL Hash Cleaner: Instantly capture & strip #access_token hashes so they never linger in address bar -->
   <script>
     (function() {
@@ -361,6 +797,7 @@
               <button class="provider-tab-btn" data-p="deepseek">DeepSeek</button>
               <button class="provider-tab-btn" data-p="qwen">Qwen</button>
               <button class="provider-tab-btn" data-p="antigravity">Antigravity</button>
+              <button class="provider-tab-btn" data-p="aistudio">AI Studio</button>
             </div>
 
             <!-- Dedicated Token Extraction & Account Safety Guide -->
@@ -727,24 +1164,26 @@
                         </button>
                         <input type="file" id="claude-file-input" style="display: none;" multiple />
 
-                        <!-- Tools: a circle that opens a tray of toggle pills (Search today, room for more) -->
-                        <button class="claude-attach-btn claude-tools-btn" id="btn-tools-menu" type="button"
-                          aria-expanded="false" aria-controls="composer-tools-tray" title="Tools" aria-label="Tools">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M4 7h3M11.4 7H20M4 17h8.6M17 17h3"></path>
-                            <circle cx="9.2" cy="7" r="2.2"></circle><circle cx="14.8" cy="17" r="2.2"></circle>
-                          </svg>
-                        </button>
-                        <div class="composer-tools-tray" id="composer-tools-tray" inert aria-hidden="true">
-                          <!-- Search toggle: lets the model search the web and read pages (chat tools) -->
-                          <button class="claude-tool-pill" id="btn-search-toggle" type="button" aria-pressed="false" disabled
-                            title="Search the web">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                              <circle cx="12" cy="12" r="9"></circle><line x1="3" y1="12" x2="21" y2="12"></line>
-                              <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"></path>
+                        <!-- Tools: opens a tray of toggle pills below the button -->
+                        <div class="composer-tools-wrapper" id="composer-tools-wrapper">
+                          <button class="claude-attach-btn claude-tools-btn" id="btn-tools-menu" type="button"
+                            aria-expanded="false" aria-controls="composer-tools-tray" title="Tools" aria-label="Tools">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M4 7h3M11.4 7H20M4 17h8.6M17 17h3"></path>
+                              <circle cx="9.2" cy="7" r="2.2"></circle><circle cx="14.8" cy="17" r="2.2"></circle>
                             </svg>
-                            <span class="claude-tool-pill-label">Search</span>
                           </button>
+                          <div class="composer-tools-tray" id="composer-tools-tray" inert aria-hidden="true">
+                            <!-- Search toggle: lets the model search the web and read pages (chat tools) -->
+                            <button class="claude-tool-pill" id="btn-search-toggle" type="button" aria-pressed="false" disabled
+                              title="Search the web">
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9"></circle><line x1="3" y1="12" x2="21" y2="12"></line>
+                                <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"></path>
+                              </svg>
+                              <span class="claude-tool-pill-label">Search</span>
+                            </button>
+                          </div>
                         </div>
 
                         <!-- Model Selector placed on bottom left with extra padding, clean name -->
@@ -777,19 +1216,105 @@
                           </svg>
                         </button>
 
-                        <!-- Waveform Voice Mode Button -->
-                        <button class="claude-action-icon-btn claude-waveform-btn" id="btn-voice-chat" type="button" title="Voice conversation mode" aria-label="Audio Waveform">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <rect x="3" y="10" width="2" height="4" rx="1"></rect>
-                            <rect x="7" y="6" width="2" height="12" rx="1"></rect>
-                            <rect x="11" y="2" width="2" height="20" rx="1"></rect>
-                            <rect x="15" y="7" width="2" height="10" rx="1"></rect>
-                            <rect x="19" y="10" width="2" height="4" rx="1"></rect>
-                          </svg>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                          </svg>
-                        </button>
+                        <!-- Waveform Voice Mode Button with Dropdown Popover -->
+                        <div class="voice-mode-wrapper" id="voice-mode-wrapper">
+                          <button class="claude-action-icon-btn claude-waveform-btn" id="btn-voice-chat" type="button" title="Voice conversation mode" aria-label="Audio Waveform" aria-haspopup="true" aria-expanded="false">
+                            <svg class="waveform-svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                              <rect class="wave-bar wb-1" x="3" y="10" width="2" height="4" rx="1"></rect>
+                              <rect class="wave-bar wb-2" x="7" y="6" width="2" height="12" rx="1"></rect>
+                              <rect class="wave-bar wb-3" x="11" y="2" width="2" height="20" rx="1"></rect>
+                              <rect class="wave-bar wb-4" x="15" y="7" width="2" height="10" rx="1"></rect>
+                              <rect class="wave-bar wb-5" x="19" y="10" width="2" height="4" rx="1"></rect>
+                            </svg>
+                            <svg class="chevron-svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                              <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                          </button>
+
+                          <!-- Voice Conversation Mode Popover Dropdown -->
+                          <div class="voice-mode-popover" id="voice-models-popover" style="display: none;">
+                            <div class="voice-popover-header">
+                              <div class="voice-popover-title-row">
+                                <div class="voice-popover-icon">
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                    <rect x="3" y="10" width="2" height="4" rx="1"></rect>
+                                    <rect x="7" y="6" width="2" height="12" rx="1"></rect>
+                                    <rect x="11" y="2" width="2" height="20" rx="1"></rect>
+                                    <rect x="15" y="7" width="2" height="10" rx="1"></rect>
+                                    <rect x="19" y="10" width="2" height="4" rx="1"></rect>
+                                  </svg>
+                                </div>
+                                <div class="voice-popover-titles">
+                                  <span class="voice-popover-title">Voice Conversation Mode</span>
+                                  <span class="voice-popover-subtitle" id="voice-status-subtitle">Neural Speech Synthesis</span>
+                                </div>
+                              </div>
+                              <label class="voice-master-switch" title="Toggle Voice Conversation Mode">
+                                <input type="checkbox" id="voice-mode-master-toggle" />
+                                <span class="voice-switch-slider"></span>
+                              </label>
+                            </div>
+
+                            <div class="voice-popover-section">
+                              <div class="voice-section-header">
+                                <span class="voice-section-label">Voice & Speech Models</span>
+                                <span class="voice-badge">TTS / Live</span>
+                              </div>
+                              <div class="voice-models-list" id="voice-models-options-list">
+                                <!-- Populated dynamically by app.js with tts / voice models only -->
+                              </div>
+                            </div>
+
+                            <div class="voice-popover-section">
+                              <div class="voice-section-header">
+                                <span class="voice-section-label">Voice Timbre</span>
+                                <span class="voice-timbre-selected-name" id="voice-timbre-display-label">Puck</span>
+                              </div>
+                              <div class="voice-timbre-chips" id="voice-timbre-chips">
+                                <button type="button" class="voice-timbre-chip active" data-voice="Puck" title="Dynamic, lively and expressive">
+                                  <span class="timbre-name">Puck</span>
+                                  <span class="timbre-tag">Lively</span>
+                                </button>
+                                <button type="button" class="voice-timbre-chip" data-voice="Charon" title="Calm, authoritative and deep">
+                                  <span class="timbre-name">Charon</span>
+                                  <span class="timbre-tag">Deep</span>
+                                </button>
+                                <button type="button" class="voice-timbre-chip" data-voice="Aoede" title="Warm, melodious and empathetic">
+                                  <span class="timbre-name">Aoede</span>
+                                  <span class="timbre-tag">Warm</span>
+                                </button>
+                                <button type="button" class="voice-timbre-chip" data-voice="Fenrir" title="Strong, resonant and confident">
+                                  <span class="timbre-name">Fenrir</span>
+                                  <span class="timbre-tag">Resonant</span>
+                                </button>
+                                <button type="button" class="voice-timbre-chip" data-voice="Kore" title="Bright, lucid and clear">
+                                  <span class="timbre-name">Kore</span>
+                                  <span class="timbre-tag">Bright</span>
+                                </button>
+                              </div>
+                              <button type="button" class="voice-explore-library-btn" id="btn-open-voice-studio" title="Explore thousands of voices & Design custom personas">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <circle cx="12" cy="12" r="10"></circle>
+                                  <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                                </svg>
+                                <span>Explore 20k+ Voices & Design Studio</span>
+                              </button>
+                            </div>
+
+                            <div class="voice-popover-footer">
+                              <label class="voice-auto-speak-label" title="Speak assistant replies aloud automatically">
+                                <input type="checkbox" id="voice-auto-speak-checkbox" checked />
+                                <span>Auto-speak responses</span>
+                              </label>
+                              <button type="button" class="voice-preview-btn" id="btn-preview-voice" title="Preview current voice">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                                <span>Preview</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
 
                         <!-- Send Button (Up Arrow) -->
                         <button class="claude-send-btn" id="btn-send-chat" type="button" title="Send message" disabled aria-label="Send">
@@ -802,51 +1327,7 @@
                     </div>
                   </div>
 
-                  <!-- Five Suggestion Pills (Screenshot 1 & 2) -->
-                  <div class="claude-suggestion-pills" id="claude-pills">
-                    <button class="claude-pill-btn" type="button" data-prompt="Draft a beautifully structured, persuasive technical memo on modern autonomous agent architecture.">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                      </svg>
-                      <span>Write</span>
-                    </button>
 
-                    <button class="claude-pill-btn" type="button" data-prompt="Explain the core intuitive differences between transformer attention, Mixture of Experts (MoE), and test-time reasoning search.">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-                        <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-                      </svg>
-                      <span>Learn</span>
-                    </button>
-
-                    <button class="claude-pill-btn" type="button" data-prompt="Write an ultra-clean, production-ready Python async worker with resilient error recovery and connection pooling.">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="16 18 22 12 16 6"></polyline>
-                        <polyline points="8 6 2 12 8 18"></polyline>
-                      </svg>
-                      <span>Code</span>
-                    </button>
-
-                    <button class="claude-pill-btn" type="button" data-prompt="Help me design a balanced, high-focus daily routine that optimizes deep work without burnout.">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
-                        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
-                        <line x1="6" y1="1" x2="6" y2="4"></line>
-                        <line x1="10" y1="1" x2="10" y2="4"></line>
-                        <line x1="14" y1="1" x2="14" y2="4"></line>
-                      </svg>
-                      <span>Life stuff</span>
-                    </button>
-
-                    <button class="claude-pill-btn" type="button" data-prompt="What is a counter-intuitive philosophical idea or scientific discovery that permanently changed how humans think?">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <line x1="9" y1="18" x2="15" y2="18"></line>
-                        <line x1="10" y1="22" x2="14" y2="22"></line>
-                        <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path>
-                      </svg>
-                      <span>Ideas</span>
-                    </button>
-                  </div>
 
                 </div>
               </div>
@@ -2423,6 +2904,163 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
 
   </div>
 
+  <!-- Voice Design Studio & Extended Voice Library Modal (Google Gemini 3.8 Flash TTS) -->
+  <div class="voice-studio-backdrop" id="voice-studio-modal" role="dialog" aria-modal="true" style="display: none;">
+    <div class="voice-studio-dialog">
+      <!-- Studio Header -->
+      <div class="voice-studio-header">
+        <div class="voice-studio-brand">
+          <div class="voice-studio-badge-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="2" y="10" width="2" height="4" rx="1"></rect>
+              <rect x="6" y="6" width="2" height="12" rx="1"></rect>
+              <rect x="10" y="2" width="2" height="20" rx="1"></rect>
+              <rect x="14" y="5" width="2" height="14" rx="1"></rect>
+              <rect x="18" y="8" width="2" height="8" rx="1"></rect>
+              <rect x="22" y="11" width="2" height="2" rx="1"></rect>
+            </svg>
+          </div>
+          <div>
+            <div class="voice-studio-title-row">
+              <h2 class="voice-studio-title">Voice Design Studio</h2>
+              <span class="voice-model-pill">Gemini 3.8 Flash TTS</span>
+            </div>
+            <p class="voice-studio-desc">Turn text into natural-sounding speech • Explore 20k+ neural voices & design custom personas</p>
+          </div>
+        </div>
+        <button type="button" class="voice-studio-close-btn" id="btn-close-voice-studio" aria-label="Close Voice Studio">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Studio Navigation Tabs -->
+      <div class="voice-studio-nav-bar">
+        <div class="voice-studio-tabs" role="tablist">
+          <button type="button" class="voice-studio-tab active" id="tab-btn-explore-voices" data-target="panel-explore-voices">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polygon points="10 8 16 12 10 16 10 8"></polygon>
+            </svg>
+            <span>Explore Voices (20k+)</span>
+          </button>
+          <button type="button" class="voice-studio-tab" id="tab-btn-design-voice" data-target="panel-design-voice">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Design Custom Voice</span>
+          </button>
+        </div>
+        <div class="voice-studio-active-indicator">
+          <span>Active Voice:</span>
+          <strong id="voice-studio-current-active-label">Puck</strong>
+        </div>
+      </div>
+
+      <!-- Tab Panel 1: Explore Voices Library -->
+      <div class="voice-studio-panel active" id="panel-explore-voices">
+        <div class="voice-explore-toolbar">
+          <div class="voice-search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="voice-library-search" placeholder="Search voices by persona, style, accent..." />
+          </div>
+          <div class="voice-filter-chips" id="voice-category-filters">
+            <button type="button" class="voice-filter-chip active" data-cat="all">All</button>
+            <button type="button" class="voice-filter-chip" data-cat="curated">Curated Personas</button>
+            <button type="button" class="voice-filter-chip" data-cat="prebuilt">Foundational Timbres</button>
+            <button type="button" class="voice-filter-chip" data-cat="custom">My Custom Voices</button>
+          </div>
+        </div>
+
+        <div class="voice-cards-grid" id="voice-cards-grid">
+          <!-- Dynamically populated from API & curated list -->
+        </div>
+      </div>
+
+      <!-- Tab Panel 2: Design Custom Voice -->
+      <div class="voice-studio-panel" id="panel-design-voice" style="display: none;">
+        <div class="voice-designer-layout">
+          <div class="voice-designer-form">
+            <div class="voice-designer-header">
+              <h3>Create New Vocal Persona</h3>
+              <p>Describe vocal texture, age, regional accent, emotional delivery, and cadence. Gemini 3.8 Flash TTS synthesizes a persistent, prompt-directed voice persona.</p>
+            </div>
+
+            <div class="voice-form-group">
+              <label for="input-design-voice-name">Voice Name</label>
+              <input type="text" id="input-design-voice-name" placeholder="e.g. The Grizzled Captain, Ethereal Oracle, Noir Detective" />
+            </div>
+
+            <div class="voice-form-group">
+              <div class="voice-label-row">
+                <label for="textarea-design-voice-prompt">Vocal Persona Description (Natural Language)</label>
+                <span class="voice-char-counter" id="voice-prompt-counter">0 chars</span>
+              </div>
+              <textarea id="textarea-design-voice-prompt" rows="4" placeholder="Describe the voice in detail. E.g. 'A 50-year-old cynical Scottish detective with a low, gravelly rasp, slow deliberate pacing, and world-weary delivery.'"></textarea>
+              
+              <div class="voice-inspiration-row">
+                <span class="voice-inspiration-title">Quick Presets:</span>
+                <div class="voice-inspiration-chips">
+                  <button type="button" class="voice-insp-chip" data-prompt="Middle-aged cynical detective, low gravelly raspy vocal texture, slow deliberate pacing, world-weary noir delivery." data-name="Noir Detective">Noir Detective</button>
+                  <button type="button" class="voice-insp-chip" data-prompt="Gentle spiritual meditation guide, airy breathy vocal texture, soothing meditative cadence, calming, deeply patient rhythm." data-name="Meditation Guide">Meditation Guide</button>
+                  <button type="button" class="voice-insp-chip" data-prompt="Electrifying stadium esports announcer, booming projection, punchy rapid cadence, high arena energy." data-name="Hype Announcer">Hype Announcer</button>
+                  <button type="button" class="voice-insp-chip" data-prompt="Aristocratic monarch, elegant British received pronunciation, measured dignified tempo, quietly commanding." data-name="Regal Monarch">Regal Monarch</button>
+                  <button type="button" class="voice-insp-chip" data-prompt="Suspicious medieval rogue or tavern guard, gruff guarded timbre, tense watchful pacing, sharp guarded intonation." data-name="Guarded NPC">Guarded NPC</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="voice-designer-actions">
+              <button type="button" class="btn-generate-voice" id="btn-generate-custom-voice">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>Synthesize & Audition Voice</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Audition Preview Card -->
+          <div class="voice-audition-card" id="voice-audition-card">
+            <div class="voice-audition-preview-box">
+              <div class="voice-preview-avatar">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="12" r="10" opacity="0.15"></circle>
+                  <path d="M12 6v12M8 9v6M16 8v8M4 11v2M20 11v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                </svg>
+              </div>
+              <h4 id="voice-preview-name-label">Unsaved Voice</h4>
+              <p id="voice-preview-desc-label">Synthesize a voice to audition preview audio and save to your vault.</p>
+              <div class="voice-audition-player" id="voice-audition-player" style="display: none;">
+                <button type="button" class="voice-audition-play-btn" id="btn-audition-toggle-play">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                </button>
+                <div class="voice-audition-wave-visualizer">
+                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <span class="voice-audition-time" id="voice-audition-time">0:00</span>
+              </div>
+            </div>
+            <button type="button" class="btn-save-custom-voice" id="btn-save-use-custom-voice" disabled>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>Save Persona & Set Active</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/vendor/react.min.js"></script>
   <script src="/static/vendor/react-dom.min.js"></script>
   <script src="/static/vendor/babel.min.js" defer></script>
@@ -2444,9 +3082,9 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
   <script src="/static/bench-panel.js?v=1"></script>
   <script src="/static/preloader.js?v=1"></script>
   <script src="/static/vendor/supabase.min.js"></script>
-  <script src="/static/supabase-sync.js?v=4"></script>
-  <script src="/static/app.js?v=80"></script>
-  <script src="/static/glass-dock.js?v=63"></script>
+  <script src="/static/supabase-sync.js?v=5"></script>
+  <script src="/static/app.js?v=88"></script>
+  <script src="/static/glass-dock.js?v=64"></script>
   <script src="/static/janitor-bio.js?v=1"></script>
   <script src="/static/updates-panel.js?v=1"></script>
   <script src="/static/connect-panel.js?v=39"></script>

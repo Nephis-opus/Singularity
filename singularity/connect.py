@@ -168,7 +168,13 @@ def normalize_card_payload(raw: Dict[str, Any]) -> Dict[str, Any]:
                     "text": g.strip()
                 })
     # Alternate Greetings from JanitorAI / Tavern cards
-    alt_greetings_raw = raw.get("alternate_greetings") or raw.get("alternateGreetings") or (raw.get("data", {}).get("alternate_greetings") if isinstance(raw.get("data"), dict) else []) or []
+    alt_greetings_raw = (
+        raw.get("first_messages") or 
+        raw.get("alternate_greetings") or 
+        raw.get("alternateGreetings") or 
+        (raw.get("data", {}).get("alternate_greetings") if isinstance(raw.get("data"), dict) else []) or 
+        []
+    )
     if isinstance(alt_greetings_raw, list):
         for alt in alt_greetings_raw:
             s = str(alt.get("text") or alt.get("content") or alt if isinstance(alt, dict) else alt).strip()
@@ -197,7 +203,9 @@ def normalize_card_payload(raw: Dict[str, Any]) -> Dict[str, Any]:
     stats_dict = raw.get("stats") if isinstance(raw.get("stats"), dict) else {}
     chats = int(stats_dict.get("chat") or raw.get("chats") or raw.get("chat") or raw.get("total_chat") or raw.get("chat_count") or 0)
     messages = int(stats_dict.get("message") or raw.get("messages") or raw.get("message") or raw.get("total_message") or raw.get("message_count") or 0)
-    tokens = int(raw.get("total_tokens") or raw.get("tokens") or (len(personality) // 4 if personality else 0))
+    
+    token_counts = raw.get("token_counts") if isinstance(raw.get("token_counts"), dict) else {}
+    tokens = int(token_counts.get("total") or raw.get("total_tokens") or raw.get("tokens") or (len(personality) // 4 if personality else 0))
 
     return {
         "id": bot_id,
@@ -546,14 +554,58 @@ async def fetch_creator_bots(creator_id: str, page: int = 1, limit: int = 20, so
 
 
 async def fetch_bot_details(bot_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch complete bot definition by UUID, checking SQLite vault and Domcord backend."""
+    """Fetch complete bot definition by UUID directly from JanitorAI API, Domcord backend, or SQLite vault."""
     clean_id = extract_janitor_bot_id(bot_id) or str(bot_id or "").strip().lower()
     if not clean_id:
         return None
 
-    # Check local SQLite vault first
     local = db.get_connect_card(clean_id)
-    # Ensure local unmasked data is not a contaminated RP prompt
+
+    # 1. Fetch authentic complete character data directly from JanitorAI
+    try:
+        from singularity import janitor
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Referer": "https://janitorai.com/",
+            "Origin": "https://janitorai.com",
+        }
+        try:
+            tok_data = janitor.auto_fetch_janitor_token()
+            if tok_data and tok_data.get("ok") and tok_data.get("token"):
+                headers["Authorization"] = f"Bearer {tok_data['token']}"
+        except Exception:
+            pass
+
+        def _fetch_janitor_bot():
+            from curl_cffi import requests as c_requests
+            return c_requests.get(
+                f"https://janitorai.com/mb/characters/{clean_id}",
+                headers=headers,
+                impersonate="chrome124",
+                timeout=12.0
+            )
+
+        j_resp = await asyncio.to_thread(_fetch_janitor_bot)
+        if j_resp.status_code == 200:
+            raw_bot = j_resp.json()
+            if raw_bot and isinstance(raw_bot, dict) and raw_bot.get("id"):
+                norm = normalize_card_payload(raw_bot)
+                # If local already has genuine unmasked personality, preserve it!
+                if local and local.get("is_unmasked") and len(str(local.get("personality") or "").strip()) > 50:
+                    norm["is_unmasked"] = True
+                    norm["definition_private"] = False
+                    norm["personality"] = local.get("personality")
+                    if local.get("scenario") and not norm.get("scenario"):
+                        norm["scenario"] = local.get("scenario")
+                    if local.get("first_message") and not norm.get("first_message"):
+                        norm["first_message"] = local.get("first_message")
+                db.save_connect_card(norm)
+                return norm
+    except Exception as exc:
+        logger.debug(f"Direct Janitor character fetch failed for {clean_id}: {exc}")
+
+    # 2. Check local SQLite vault if genuine unmasked
     has_genuine_local = bool(
         local and 
         local.get("is_unmasked") and 
@@ -563,7 +615,7 @@ async def fetch_bot_details(bot_id: str) -> Optional[Dict[str, Any]]:
     if has_genuine_local:
         return local
 
-    # Query Domcord backend API
+    # 3. Query Domcord backend API as secondary fallback
     try:
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             resp = await client.get(
@@ -580,7 +632,7 @@ async def fetch_bot_details(bot_id: str) -> Optional[Dict[str, Any]]:
     except Exception:
         pass
 
-    # Fallback to local stored card even if masked
+    # 4. Fallback to local stored card
     return local
 
 
@@ -588,10 +640,20 @@ async def trigger_remote_unmask(bot_id: str) -> Dict[str, Any]:
     """Trigger unmasking pipeline: queries Domcord's crowd vault first, then triggers cloud worker."""
     clean_id = extract_janitor_bot_id(bot_id) or str(bot_id or "").strip().lower()
     if not clean_id:
-        return {"success": False, "error": "Invalid character ID"}
+        return {"success": False, "is_unmasked": False, "error": "Invalid character ID"}
 
-    # 1. First, check Domcord's central API directly. For thousands of bots (including Nessa),
-    # the unmasked definition is ALREADY indexed and unlocked in the cloud database!
+    # 1. First, check local SQLite vault if already unmasked
+    card = db.get_connect_card(clean_id)
+    if card and card.get("is_unmasked") and len(str(card.get("personality") or "").strip()) > 50:
+        return {
+            "success": True,
+            "is_unmasked": True,
+            "progress": 100,
+            "status": "Authentic character definition unlocked from vault!",
+            "data": card
+        }
+
+    # 2. Check Domcord's crowd vault directly
     try:
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             resp = await client.get(
@@ -618,9 +680,7 @@ async def trigger_remote_unmask(bot_id: str) -> Dict[str, Any]:
     except Exception:
         pass
 
-    # 2. Check local intercepts ONLY if the intercept explicitly and strictly matches this bot:
-    # (Must contain clean_id in bot_id OR the character's exact name inside the system prompt persona header)
-    card = db.get_connect_card(clean_id)
+    # 3. Check local intercepts in SQLite
     bot_name = (card.get("name") if card else "").strip()
     intercept = db.get_latest_connect_intercept()
     if intercept and intercept.get("system_prompt"):
@@ -629,7 +689,7 @@ async def trigger_remote_unmask(bot_id: str) -> Dict[str, Any]:
         matched = False
         if clean_id and int_bot_id and clean_id == int_bot_id:
             matched = True
-        elif bot_name and len(bot_name) >= 3 and f"<{bot_name}" in sys_p:
+        elif bot_name and len(bot_name) >= 3 and (f"<{bot_name}" in sys_p or f"control {bot_name}" in sys_p or f"as {bot_name}" in sys_p):
             matched = True
 
         if matched:
@@ -647,7 +707,7 @@ async def trigger_remote_unmask(bot_id: str) -> Dict[str, Any]:
                 "data": card
             }
 
-    # 3. If not in vault yet, trigger Domcord's cloud unmask worker
+    # 4. Trigger Domcord's cloud unmask worker
     try:
         async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
             resp = await client.post(
@@ -656,24 +716,32 @@ async def trigger_remote_unmask(bot_id: str) -> Dict[str, Any]:
             )
             if resp.status_code in (200, 201, 202):
                 data = resp.json()
-                if data.get("success") and data.get("data", {}).get("isUnmasked"):
+                d_obj = data.get("data") if isinstance(data.get("data"), dict) else data
+                is_um = bool(data.get("is_unmasked") or data.get("isUnmasked") or d_obj.get("isUnmasked") or d_obj.get("is_unmasked"))
+                if is_um:
                     fresh = await fetch_bot_details(clean_id)
                     return {
                         "success": True,
                         "is_unmasked": True,
                         "progress": 100,
                         "status": "Character definition successfully unmasked!",
-                        "data": fresh or data.get("data")
+                        "data": fresh or d_obj
                     }
-                return data
+                return {
+                    "success": True,
+                    "is_unmasked": False,
+                    "progress": 35,
+                    "status": "Autonomous cloud extraction queued...",
+                    "data": d_obj
+                }
     except Exception:
         pass
 
     return {
         "success": True,
         "is_unmasked": False,
-        "progress": 45,
-        "status": "Autonomous cloud worker queued..."
+        "progress": 35,
+        "status": "Autonomous cloud extraction queued..."
     }
 
 
@@ -704,16 +772,39 @@ async def get_unmask_status(bot_id: str) -> Dict[str, Any]:
             )
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get("is_unmasked") or (data.get("data") and data["data"].get("isUnmasked")):
+                d_obj = data.get("data") if isinstance(data.get("data"), dict) else data
+                is_um = bool(d_obj.get("isUnmasked") or d_obj.get("is_unmasked") or (d_obj.get("personality") and len(str(d_obj.get("personality")).strip()) > 50))
+                if is_um:
                     fresh = await fetch_bot_details(clean_id)
+                    if d_obj.get("personality"):
+                        if not fresh:
+                            fresh = {"id": clean_id}
+                        fresh["personality"] = d_obj.get("personality")
+                        fresh["is_unmasked"] = True
+                        fresh["definition_private"] = False
+                        if d_obj.get("scenario"):
+                            fresh["scenario"] = d_obj.get("scenario")
+                        if d_obj.get("greetings"):
+                            fresh["greetings"] = d_obj.get("greetings")
+                        db.save_connect_card(fresh)
                     return {
                         "success": True,
                         "is_unmasked": True,
                         "progress": 100,
                         "status": "Character definition successfully unmasked!",
-                        "data": fresh or data.get("data") or data
+                        "data": fresh or d_obj
                     }
-                return data
+                w_obj = d_obj.get("worker") if isinstance(d_obj.get("worker"), dict) else {}
+                prog = w_obj.get("progress") or 50
+                stage_name = w_obj.get("stage_name") or "Autonomous cloud extraction in progress..."
+                return {
+                    "success": True,
+                    "is_unmasked": False,
+                    "progress": prog,
+                    "status": stage_name,
+                    "worker": w_obj,
+                    "data": d_obj
+                }
     except Exception:
         pass
 

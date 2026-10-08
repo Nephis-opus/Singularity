@@ -82,6 +82,7 @@ ENV_CREDENTIALS = {
     "qwen": ("QWEN_TOKEN", "QWEN_COOKIES"),
     "grok": ("GROK_COOKIE",),
     "antigravity": ("AGY_TOKEN", "AGY_REFRESH_TOKEN", "GOOGLE_OAUTH_TOKEN"),
+    "aistudio": ("AISTUDIO_COOKIE", "GEMINI_COOKIE"),
 }
 
 
@@ -253,10 +254,264 @@ PROVIDERS_CONFIG = {
         "cookie_placeholder": "Paste Google OAuth JSON dump, refresh_token, or access_token...",
         "auth_header": "Bearer antigravity2api",
     },
+    "aistudio": {
+        "id": "aistudio",
+        "name": "Google AI Studio",
+        "port": 8091,
+        "host": os.getenv("AISTUDIO_HOST", PROVIDER_HOST),
+        "badge": "DeepMind MakerSuite",
+        "color": "#1A73E8",
+        "start_script": "start_aistudio.sh",
+        "stop_script": "stop_aistudio.sh",
+        "health_path": "/v1/models",
+        "cookie_type": "cookie_or_storage_state",
+        "cookie_label": "Google Cookies or Storage State JSON",
+        "cookie_placeholder": "Paste Google Cookie string (__Secure-1PSID, __Secure-1PSIDTS, SAPISID) or Playwright JSON dump...",
+        "auth_header": "Bearer aistudio2api",
+    },
 }
 
 # Dynamic Comprehensive Catalog (253 models across 9 providers)
 MODELS_CATALOG = [
+    # -------------------------------------------------------------------
+    # Google AI Studio (MakerSuite Frontier & Studio Audio Models)
+    # -------------------------------------------------------------------
+    # Dedicated Speech & Voice Models (Filtered exclusively to Voice Mode)
+    {
+        'capabilities': ['audio', 'tts', 'speech'],
+        'context': '128K tokens',
+        'description': 'Studio-grade expressive voice generation with emotional pacing & multi-speaker dialogue.',
+        'id': 'ais-gemini-3.8-flash-tts',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash TTS',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['audio', 'tts', 'speech'],
+        'context': '64K tokens',
+        'description': 'Low-latency streaming speech synthesis for real-time voice conversations & agents.',
+        'id': 'ais-gemini-3.8-flash-lite-tts',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash-Lite TTS',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['audio', 'live', 'voice'],
+        'context': '128K tokens',
+        'description': 'Bidirectional low-latency real-time voice and audio conversation.',
+        'id': 'ais-gemini-3.8-live',
+        'locked': False,
+        'name': 'Gemini 3.8 Live',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['audio', 'live', 'voice', 'reasoning'],
+        'context': '128K tokens',
+        'description': 'Real-time voice conversation enhanced with extended multi-step reasoning.',
+        'id': 'ais-gemini-3.8-live-thinking',
+        'locked': False,
+        'name': 'Gemini 3.8 Live Thinking',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['audio', 'transcribe', 'speech-to-text'],
+        'context': '128K tokens',
+        'description': 'High-accuracy structured audio transcription, diarization, and linguistic analysis.',
+        'id': 'ais-gemini-3.5-transcribe',
+        'locked': False,
+        'name': 'Gemini 3.5 Transcribe',
+        'provider': 'aistudio'
+    },
+    # General AI Studio Text, Reasoning & Multimodal Workhorses
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Frontier workhorse in AI Studio with dual-channel quota routing and deep coding reasoning.',
+        'id': 'ais-gemini-3.8-flash',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'High-throughput lightweight model in AI Studio with dual-channel quota failover.',
+        'id': 'ais-gemini-3.8-flash-lite',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash-Lite (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'code', 'reasoning', 'cybersecurity'],
+        'context': '1M tokens',
+        'description': 'Specialized AI Studio model for automated cybersecurity & code vulnerability auditing.',
+        'id': 'ais-gemini-3.8-flash-cyber',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash Cyber (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Hybrid reasoning frontier model in AI Studio with responsive multi-step logic.',
+        'id': 'ais-gemini-3.7-flash',
+        'locked': False,
+        'name': 'Gemini 3.7 Flash (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
+        'context': '1M tokens',
+        'description': 'High-budget chain-of-thought mathematical and algorithmic reasoning.',
+        'id': 'ais-gemini-3.7-flash-thinking',
+        'locked': False,
+        'name': 'Gemini 3.7 Flash Thinking (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '2M tokens',
+        'description': 'Deep analytical reasoning with 2M token context window in AI Studio.',
+        'id': 'ais-gemini-3.5-pro',
+        'locked': False,
+        'name': 'Gemini 3.5 Pro (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'code', 'streaming', 'vision'],
+        'context': '1M tokens',
+        'description': 'Multimodal general-purpose model in AI Studio with Google Search grounding.',
+        'id': 'ais-gemini-3.5-flash',
+        'locked': False,
+        'name': 'Gemini 3.5 Flash (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'code', 'streaming'],
+        'context': '1M tokens',
+        'description': 'Fast lightweight reasoning and agent routing in AI Studio.',
+        'id': 'ais-gemini-3.5-flash-lite',
+        'locked': False,
+        'name': 'Gemini 3.5 Flash-Lite (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'vision', 'streaming'],
+        'context': '2M tokens',
+        'description': 'Preview analytical reasoning model in AI Studio.',
+        'id': 'ais-gemini-3.1-pro-preview',
+        'locked': False,
+        'name': 'Gemini 3.1 Pro Preview (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'vision', 'streaming'],
+        'context': '2M tokens',
+        'description': 'Next-generation frontier intelligence model preview in AI Studio.',
+        'id': 'ais-gemini-4-argon',
+        'locked': False,
+        'name': 'Gemini 4 Argon (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'vision', 'streaming'],
+        'context': '2M tokens',
+        'description': 'Ultra-tier long-horizon reasoning and agency model in AI Studio.',
+        'id': 'ais-gemini-4-argon-pro',
+        'locked': False,
+        'name': 'Gemini 4 Argon Pro (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['image', 'image_generation', 'vision'],
+        'context': '64K tokens',
+        'description': 'Native high-fidelity image generation and conversational image editing in AI Studio.',
+        'id': 'ais-gemini-nano-banana-2.1',
+        'locked': False,
+        'name': 'Gemini Nano Banana 2.1 (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['image', 'image_generation', 'vision'],
+        'context': '64K tokens',
+        'description': 'High-resolution creative image generation in AI Studio.',
+        'id': 'ais-nano-banana-pro',
+        'locked': False,
+        'name': 'Nano Banana Pro (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['video', 'video_generation'],
+        'context': '32K tokens',
+        'description': 'Cinematic 4K generative video synthesis with audio synchronization.',
+        'id': 'ais-veo-3.1',
+        'locked': False,
+        'name': 'Veo 3.1 Video (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['video', 'video_generation'],
+        'context': '32K tokens',
+        'description': 'Fast cinematic video generation preview with customizable aspect ratios.',
+        'id': 'ais-veo-3.1-fast',
+        'locked': False,
+        'name': 'Veo 3.1 Fast Video (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'code', 'reasoning'],
+        'context': '128K tokens',
+        'description': 'Open-weight frontier 31B parameter model in AI Studio.',
+        'id': 'ais-gemma-4-31b',
+        'locked': False,
+        'name': 'Gemma 4 31B (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'code', 'reasoning'],
+        'context': '128K tokens',
+        'description': 'Open-weight mid-size 26B parameter model in AI Studio.',
+        'id': 'ais-gemma-4-26b',
+        'locked': False,
+        'name': 'Gemma 4 26B (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'code'],
+        'context': '64K tokens',
+        'description': 'Efficient compact open model in AI Studio.',
+        'id': 'ais-gemma-4-e4b',
+        'locked': False,
+        'name': 'Gemma 4 E4B (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'code'],
+        'context': '32K tokens',
+        'description': 'Ultra-compact edge-optimized model in AI Studio.',
+        'id': 'ais-gemma-4-e2b',
+        'locked': False,
+        'name': 'Gemma 4 E2B (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'vision', 'streaming'],
+        'context': '2M tokens',
+        'description': 'Long-term stable 2.5 deep reasoning model in AI Studio.',
+        'id': 'ais-gemini-2.5-pro',
+        'locked': False,
+        'name': 'Gemini 2.5 Pro (AI Studio)',
+        'provider': 'aistudio'
+    },
+    {
+        'capabilities': ['chat', 'code', 'vision', 'streaming'],
+        'context': '1M tokens',
+        'description': 'Long-term stable 2.5 fast multimodal model in AI Studio.',
+        'id': 'ais-gemini-2.5-flash',
+        'locked': False,
+        'name': 'Gemini 2.5 Flash (AI Studio)',
+        'provider': 'aistudio'
+    },
     # -------------------------------------------------------------------
     # Google Antigravity (DeepMind AGY Cloud Code Frontier Models)
     # -------------------------------------------------------------------
@@ -3152,11 +3407,44 @@ async def get_all_limits() -> Dict[str, Any]:
         "accounts": agy_data,
     }
 
+    # 10. Google AI Studio (MakerSuite) limits
+    ais_accounts = db.get_accounts("aistudio")
+    if not ais_accounts:
+        ais_accounts = db.get_accounts("gemini")
+    ais_data = []
+    for acc in ais_accounts:
+        ais_data.append({
+            "email": acc.get("identifier") or acc.get("name") or "Google AI Studio Account",
+            "type": "MakerSuite Tier",
+            "status": "Normal" if acc.get("status") == "active" else "Disabled",
+            "tts_quota": "Studio-Grade Flash 3.8 TTS",
+            "playground_channel": "Active (GenerateContent)",
+            "build_channel": "Active (ProxyStreamedCall)",
+            "concurrency": "Dual-Channel Failover",
+            "restore_at": "Rolling (Per-Account Session)",
+        })
+    if not ais_data:
+        ais_data.append({
+            "email": "Google AI Studio",
+            "type": "Free / Pro MakerSuite",
+            "status": "Inherited Gemini Session" if db.get_accounts("gemini") else "No Account Stacked",
+            "tts_quota": "Studio-Grade Flash 3.8 TTS",
+            "playground_channel": "Active (GenerateContent)",
+            "build_channel": "Active (ProxyStreamedCall)",
+            "concurrency": "Dual-Channel Failover",
+            "restore_at": "Rolling (Per-Account Session)",
+        })
+    limits["aistudio"] = {
+        "title": "Google AI Studio (MakerSuite) Quotas",
+        "accounts_count": len(ais_data),
+        "accounts": ais_data,
+    }
+
     return limits
 
 
 def get_stored_cookies() -> Dict[str, Any]:
-    """Read stacked cookies/accounts for all 9 providers from unified SQLite DB."""
+    """Read stacked cookies/accounts for all 10 providers from unified SQLite DB."""
     result: Dict[str, Any] = {}
 
     label_map = {
@@ -3169,6 +3457,7 @@ def get_stored_cookies() -> Dict[str, Any]:
         "deepseek": ("token_or_json", "DeepSeek userToken or Login JSON"),
         "qwen": ("token_or_json", "Qwen Bearer Token or Session JSON"),
         "antigravity": ("oauth_token_or_json", "Google OAuth Credentials (JSON or Refresh Token)"),
+        "aistudio": ("cookie_or_storage_state", "Google Cookies / Storage State JSON"),
     }
 
     for p, (ctype, clabel) in label_map.items():

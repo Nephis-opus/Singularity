@@ -450,6 +450,33 @@
     const topChip = document.getElementById('claude-top-model-chip');
     const modelTrigger = document.getElementById('model-select-trigger');
 
+    const popoverOrigParent = popover ? popover.parentNode : null;
+    const popoverOrigNext = popover ? popover.nextSibling : null;
+    const settingsOrigParent = settings ? settings.parentNode : null;
+    const settingsOrigNext = settings ? settings.nextSibling : null;
+
+    function ensureMobileSheetPlacement() {
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+      if (isMobile) {
+        if (popover && popover.parentNode !== document.body) {
+          document.body.appendChild(popover);
+        }
+        if (settings && settings.parentNode !== document.body) {
+          document.body.appendChild(settings);
+        }
+      } else {
+        if (popover && popover.parentNode === document.body && popoverOrigParent) {
+          popoverOrigParent.insertBefore(popover, popoverOrigNext);
+        }
+        if (settings && settings.parentNode === document.body && settingsOrigParent) {
+          settingsOrigParent.insertBefore(settings, settingsOrigNext);
+        }
+      }
+    }
+
+    ensureMobileSheetPlacement();
+    window.addEventListener('resize', ensureMobileSheetPlacement);
+
     function closeBottomSheets() {
       triggerHaptic(6);
       if (popover) popover.classList.remove('open');
@@ -463,6 +490,7 @@
     bsScrim.addEventListener('click', closeBottomSheets);
 
     function syncScrim() {
+      ensureMobileSheetPlacement();
       const isMobile = window.matchMedia('(max-width: 768px)').matches;
       const isOpen = isMobile && ((popover && popover.classList.contains('open')) || (settings && settings.classList.contains('open')));
       if (bsScrim) bsScrim.classList.toggle('visible', !!isOpen);
