@@ -4562,6 +4562,32 @@ async def serve_favicon():
     return FileResponse(logo_path, media_type="image/svg+xml")
 
 
+@app.get("/manifest.json")
+@app.head("/manifest.json")
+async def serve_manifest():
+    manifest_path = STATIC_DIR / "manifest.json"
+    headers = {"Cache-Control": "no-cache, must-revalidate"}
+    return FileResponse(manifest_path, media_type="application/manifest+json", headers=headers)
+
+
+@app.get("/sw.js")
+@app.head("/sw.js")
+async def serve_sw():
+    sw_path = STATIC_DIR / "sw.js"
+    headers = {
+        "Service-Worker-Allowed": "/",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+    }
+    return FileResponse(sw_path, media_type="application/javascript", headers=headers)
+
+
+@app.get("/offline.html")
+@app.head("/offline.html")
+async def serve_offline():
+    offline_path = STATIC_DIR / "offline.html"
+    return FileResponse(offline_path, media_type="text/html")
+
+
 # Mount static assets directory
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

@@ -9436,6 +9436,76 @@ function initAppRouter() {
 }
 
 // ===================================================================
+// PWA Service Worker Registration & Install Experience
+// ===================================================================
+let deferredPwaPrompt = null;
+
+function initPwa() {
+  const installBtn = document.getElementById('btn-pwa-install');
+
+  // Capture install prompt
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPwaPrompt = e;
+    window.deferredPwaPrompt = e;
+    if (installBtn) {
+      installBtn.style.display = 'inline-flex';
+    }
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredPwaPrompt = null;
+    window.deferredPwaPrompt = null;
+    showToast('Singularity installed successfully!', 'success');
+  });
+
+  if (installBtn) {
+    installBtn.addEventListener('click', async () => {
+      triggerHaptic(8);
+      if (deferredPwaPrompt) {
+        deferredPwaPrompt.prompt();
+        const { outcome } = await deferredPwaPrompt.userChoice;
+        if (outcome === 'accepted') {
+          showToast('Installing Singularity...', 'info');
+        }
+        deferredPwaPrompt = null;
+      } else {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if (isIOS) {
+          showToast('Tap Safari Share button (⎋), then select "Add to Home Screen".', 'info', 6000);
+        } else if (window.matchMedia('(display-mode: standalone)').matches) {
+          showToast('Singularity is already running in standalone app mode!', 'info');
+        } else {
+          showToast('Tap browser menu (⋮) -> "Add to Home Screen" to install.', 'info', 5000);
+        }
+      }
+    });
+  }
+
+  // Register Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .catch(() => {
+          return navigator.serviceWorker.register('/static/sw.js', { scope: '/' });
+        })
+        .then((reg) => {
+          if (reg) {
+            // Check for worker updates when returning to the tab
+            window.addEventListener('focus', () => {
+              reg.update().catch(() => {});
+            });
+          }
+        })
+        .catch((err) => {
+          // Expected on plain HTTP non-localhost IP
+          console.debug('[PWA] Service Worker registration:', err.message || err);
+        });
+    });
+  }
+}
+
+// ===================================================================
 // Initialization
 // ===================================================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -9457,6 +9527,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSmoothInputs();
   initSearchToggle();
   initToolsTray();
+  initPwa();
   window.SingularityToolSteps?.initCitationCards?.();
 
   // Fleet controls (Desktop & Mobile)

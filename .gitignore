@@ -23,6 +23,7 @@ TAVERN/.claude/
 grok2api/cookies.txt
 glm2api/token.txt
 *.png
+!singularity/static/icons/*.png
 *.jpg
 !singularity/static/preloader/*.jpg
 *.db

@@ -336,8 +336,21 @@
     }
   }
 
-  function forceCacheBustReload() {
-    // Brave / Chromium cache-busting: append timestamp parameter to URL
+  async function forceCacheBustReload() {
+    // 1. Purge Service Worker caches if active
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      try {
+        navigator.serviceWorker.controller.postMessage({ type: 'PURGE_AND_SKIP_WAITING' });
+      } catch (e) {}
+    }
+    // 2. Clear client CacheStorage directly
+    if (window.caches) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      } catch (e) {}
+    }
+    // 3. Brave / Chromium cache-busting: append timestamp parameter to URL
     const freshUrl = window.location.origin + window.location.pathname + '?v=' + Date.now();
     window.location.replace(freshUrl);
   }
