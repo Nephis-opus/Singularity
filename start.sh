@@ -267,7 +267,7 @@ kill_port_listeners() {
 
 # Route CLI commands vs server launch
 case "$1" in
-    status|limits|accounts|import|export|simulate|host|chat|thinking|service|tunnel|key|bench|update|upgrade|-h|--help)
+    status|limits|accounts|login|autofetch|import|export|simulate|host|chat|thinking|service|tunnel|key|bench|update|upgrade|-h|--help)
         exec "$PYTHON_BIN" cli.py "$@"
         ;;
     restart|server|"")
@@ -284,8 +284,8 @@ case "$1" in
         if [ "$IS_RESTART" = "1" ]; then
             echo "  [🔄] Restarting Singularity (clearing ports $GATEWAY_PORT, 5173, 3001)..."
         fi
-        kill_port_listeners "$GATEWAY_PORT" 5173 3001
-        sleep 0.3
+        kill_port_listeners "$GATEWAY_PORT" 5173 3001 3000
+        sleep 0.2
 
         # Auto-launch Tavern Studio if TAV-TEST or TAVERN directory exists
         TAVERN_DIR=""
@@ -362,6 +362,7 @@ case "$1" in
         exit $EXIT_CODE
         ;;
     *)
+        kill_port_listeners "${PORT:-9000}" 5173 3001 3000
         exec "$PYTHON_BIN" server.py "$@"
         ;;
 esac

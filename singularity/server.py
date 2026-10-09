@@ -243,6 +243,8 @@ def resolve_model_provider(model_name: str) -> str:
         return "deepseek"
     if m.startswith("qwen") or m.startswith("tongyi") or m.startswith("wanx"):
         return "qwen"
+    if m.startswith("mimo") or m.startswith("xiaomi"):
+        return "mimo"
     if m.startswith("gpt") or m.startswith("o1") or m.startswith("o3") or m.startswith("o4") or m in ["auto", "research", "flare", "astra", "luna", "sol", "terra", "sunburst"] or m.startswith("image-2.5"):
         return "chatgpt"
 
@@ -314,6 +316,30 @@ async def audio_speech(request: Request):
     model = body.get("model", "ais-gemini-3.8-flash-tts")
     voice = body.get("voice", "Puck")
     response_format = body.get("response_format", "mp3")
+
+    if model.startswith("mimo"):
+        try:
+            mimo_accs = db.get_accounts("mimo")
+            from singularity.engines import mimo as mimo_engine
+            audio_bytes = await mimo_engine.generate_mimo_speech(
+                text=input_text,
+                voice=voice,
+                model=model,
+                accounts=mimo_accs,
+            )
+            return Response(
+                content=audio_bytes,
+                media_type="audio/wav",
+                headers={
+                    "Content-Disposition": 'inline; filename="speech.wav"',
+                    "Cache-Control": "no-cache",
+                },
+            )
+        except Exception as e:
+            return JSONResponse(
+                {"error": {"message": f"Xiaomi MiMo speech generation error: {str(e)}", "type": "speech_error"}},
+                status_code=502,
+            )
 
     # Fetch accounts: prefer aistudio, fallback to gemini accounts in database vault
     accounts = db.get_accounts("aistudio") or db.get_accounts("gemini")
@@ -3144,6 +3170,83 @@ async def api_antigravity_autofetch(request: Request):
         }, status_code=500)
 
 
+@app.post("/api/mimo/autofetch")
+async def api_mimo_autofetch(request: Request):
+    """Auto-fetches the freshest Xiaomi MiMo AI session token from local browsers and stacks into vault."""
+    try:
+        from singularity.mimo import auto_fetch_mimo_token
+        result = auto_fetch_mimo_token(save_to_db=True)
+        if result.get("ok"):
+            return JSONResponse({
+                "ok": True,
+                "message": f"Successfully auto-fetched Xiaomi MiMo token from {result.get('browser', 'browser')}!",
+                "browser": result.get("browser"),
+                "profile": result.get("profile"),
+                "user_id": result.get("user_id"),
+                "token": result.get("cookie_string") or result.get("token"),
+                "has_pass_token": result.get("has_pass_token", False),
+                "accounts": db.get_accounts("mimo"),
+            })
+        else:
+            return JSONResponse({
+                "ok": False,
+                "detail": result.get("detail", "No active Xiaomi MiMo session found in local browser cookies.")
+            }, status_code=404)
+    except Exception as exc:
+        return JSONResponse({
+            "ok": False,
+            "status_code": 500,
+            "detail": f"Failed to auto-fetch Xiaomi MiMo token: {str(exc)}"
+        }, status_code=500)
+
+
+
+@app.get("/api/antigravity/oauth/url")
+async def api_antigravity_oauth_url(request: Request):
+    """Retrieve official Google Cloud Code OAuth consent URL and ensure listener is running."""
+    try:
+        from singularity.engines import antigravity
+        antigravity.start_oauth_listener()
+        return JSONResponse({
+            "ok": True,
+            "url": antigravity.get_oauth_url(),
+            "port": antigravity.OAUTH_PORT,
+        })
+    except Exception as exc:
+        return JSONResponse({"ok": False, "message": str(exc)}, status_code=500)
+
+
+@app.post("/api/antigravity/oauth/start")
+async def api_antigravity_oauth_start(request: Request):
+    """Initiate Google OAuth flow, launching callback listener on port 51121."""
+    try:
+        from singularity.engines import antigravity
+        started = antigravity.start_oauth_listener()
+        return JSONResponse({
+            "ok": True,
+            "started": started,
+            "url": antigravity.get_oauth_url(),
+            "port": antigravity.OAUTH_PORT,
+        })
+    except Exception as exc:
+        return JSONResponse({"ok": False, "message": str(exc)}, status_code=500)
+
+
+@app.get("/api/antigravity/oauth/status")
+async def api_antigravity_oauth_status(request: Request):
+    """Poll status of latest OAuth callback event and current accounts list."""
+    try:
+        from singularity.engines import antigravity
+        latest = antigravity.get_latest_oauth_event()
+        return JSONResponse({
+            "ok": True,
+            "latest": latest,
+            "accounts": db.get_accounts("antigravity"),
+        })
+    except Exception as exc:
+        return JSONResponse({"ok": False, "message": str(exc)}, status_code=500)
+
+
 @app.post("/api/janitor/deploy")
 async def api_janitor_deploy(request: Request):
     """Directly deploy/patch character description on JanitorAI using user UUID and Access Token."""
@@ -3382,6 +3485,23 @@ async def api_connect_get_following(request: Request):
     return JSONResponse({"success": True, "following": following})
 
 
+@app.get("/api/connect/following/feed")
+async def api_connect_get_following_feed(request: Request):
+    """Retrieve mixed character cards across all followed creators with high-performance batching."""
+    page = int(request.query_params.get("page", 1))
+    limit = int(request.query_params.get("limit", 36))
+    sort = request.query_params.get("sort", "latest")
+    ids_param = request.query_params.get("ids", "").strip()
+
+    following_ids = None
+    if ids_param:
+        following_ids = [i.strip() for i in ids_param.split(",") if i.strip()]
+
+    from singularity import connect
+    data = await connect.fetch_following_feed(following_ids=following_ids, page=page, limit=limit, sort=sort)
+    return JSONResponse({"success": True, **data})
+
+
 @app.post("/api/connect/creators/{creator_id}/follow")
 async def api_connect_creator_follow(creator_id: str, request: Request):
     """Explicitly follow a creator. Adds to local SQLite and immediately updates cloud profile."""
@@ -3396,6 +3516,20 @@ async def api_connect_creator_follow(creator_id: str, request: Request):
     # 1. Update SQLite
     following = list(dict.fromkeys([str(x) for x in db.get_connect_vault_val("following", []) if x] + [creator_id]))
     db.set_connect_vault_val("following", following)
+
+    # 1b. Save creator metadata locally in SQLite vault
+    if body and (body.get("name") or body.get("username") or body.get("avatar")):
+        db.save_creator_profile({
+            "id": creator_id,
+            "name": body.get("name") or body.get("displayName") or creator_id,
+            "username": body.get("username") or creator_id,
+            "displayName": body.get("displayName") or body.get("name") or creator_id,
+            "avatar": body.get("avatar") or "",
+            "bio": body.get("bio") or ""
+        })
+    else:
+        from singularity import connect
+        asyncio.create_task(connect.fetch_creator_profile(creator_id))
 
     # 2. Update Supabase cloud profile immediately
     try:
@@ -3804,6 +3938,16 @@ async def api_cloud_sync_pull(request: Request):
                                     db.save_connect_card(c)
                                 except Exception:
                                     pass
+                    # 3b. Restore creator profiles into local SQLite connect_creators
+                    cloud_creators = sett.get("creatorProfiles") or sett.get("creator_profiles")
+                    if isinstance(cloud_creators, list):
+                        for cp in cloud_creators:
+                            if isinstance(cp, dict) and (cp.get("id") or cp.get("creator_id")):
+                                if cp.get("avatar") or (cp.get("username") and cp.get("username") != cp.get("id")):
+                                    try:
+                                        db.save_creator_profile(cp)
+                                    except Exception:
+                                        pass
                     # 4. Restore active persona ID
                     act_p = prof0.get("active_persona_id") or sett.get("activePersonaId") or sett.get("active_persona_id")
                     if act_p:
@@ -3948,37 +4092,65 @@ async def api_cloud_sync_push(request: Request):
                         pass
         merged_cards = list(cards_map.values())
 
-        # D. Creator Profiles Map
+        # D. Creator Profiles Map - Resolve authentic profiles from SQLite connect_creators
         creator_profiles_map = {}
         for cp in (cloud_sett.get("creatorProfiles", []) or cloud_sett.get("creator_profiles", []) or []):
             if isinstance(cp, dict) and (cp.get("id") or cp.get("name")):
                 cid = cp.get("id") or cp.get("name")
-                creator_profiles_map[cid] = cp
+                bio = cp.get("bio") or ""
+                is_synthetic = bio.startswith("Creator of ") or bio.startswith("JanitorAI author of ")
+                if not is_synthetic and (cp.get("followers", 0) > 0 or (cp.get("avatar") and cp.get("username") and cp.get("username") != cid)):
+                    creator_profiles_map[cid] = cp
+
+        # Populate/Upgrade with authentic profiles from local SQLite connect_creators vault
+        for fid in merged_following:
+            local_cp = db.get_creator_profile(fid)
+            if local_cp:
+                creator_profiles_map[fid] = {
+                    "id": local_cp["id"],
+                    "name": local_cp["displayName"] or local_cp["username"],
+                    "username": local_cp["username"],
+                    "displayName": local_cp["displayName"],
+                    "avatar": local_cp["avatar"],
+                    "bio": local_cp["bio"],
+                    "followers": local_cp["followers"],
+                    "totalBots": local_cp["totalBots"],
+                    "badges": local_cp.get("badges", []),
+                    "style": local_cp.get("style", {})
+                }
+
+        # Check merged_cards only for authentic cached profiles in SQLite, NEVER fabricate dummy records
         for c in merged_cards:
             cid = c.get("creator_id") or c.get("creator_name")
             if cid and cid not in creator_profiles_map:
-                creator_profiles_map[cid] = {
-                    "id": c.get("creator_id") or cid,
-                    "name": c.get("creator_name") or cid,
-                    "username": c.get("creator_name") or cid,
-                    "avatar": c.get("creator_avatar") or "",
-                    "bio": f"Creator of {c.get('name', 'character')}"
-                }
-        for fid in merged_following:
-            if fid and fid not in creator_profiles_map:
-                creator_profiles_map[fid] = {
-                    "id": fid,
-                    "name": fid,
-                    "username": fid,
-                    "avatar": "",
-                    "bio": "JanitorAI Creator"
-                }
+                local_cp = db.get_creator_profile(cid)
+                if local_cp and local_cp.get("followers", 0) > 0:
+                    creator_profiles_map[cid] = {
+                        "id": local_cp["id"],
+                        "name": local_cp["displayName"] or local_cp["username"],
+                        "username": local_cp["username"],
+                        "displayName": local_cp["displayName"],
+                        "avatar": local_cp["avatar"],
+                        "bio": local_cp["bio"],
+                        "followers": local_cp["followers"],
+                        "totalBots": local_cp["totalBots"]
+                    }
+
         client_creators = client_settings.get("creatorProfiles") or body.get("creatorProfiles") or []
         if isinstance(client_creators, list):
             for cp in client_creators:
                 if isinstance(cp, dict) and (cp.get("id") or cp.get("name")):
                     cid = cp.get("id") or cp.get("name")
-                    creator_profiles_map[cid] = cp
+                    bio = cp.get("bio") or ""
+                    is_synthetic = bio.startswith("Creator of ") or bio.startswith("JanitorAI author of ")
+                    if not is_synthetic and (cp.get("avatar") or (cp.get("username") and cp.get("username") != cid)):
+                        existing = creator_profiles_map.get(cid)
+                        if not existing or (cp.get("followers", 0) >= existing.get("followers", 0)):
+                            creator_profiles_map[cid] = cp
+                            try:
+                                db.save_creator_profile(cp)
+                            except Exception:
+                                pass
 
         # E. Assemble settings payload (baseline is cloud_sett so cold client defaults NEVER clobber cloud customizations)
         settings_payload = dict(cloud_sett)
@@ -4166,11 +4338,40 @@ async def api_connect_resolve(request: Request):
     return JSONResponse({"success": False, "type": "unknown", "query": q})
 
 
+@app.get("/api/connect/creators/batch")
+async def api_connect_get_creators_batch(request: Request):
+    ids_param = request.query_params.get("ids", "").strip()
+    if not ids_param:
+        return JSONResponse({"success": True, "creators": []})
+    id_list = [i.strip() for i in ids_param.split(",") if i.strip()]
+    from singularity import connect
+    local_batch = db.get_creator_profiles_batch(id_list)
+    resolved_map = {c["id"]: c for c in local_batch if c and c.get("id")}
+    missing = [cid for cid in id_list if cid not in resolved_map]
+    if missing:
+        tasks = [connect.fetch_creator_profile(cid) for cid in missing]
+        fetched = await asyncio.gather(*tasks, return_exceptions=True)
+        for idx, res in enumerate(fetched):
+            if isinstance(res, dict) and res.get("creator"):
+                c_obj = res["creator"]
+                resolved_map[missing[idx]] = c_obj
+            elif missing[idx] not in resolved_map:
+                p = db.get_creator_profile(missing[idx])
+                if p:
+                    resolved_map[missing[idx]] = p
+
+    creators = [resolved_map[cid] for cid in id_list if cid in resolved_map]
+    return JSONResponse({"success": True, "creators": creators})
+
+
 @app.get("/api/connect/creators/{creator_id}")
 async def api_connect_get_creator(creator_id: str):
     from singularity import connect
     creator_data = await connect.fetch_creator_profile(creator_id)
     if not creator_data:
+        cached = db.get_creator_profile(creator_id)
+        if cached:
+            return JSONResponse({"success": True, "data": {"creator": cached, "bots": [], "totalBots": cached.get("totalBots", 0)}})
         raise HTTPException(status_code=404, detail="Creator not found")
     return JSONResponse({"success": True, "data": creator_data})
 
@@ -4619,6 +4820,11 @@ async def on_startup():
     except Exception:
         pass
     try:
+        from singularity.engines import antigravity
+        antigravity.start_oauth_listener()
+    except Exception:
+        pass
+    try:
         await api_tavern_start()
     except Exception:
         pass
@@ -4626,6 +4832,7 @@ async def on_startup():
 
 def free_listening_ports(ports: List[int]):
     """Terminate stale processes listening on specified ports so uvicorn and Tavern can bind cleanly."""
+    import signal
     current_pid = os.getpid()
     for p in ports:
         # Check if port is occupied first
@@ -4649,12 +4856,34 @@ def free_listening_ports(ports: List[int]):
             except Exception:
                 pass
         else:
+            # 1. fuser sends SIGKILL directly to processes using the port socket
             try:
                 subprocess.run(["fuser", "-k", "-9", f"{p}/tcp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
+            # 2. lsof filtered specifically to LISTEN sockets
             try:
                 subprocess.run(f"lsof -sTCP:LISTEN -iTCP:{p} -t | xargs -r kill -9", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+            # 3. ss socket statistics parser for listening PIDs on Linux / Termux
+            try:
+                out = subprocess.check_output(f'ss -lptn "sport = :{p}" 2>/dev/null', shell=True, text=True, stderr=subprocess.DEVNULL)
+                for m in re.finditer(r"pid=(\d+)", out):
+                    target_pid = int(m.group(1))
+                    if target_pid != current_pid and target_pid > 0:
+                        try:
+                            os.kill(target_pid, signal.SIGKILL)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            # 4. If still busy after kill attempts and port is 9000, terminate stale server.py instances
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.1)
+                    if s.connect_ex(("127.0.0.1", p)) == 0 and p == 9000:
+                        subprocess.run("pkill -9 -f 'singularity/server.py' 2>/dev/null", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
     time.sleep(0.2)
@@ -4734,33 +4963,64 @@ def main():
         print(f"\n  [!] Could not open the credential vault: {e}\n", flush=True)
         sys.exit(1)
 
-    print("\n" + "=" * 66, flush=True)
-    print("  🚀 SINGULARITY UNIFIED AI GATEWAY & TAVERN WEB STUDIO", flush=True)
-    print("=" * 66, flush=True)
-    print(f"  📍 Localhost Dashboard:  http://localhost:{port}", flush=True)
-    print(f"  📍 Localhost Tavern:     http://localhost:5173", flush=True)
-    print("  " + "-" * 62, flush=True)
-    if host in ("127.0.0.1", "localhost", "::1"):
-        print("  🔒 Listening on this machine only. For phone / LAN access run:", flush=True)
-        print("     ./start.sh --lan        (Windows: start.bat --lan)", flush=True)
+    # Count stacked accounts from vault
+    try:
+        all_creds = db.get_accounts()
+        unique_providers = sorted(list(set(c.get("provider", "") for c in all_creds if c.get("provider"))))
+        total_accounts = len(all_creds)
+    except Exception:
+        unique_providers = []
+        total_accounts = 0
+
+    # Clean terminal styling (adaptive left-aligned layout; never breaks on narrow Termux screens)
+    use_color = sys.stdout.isatty()
+    C_BOLD = "\033[1m" if use_color else ""
+    C_GREEN = "\033[32m" if use_color else ""
+    C_CYAN = "\033[36m" if use_color else ""
+    C_DIM = "\033[2m" if use_color else ""
+    C_RESET = "\033[0m" if use_color else ""
+
+    lan_ip = get_lan_ip() if host not in ("127.0.0.1", "localhost", "::1") else None
+
+    print(f"\n  {C_BOLD}Singularity Gateway{C_RESET} {C_GREEN}● online{C_RESET}\n", flush=True)
+    print(f"  {C_BOLD}➜{C_RESET}  {C_DIM}Local:{C_RESET}    {C_CYAN}http://localhost:{port}{C_RESET}", flush=True)
+    if lan_ip:
+        print(f"  {C_BOLD}➜{C_RESET}  {C_DIM}Network:{C_RESET}  {C_CYAN}http://{lan_ip}:{port}{C_RESET} {C_DIM}(Phone & LAN){C_RESET}", flush=True)
+    print(f"  {C_BOLD}➜{C_RESET}  {C_DIM}Tavern:{C_RESET}   {C_CYAN}http://localhost:5173{C_RESET}", flush=True)
+    if lan_ip:
+        print(f"  {C_BOLD}➜{C_RESET}  {C_DIM}Tavern:{C_RESET}   {C_CYAN}http://{lan_ip}:5173{C_RESET} {C_DIM}(Phone & LAN){C_RESET}", flush=True)
+
+    print("", flush=True)
+    if total_accounts > 0:
+        prov_preview = ", ".join(p.capitalize() for p in unique_providers[:4])
+        if len(unique_providers) > 4:
+            prov_preview += f", +{len(unique_providers) - 4} more"
+        print(f"  {C_DIM}•{C_RESET}  {C_DIM}Vault:{C_RESET}    {C_BOLD}{total_accounts}{C_RESET} account{'s' if total_accounts != 1 else ''} ready across {len(unique_providers)} provider{'s' if len(unique_providers) != 1 else ''} {C_DIM}({prov_preview}){C_RESET}", flush=True)
     else:
-        lan_ip = get_lan_ip()
-        print("  📱 PHONE & MULTI-DEVICE ACCESS:", flush=True)
-        print(f"  📲 Mobile Dashboard:     http://{lan_ip}:{port}", flush=True)
-        print(f"  📲 Mobile Tavern:        http://{lan_ip}:5173", flush=True)
-        print("  ☁️  Universal Sync:       Supabase Cloud (Phone & PC Synchronized)", flush=True)
-    print("=" * 66 + "\n", flush=True)
+        print(f"  {C_DIM}•{C_RESET}  {C_DIM}Vault:{C_RESET}    Ready {C_DIM}(add cookies in Dashboard or run ./singular import){C_RESET}", flush=True)
+
+    if not lan_ip:
+        print(f"  {C_DIM}•{C_RESET}  {C_DIM}Phone:{C_RESET}    Run {C_BOLD}./singular --lan{C_RESET} {C_DIM}for phone & multi-device access{C_RESET}", flush=True)
+    print(f"  {C_DIM}•{C_RESET}  {C_DIM}Stop:{C_RESET}     Press {C_BOLD}Ctrl+C{C_RESET} {C_DIM}to shut down{C_RESET}\n", flush=True)
 
     try:
         worker.ensure_supervisor_running()
-        for p in ["chatgpt", "kimi", "grok", "glm", "deepseek", "qwen", "antigravity"]:
+        for p in ["chatgpt", "kimi", "grok", "glm", "deepseek", "qwen", "antigravity", "mimo"]:
             try:
                 start_provider(p)
             except Exception:
                 pass
     except Exception:
         pass
-    uvicorn.run(app, host=host, port=port)
+
+    # Mute noisy uvicorn access logs (background heartbeats, polls & cloud sync stay completely silent)
+    debug_mode = os.getenv("SINGULARITY_DEBUG", "").lower() in ("1", "true", "yes")
+    if not debug_mode:
+        logging.getLogger("uvicorn.access").disabled = True
+        logging.getLogger("uvicorn.access").propagate = False
+        logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+
+    uvicorn.run(app, host=host, port=port, access_log=debug_mode, log_level="info" if debug_mode else "warning")
 
 
 if __name__ == "__main__":

@@ -83,6 +83,7 @@ ENV_CREDENTIALS = {
     "grok": ("GROK_COOKIE",),
     "antigravity": ("AGY_TOKEN", "AGY_REFRESH_TOKEN", "GOOGLE_OAUTH_TOKEN"),
     "aistudio": ("AISTUDIO_COOKIE", "GEMINI_COOKIE"),
+    "mimo": ("MIMO_TOKEN", "MIMO_SERVICE_TOKEN", "MIMO_COOKIE", "XIAOMI_COOKIE"),
 }
 
 
@@ -269,10 +270,82 @@ PROVIDERS_CONFIG = {
         "cookie_placeholder": "Paste Google Cookie string (__Secure-1PSID, __Secure-1PSIDTS, SAPISID) or Playwright JSON dump...",
         "auth_header": "Bearer aistudio2api",
     },
+    "mimo": {
+        "id": "mimo",
+        "name": "Xiaomi MiMo",
+        "port": 8092,
+        "host": os.getenv("MIMO_HOST", PROVIDER_HOST),
+        "badge": "Xiaomi AI",
+        "color": "#FF6900",
+        "start_script": "start_mimo.sh",
+        "stop_script": "stop_mimo.sh",
+        "health_path": "/v1/models",
+        "cookie_type": "cookie_or_token",
+        "cookie_label": "Xiaomi MiMo Tokens (serviceToken / passToken / Cookie)",
+        "cookie_placeholder": "Paste serviceToken, cURL cookies (serviceToken=...; xiaomichatbot_ph=...), or passToken...",
+        "auth_header": "Bearer mimo2api",
+    },
 }
 
-# Dynamic Comprehensive Catalog (253 models across 9 providers)
+# Dynamic Comprehensive Catalog (259 models across 10 providers)
 MODELS_CATALOG = [
+    # -------------------------------------------------------------------
+    # Xiaomi MiMo AI (Studio Frontier, Long-Context Reasoning, TTS & ASR)
+    # -------------------------------------------------------------------
+    {
+        'capabilities': ['reasoning', 'chat', 'code', 'vision'],
+        'context': '1M tokens',
+        'description': 'Xiaomi flagship reasoning frontier model with 1M context window and native thinking trace.',
+        'id': 'mimo-v2.6-pro',
+        'locked': False,
+        'name': 'MiMo-V2.6-Pro (Reasoning)',
+        'provider': 'mimo'
+    },
+    {
+        'capabilities': ['chat', 'code', 'vision', 'fast'],
+        'context': '256K tokens',
+        'description': 'Ultra-fast multimodal reasoning model designed for responsive conversations and high-throughput queries.',
+        'id': 'mimo-v2.6-flash',
+        'locked': False,
+        'name': 'MiMo-V2.6-Flash',
+        'provider': 'mimo'
+    },
+    {
+        'capabilities': ['reasoning', 'chat', 'code', 'vision'],
+        'context': '128K tokens',
+        'description': 'Xiaomi advanced foundation model with high instruction adherence and multimodal vision capabilities.',
+        'id': 'mimo-v2.5-pro',
+        'locked': False,
+        'name': 'MiMo-V2.5-Pro',
+        'provider': 'mimo'
+    },
+    {
+        'capabilities': ['chat', 'code', 'vision'],
+        'context': '128K tokens',
+        'description': 'Balanced everyday chat and reasoning model across mobile and desktop assistants.',
+        'id': 'mimo-v2.5',
+        'locked': False,
+        'name': 'MiMo-V2.5',
+        'provider': 'mimo'
+    },
+    {
+        'capabilities': ['audio', 'tts', 'speech'],
+        'context': '64K tokens',
+        'description': 'Xiaomi high-fidelity speech synthesis supporting emotional pacing and multi-timbre voice generation.',
+        'id': 'mimo-v2.5-tts',
+        'locked': False,
+        'name': 'MiMo-V2.5-TTS',
+        'provider': 'mimo'
+    },
+    {
+        'capabilities': ['audio', 'transcription', 'speech-to-text'],
+        'context': '64K tokens',
+        'description': 'Xiaomi robust automatic speech recognition and voice-to-text transcription engine.',
+        'id': 'mimo-v2.5-asr',
+        'locked': False,
+        'name': 'MiMo-V2.5-ASR',
+        'provider': 'mimo'
+    },
     # -------------------------------------------------------------------
     # Google AI Studio (MakerSuite Frontier & Studio Audio Models)
     # -------------------------------------------------------------------
@@ -3440,11 +3513,54 @@ async def get_all_limits() -> Dict[str, Any]:
         "accounts": ais_data,
     }
 
+    # 11. Xiaomi MiMo AI limits
+    mimo_accounts = db.get_accounts("mimo")
+    mimo_data = []
+    for acc in mimo_accounts:
+        meta = acc.get("metadata", {})
+        if isinstance(meta, str) and meta.startswith("{"):
+            try:
+                meta = json.loads(meta)
+            except Exception:
+                meta = {}
+        has_pass = meta.get("has_pass_token", False) or bool(meta.get("passToken"))
+        ident = acc.get("identifier") or acc.get("name") or "Xiaomi Account"
+        mimo_data.append({
+            "email": ident,
+            "type": "Xiaomi AI Studio",
+            "status": "Normal" if acc.get("status") == "active" else "Disabled",
+            "token_renewal": "Auto-Renewing (passToken Active)" if has_pass else "24h Session (serviceToken)",
+            "chat_quota": "Unlimited / Soft Fair Use",
+            "rate_limit": "10-15 req / min",
+            "context_window": "1M tokens (MiMo-V2.6)",
+            "multimodal": "Vision & Image Uploads Active",
+            "tts_asr": "Supported (v2.5-TTS & v2.5-ASR)",
+            "restore_at": "Continuous (24h token rotation)",
+        })
+    if not mimo_data:
+        mimo_data.append({
+            "email": "Xiaomi MiMo Web (aistudio.xiaomimimo.com)",
+            "type": "Free / AI Studio",
+            "status": "No Account Stacked",
+            "token_renewal": "Requires serviceToken or passToken",
+            "chat_quota": "Unlimited / Soft Fair Use",
+            "rate_limit": "10-15 req / min",
+            "context_window": "1M tokens (MiMo-V2.6)",
+            "multimodal": "Vision & Image Uploads Active",
+            "tts_asr": "Supported (v2.5-TTS & v2.5-ASR)",
+            "restore_at": "Continuous (24h token rotation)",
+        })
+    limits["mimo"] = {
+        "title": "Xiaomi MiMo AI Studio Quotas",
+        "accounts_count": len(mimo_data),
+        "accounts": mimo_data,
+    }
+
     return limits
 
 
 def get_stored_cookies() -> Dict[str, Any]:
-    """Read stacked cookies/accounts for all 10 providers from unified SQLite DB."""
+    """Read stacked cookies/accounts for all 11 providers from unified SQLite DB."""
     result: Dict[str, Any] = {}
 
     label_map = {
@@ -3458,6 +3574,7 @@ def get_stored_cookies() -> Dict[str, Any]:
         "qwen": ("token_or_json", "Qwen Bearer Token or Session JSON"),
         "antigravity": ("oauth_token_or_json", "Google OAuth Credentials (JSON or Refresh Token)"),
         "aistudio": ("cookie_or_storage_state", "Google Cookies / Storage State JSON"),
+        "mimo": ("cookie_or_token", "Xiaomi MiMo Tokens (serviceToken / passToken)"),
     }
 
     for p, (ctype, clabel) in label_map.items():

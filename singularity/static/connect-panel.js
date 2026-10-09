@@ -57,6 +57,54 @@
     savedBotIds: new Set(),
     followingCreatorIds: new Set(),
     botCache: new Map(),
+    creatorCache: new Map(),
+
+    cacheCreator(c) {
+      if (!c || (!c.id && !c.creator_id)) return;
+      const cid = c.id || c.creator_id;
+      // Filter out dummy corrupted entries
+      if (c.username === cid && !c.avatar && !c.followers) return;
+
+      const existing = this.creatorCache.get(cid);
+      const merged = { ...c };
+      if (existing) {
+        // Quality guard: never let incoming partial/synthetic records downgrade authentic data
+        if ((!merged.followers || Number(merged.followers) === 0) && Number(existing.followers || 0) > 0) {
+          merged.followers = existing.followers;
+        }
+        if ((!merged.bio || merged.bio.startsWith('Creator of ') || merged.bio.startsWith('JanitorAI author of ')) && 
+            existing.bio && !existing.bio.startsWith('Creator of ') && !existing.bio.startsWith('JanitorAI author of ')) {
+          merged.bio = existing.bio;
+        }
+        if ((!merged.displayName || merged.displayName === 'Janitor Creator' || this.isUuid(merged.displayName)) &&
+            existing.displayName && existing.displayName !== 'Janitor Creator' && !this.isUuid(existing.displayName)) {
+          merged.displayName = existing.displayName;
+        }
+        if ((!merged.avatar || merged.avatar === DEFAULT_AVATAR) && existing.avatar && existing.avatar !== DEFAULT_AVATAR) {
+          merged.avatar = existing.avatar;
+        }
+        if (existing.badges && (!merged.badges || merged.badges.length === 0)) {
+          merged.badges = existing.badges;
+        }
+        if (existing.style && (!merged.style || Object.keys(merged.style).length === 0)) {
+          merged.style = existing.style;
+        }
+      }
+      this.creatorCache.set(cid, merged);
+      this.saveCreatorCacheToStorage();
+    },
+
+    saveCreatorCacheToStorage() {
+      try {
+        const obj = {};
+        this.creatorCache.forEach((v, k) => {
+          if (v && (v.avatar || (v.username && v.username !== k))) {
+            obj[k] = v;
+          }
+        });
+        localStorage.setItem('s_connect_creator_cache', JSON.stringify(obj));
+      } catch (e) {}
+    },
 
     init() {
       try {
@@ -64,6 +112,10 @@
         this.savedBotIds = new Set(saved);
         const following = JSON.parse(localStorage.getItem('s_connect_following') || '[]');
         this.followingCreatorIds = new Set(following);
+        const storedCreators = JSON.parse(localStorage.getItem('s_connect_creator_cache') || '{}');
+        Object.entries(storedCreators).forEach(([k, v]) => {
+          if (v && (v.id || v.name)) this.creatorCache.set(k, v);
+        });
       } catch (e) {
         console.warn('Failed to load connect preferences:', e);
       }
@@ -83,13 +135,33 @@
         }
       });
 
-      // Asynchronously hydrate followed creators from server/cloud vault
+      // Asynchronously hydrate followed creators and pre-cache their full profiles
       fetch('/api/connect/following')
         .then(r => r.json())
         .then(d => {
           if (d && Array.isArray(d.following)) {
             d.following.forEach(id => { if (id) this.followingCreatorIds.add(String(id)); });
             localStorage.setItem('s_connect_following', JSON.stringify(Array.from(this.followingCreatorIds)));
+            if (d.following.length > 0) {
+              fetch(`/api/connect/creators/batch?ids=${encodeURIComponent(d.following.join(','))}`)
+                .then(res => res.json())
+                .then(batch => {
+                  if (batch && Array.isArray(batch.creators)) {
+                    batch.creators.forEach(c => this.cacheCreator(c));
+                  } else {
+                    // Fallback to parallel individual fetches
+                    d.following.forEach(cid => {
+                      fetch(`/api/connect/creators/${encodeURIComponent(cid)}`)
+                        .then(r => r.json())
+                        .then(j => {
+                          if (j && j.data && j.data.creator) this.cacheCreator(j.data.creator);
+                        })
+                        .catch(() => {});
+                    });
+                  }
+                })
+                .catch(() => {});
+            }
           }
         })
         .catch(() => {});
@@ -321,45 +393,43 @@
     },
 
     resetScrollToTop() {
-      try {
-        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-      } catch (e) {
-        try { window.scrollTo(0, 0); } catch (_) {}
-      }
-      if (document.documentElement) document.documentElement.scrollTop = 0;
-      if (document.body) document.body.scrollTop = 0;
-
-      const selectors = [
-        '.panel-viewport',
-        '#pane-connect',
-        '#connect-main-view',
-        '.cards-app-container',
-        '.bot-detail-page',
-        '.bot-detail-layout',
-        '.bot-detail-content'
-      ];
-      selectors.forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => {
-          if (el) {
-            el.scrollTop = 0;
-            try { el.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch (_) { el.scrollTop = 0; }
-          }
-        });
-      });
-
-      requestAnimationFrame(() => {
-        try { window.scrollTo(0, 0); } catch (_) {}
+      const performReset = () => {
+        try {
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        } catch (e) {
+          try { window.scrollTo(0, 0); } catch (_) {}
+        }
         if (document.documentElement) document.documentElement.scrollTop = 0;
         if (document.body) document.body.scrollTop = 0;
+
+        const selectors = [
+          '.panel-viewport',
+          '#pane-connect',
+          '#connect-main-view',
+          '.cards-app-container',
+          '.bot-detail-page',
+          '.bot-detail-layout',
+          '.bot-detail-content'
+        ];
         selectors.forEach(sel => {
           document.querySelectorAll(sel).forEach(el => {
-            if (el) el.scrollTop = 0;
+            if (el) {
+              el.scrollTop = 0;
+              try { el.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch (_) { el.scrollTop = 0; }
+            }
           });
         });
-        const detailTop = document.querySelector('.bot-detail-page') || document.querySelector('.back-nav-btn') || document.getElementById('connect-main-view');
-        if (detailTop && typeof detailTop.scrollIntoView === 'function') {
-          try { detailTop.scrollIntoView({ behavior: 'instant', block: 'start' }); } catch (_) {}
+
+        // Ensure the absolute top of the page (nav bar or pane root at Y=0) is aligned, never inner main content
+        const topEl = document.getElementById('cards-top-nav-bar') || document.getElementById('pane-connect');
+        if (topEl && typeof topEl.scrollIntoView === 'function') {
+          try { topEl.scrollIntoView({ behavior: 'instant', block: 'start' }); } catch (_) {}
         }
+      };
+
+      performReset();
+      requestAnimationFrame(() => {
+        performReset();
       });
     },
 
@@ -502,24 +572,13 @@
             </div>
           </section>
 
-          <!-- Category Filter Chips Bar -->
-          <div class="filter-chips-bar">
-            <button class="filter-chip ${this.homeTag === 'all' ? 'is-active' : ''}" onclick="SConnect.filterTag('all', this)">All Cards</button>
-            <button class="filter-chip ${this.homeTag === 'Romance' ? 'is-active' : ''}" onclick="SConnect.filterTag('Romance', this)">Romance</button>
-            <button class="filter-chip ${this.homeTag === 'Fantasy' ? 'is-active' : ''}" onclick="SConnect.filterTag('Fantasy', this)">Dark Fantasy</button>
-            <button class="filter-chip ${this.homeTag === 'Sci-Fi' ? 'is-active' : ''}" onclick="SConnect.filterTag('Sci-Fi', this)">Cyberpunk / Sci-Fi</button>
-            <button class="filter-chip ${this.homeTag === 'Wholesome' ? 'is-active' : ''}" onclick="SConnect.filterTag('Wholesome', this)">Wholesome</button>
-            <button class="filter-chip ${this.homeTag === 'Anime' ? 'is-active' : ''}" onclick="SConnect.filterTag('Anime', this)">Anime</button>
-            <button class="filter-chip ${this.homeTag === 'Dominant' ? 'is-active' : ''}" onclick="SConnect.filterTag('Dominant', this)">Dominant</button>
-          </div>
-
-          <!-- Most Recent Chats (Above Community Characters header) -->
+          <!-- Most Recent Chats (Above Trending this week header) -->
           <div id="home-recent-chats-container" class="home-recent-chats-container"></div>
 
-          <!-- Section Header: Community Characters + Segmented Sort Capsule -->
+          <!-- Section Header: Trending this week + Segmented Sort Capsule -->
           <div class="section-header">
             <div class="section-title-wrap">
-              <h2 class="section-title">Community Characters</h2>
+              <h2 class="section-title">Trending this week</h2>
               <span class="section-subtitle">Real-time character cards from JanitorAI</span>
             </div>
 
@@ -649,7 +708,7 @@
             <h3 class="janitor-recent-chats-title">Recent Chats</h3>
             <button class="janitor-recent-view-all-btn" onclick="SConnect.navigate('my-chats')">View All</button>
           </div>
-          <div class="janitor-recent-chats-scroll">
+          <div class="janitor-recent-chats-scroll" data-count="${sorted.length}">
             ${sorted.map(s => this.renderRecentChatCardHTML(s)).join('')}
           </div>
         </div>
@@ -686,48 +745,52 @@
       const bot = this.botCache.get(session.botId) || { id: session.botId, name: session.botName, avatar: session.botAvatar };
       const botChatName = this.getBotChatName(bot || { name: session.botName }) || session.botName || 'Chat';
       const botAvatar = session.botAvatar || bot.avatar || DEFAULT_AVATAR;
-      const personaAvatar = this.resolveSessionPersonaAvatar(session);
-      const rawBio = (bot && (bot.description || bot.personality)) || session.botDescription || '';
-      const cleanBio = this.formatRecentChatBio(rawBio);
 
       const history = this.getChatMessages(session.id);
       const msgCount = (history && history.length > 0) ? history.length : (session.messageCount || 1);
       const timeText = this.formatRecentChatTime(session.updatedAt || session.createdAt);
 
+      // Distinct randomized watch progress between 20% and 92% per chat session
+      const idKey = String(session.id || session.botId || 'session');
+      let hash = 0;
+      for (let i = 0; i < idKey.length; i++) {
+        hash = (hash * 33 + idKey.charCodeAt(i)) & 0x7fffffff;
+      }
+      const progressPct = 20 + (hash % 73); // range: 20% to 92%
+
       return `
-        <div class="janitor-recent-card" onclick="SConnect.resumeChatSession('${session.botId}', '${session.id}')">
-          <!-- Top: Lock Icon & Chat Name -->
-          <div class="janitor-recent-card-top">
-            <span class="janitor-recent-lock-icon">🔒</span>
-            <span class="janitor-recent-title" title="${this.escapeHTML(botChatName)}">${this.escapeHTML(botChatName)}</span>
+        <div class="janitor-recent-card" onclick="SConnect.resumeChatSession('${session.botId}', '${session.id}')" title="Resume chat with ${this.escapeHTML(botChatName)}">
+          <!-- Widescreen Netflix Thumbnail Background Image -->
+          <img class="janitor-recent-bg-img" src="${botAvatar}" alt="${this.escapeHTML(botChatName)}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
+
+          <!-- Center Frosted Glass Circular Play Button -->
+          <div class="janitor-recent-play-btn" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+              <polygon points="7 4 20 12 7 20 7 4"></polygon>
+            </svg>
           </div>
 
-          <!-- Middle: Avatar + Persona on left, Bio on right -->
-          <div class="janitor-recent-card-mid">
-            <div class="janitor-recent-avatar-container">
-              <img class="janitor-recent-bot-img" src="${botAvatar}" alt="${this.escapeHTML(botChatName)}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
-              <img class="janitor-recent-persona-img" src="${personaAvatar}" alt="Persona" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
+          <!-- Bottom Cinematic Gradient Overlay -->
+          <div class="janitor-recent-overlay">
+            <div class="janitor-recent-title-row">
+              <span class="janitor-recent-lock-icon">🔒</span>
+              <span class="janitor-recent-title" title="${this.escapeHTML(botChatName)}">${this.escapeHTML(botChatName)}</span>
             </div>
-            <div class="janitor-recent-bio-box">
-              <p class="janitor-recent-bio-text">${cleanBio}</p>
-            </div>
-          </div>
-
-          <!-- Bottom: Meta on left, Continue button on right -->
-          <div class="janitor-recent-card-bottom">
-            <div class="janitor-recent-meta-group">
-              <div class="janitor-recent-meta-line">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <div class="janitor-recent-meta-row">
+              <span class="janitor-recent-meta-item">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 <span>${timeText}</span>
-              </div>
-              <div class="janitor-recent-meta-line">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              </span>
+              <span class="janitor-recent-meta-item">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                 <span>${msgCount} message${msgCount === 1 ? '' : 's'}</span>
-              </div>
+              </span>
             </div>
-            <button class="janitor-recent-continue-btn" onclick="event.stopPropagation(); SConnect.resumeChatSession('${session.botId}', '${session.id}')">
-              Continue
-            </button>
+          </div>
+
+          <!-- Netflix Continue Watching Red Progress Bar -->
+          <div class="janitor-recent-progress-track">
+            <div class="janitor-recent-progress-bar" style="width: ${progressPct}%;"></div>
           </div>
         </div>
       `;
@@ -832,7 +895,10 @@
       const isSaved = this.savedBotIds.has(bot.id);
       const botAvatar = bot.avatar || DEFAULT_AVATAR;
       const creatorName = bot.creator_name || bot.creatorName || 'Janitor Creator';
-      const creatorAvatar = bot.creator_avatar || bot.creatorAvatar || DEFAULT_AVATAR;
+      let creatorAvatar = bot.creator_avatar || bot.creatorAvatar || DEFAULT_AVATAR;
+      if (creatorAvatar && creatorAvatar.includes('/bot-avatars/')) {
+        creatorAvatar = creatorAvatar.replace('/bot-avatars/', '/avatars/');
+      }
 
       const chatsVal = Number(bot.chats || bot.total_chat || bot.chat_count || 0);
       const msgsVal = Number(bot.messages || bot.total_message || bot.message_count || 0);
@@ -881,7 +947,7 @@
             <!-- 2. Creator Avatar and Name (No boxing, no bordering) -->
             <div class="bot-card-creator-row" onclick="event.stopPropagation(); SConnect.openCreatorDetail('${bot.creator_id || bot.creatorId || creatorName}')" title="Creator: ${this.escapeHTML(creatorName)}">
               <span class="bot-card-creator-handle">@${this.escapeHTML(creatorName)}</span>
-              <img class="bot-card-creator-avatar-inline" src="${creatorAvatar}" alt="${this.escapeHTML(creatorName)}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';" />
+              <img class="bot-card-creator-avatar-inline" src="${creatorAvatar}" alt="${this.escapeHTML(creatorName)}" onerror="SConnect.handleAvatarError(this)" />
             </div>
 
             <!-- 3. Hover Bio Preview (Smooth slide-up & fade-in, text only) -->
@@ -895,28 +961,123 @@
       `;
     },
 
+    isUuid(val) {
+      if (!val || typeof val !== 'string') return false;
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+    },
+
+    handleAvatarError(img) {
+      if (!img) return;
+      let step = parseInt(img.dataset.tryStep || '0', 10);
+      const curSrc = img.src || '';
+
+      if (step === 0 && curSrc.includes('/bot-avatars/')) {
+        img.dataset.tryStep = '1';
+        img.src = curSrc.replace('/bot-avatars/', '/avatars/');
+        return;
+      }
+      if (step <= 1 && curSrc.includes('/user-avatars/')) {
+        img.dataset.tryStep = '2';
+        img.src = curSrc.replace('/user-avatars/', '/avatars/');
+        return;
+      }
+      if (step <= 2 && curSrc.includes('/avatars/') && !curSrc.includes('/user-avatars/')) {
+        img.dataset.tryStep = '3';
+        img.src = curSrc.replace('/avatars/', '/user-avatars/');
+        return;
+      }
+      if (step <= 3 && curSrc.includes('/profile-avatar-approved/')) {
+        const parts = curSrc.split('/');
+        const fname = parts[parts.length - 1];
+        if (fname && (fname.endsWith('.webp') || fname.endsWith('.png') || fname.endsWith('.jpg'))) {
+          img.dataset.tryStep = '4';
+          img.src = `https://ella.janitorai.com/avatars/${fname}`;
+          return;
+        }
+      }
+
+      img.onerror = null;
+      img.src = DEFAULT_AVATAR;
+    },
+
     renderCreatorCardHTML(creator, index = 0) {
       if (!creator) return '';
-      const isFollowing = this.followingCreatorIds.has(creator.id);
-      const cAvatar = creator.avatar || DEFAULT_AVATAR;
-      const cName = creator.displayName || creator.username || 'Creator';
-      const cleanBio = this.stripHTML(creator.bio || '').replace(/[\r\n]+/g, ' ').trim() || 'JanitorAI creator crafting immersive character cards.';
+      const cid = creator.id || creator.creator_id || '';
+      const isFollowing = this.followingCreatorIds.has(cid);
+
+      let resolved = { ...creator };
+      if (cid && this.creatorCache && this.creatorCache.has(cid)) {
+        const cached = this.creatorCache.get(cid);
+        if (cached) {
+          if (cached.avatar && !resolved.avatar) resolved.avatar = cached.avatar;
+          if (cached.username && (!resolved.username || this.isUuid(resolved.username))) resolved.username = cached.username;
+          if (cached.displayName && (!resolved.displayName || this.isUuid(resolved.displayName))) resolved.displayName = cached.displayName;
+          if (cached.name && (!resolved.displayName || this.isUuid(resolved.displayName))) resolved.displayName = cached.name;
+          if (cached.bio && (!resolved.bio || resolved.bio.startsWith('Creator of ') || resolved.bio.startsWith('JanitorAI author of '))) {
+            resolved.bio = cached.bio;
+          }
+          if (cached.followers && (!resolved.followers || Number(resolved.followers) === 0)) {
+            resolved.followers = cached.followers;
+          }
+        }
+      }
+
+      // If username or displayName is still a UUID or missing, search botCache for authored cards
+      if (!resolved.displayName || this.isUuid(resolved.displayName) || !resolved.username || this.isUuid(resolved.username)) {
+        if (this.botCache && cid) {
+          for (const [_, b] of this.botCache) {
+            if ((b.creator_id === cid || (b.creator && b.creator.id === cid)) && b.author && !this.isUuid(b.author)) {
+              resolved.displayName = b.author;
+              resolved.username = b.creator?.username || b.author;
+              if (!resolved.avatar && (b.creator_avatar || b.creator?.avatar)) {
+                resolved.avatar = b.creator_avatar || b.creator?.avatar;
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      let cName = resolved.displayName || resolved.username;
+      if (!cName || this.isUuid(cName)) {
+        cName = 'Janitor Creator';
+      }
+      let cHandle = resolved.username;
+      if (!cHandle || this.isUuid(cHandle)) {
+        cHandle = cName.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'creator';
+      }
+
+      let cAvatar = resolved.avatar || DEFAULT_AVATAR;
+      if (cAvatar && cAvatar.includes('/bot-avatars/')) {
+        cAvatar = cAvatar.replace('/bot-avatars/', '/avatars/');
+      }
+      let cleanBio = this.stripHTML(resolved.bio || '').replace(/[\r\n]+/g, ' ').trim();
+      if (!cleanBio || cleanBio.startsWith('Creator of ') || cleanBio.startsWith('JanitorAI author of ')) {
+        const cached = this.creatorCache?.get(cid);
+        if (cached && cached.bio && !cached.bio.startsWith('Creator of ') && !cached.bio.startsWith('JanitorAI author of ')) {
+          cleanBio = this.stripHTML(cached.bio).replace(/[\r\n]+/g, ' ').trim();
+        }
+      }
+      if (!cleanBio) {
+        cleanBio = 'JanitorAI creator crafting immersive character cards.';
+      }
+      const followersNum = Number(resolved.followers || 0);
 
       return `
-        <div class="creator-card" onclick="SConnect.openCreatorDetail('${creator.id}')">
+        <div class="creator-card" onclick="SConnect.openCreatorDetail('${cid}')">
           <div class="creator-card-header">
-            <img class="creator-card-avatar" src="${cAvatar}" alt="${this.escapeHTML(cName)}" onerror="if(this.src.includes('/user-avatars/')){this.src=this.src.replace('/user-avatars/','/avatars/');}else if(this.src.includes('/avatars/')){this.src=this.src.replace('/avatars/','/user-avatars/');}else{this.onerror=null;this.src='${DEFAULT_AVATAR}';}">
+            <img class="creator-card-avatar" src="${cAvatar}" alt="${this.escapeHTML(cName)}" onerror="SConnect.handleAvatarError(this)">
             <div class="creator-card-info">
               <div class="creator-card-name-row">
                 <span class="creator-card-name">${this.escapeHTML(cName)}</span>
               </div>
               <div class="creator-card-handle">
-                <span>@${this.escapeHTML(creator.username || 'creator')}</span>
+                <span>@${this.escapeHTML(cHandle)}</span>
                 <span>&bull;</span>
-                <span>${this.formatNumber(creator.followers || 0)} followers</span>
+                <span>${followersNum > 0 ? this.formatNumber(followersNum) + ' followers' : 'Creator'}</span>
               </div>
             </div>
-            <button class="follow-toggle-btn ${isFollowing ? 'is-following' : ''}" onclick="event.stopPropagation(); SConnect.toggleFollowCreator('${creator.id}', this)">
+            <button class="follow-toggle-btn ${isFollowing ? 'is-following' : ''}" onclick="event.stopPropagation(); SConnect.toggleFollowCreator('${cid}', this)">
               ${isFollowing ? ICONS.check : '+'}
               <span>${isFollowing ? 'Following' : 'Follow'}</span>
             </button>
@@ -1531,6 +1692,8 @@
     // -------------------------------------------------------------------------
     // 3. FOLLOWING VIEW (Mixed / Interleaved Across Creators)
     // -------------------------------------------------------------------------
+    _cachedFollowingBots: null,
+
     async renderFollowingView(container) {
       if (this.followingCreatorIds.size === 0) {
         try {
@@ -1545,6 +1708,8 @@
         } catch (e) {}
       }
       const followingList = Array.from(this.followingCreatorIds);
+      const hasCached = Array.isArray(this._cachedFollowingBots) && this._cachedFollowingBots.length > 0;
+
       container.innerHTML = `
         <div style="padding: var(--c-space-6) 0;">
           <div class="section-header">
@@ -1562,43 +1727,39 @@
                 <p style="font-size: 0.8125rem; color: var(--c-text-muted); margin-bottom: 20px; max-width: 440px; margin-left: auto; margin-right: auto;">Follow authors on character cards or dossiers to see their newest bot releases mixed here.</p>
                 <button class="search-submit-btn" onclick="SConnect.navigate('discover')">Explore Characters</button>
               </div>
-            ` : Array.from({ length: 8 }, () => `<div class="bot-card skeleton"></div>`).join('')}
+            ` : (hasCached ? this._cachedFollowingBots.map((b, i) => this.renderBotCardHTML(b, i)).join('') : Array.from({ length: 8 }, () => `<div class="bot-card skeleton"></div>`).join(''))}
           </div>
         </div>
       `;
 
       if (followingList.length > 0) {
-        // Concurrently fetch recent cards for each followed creator and interleave them
-        Promise.all(followingList.slice(0, 24).map(id => 
-          fetch(`/api/connect/creators/${encodeURIComponent(id)}/bots?limit=16`)
-            .then(r => r.json())
-            .catch(() => null)
-        )).then(results => {
-          const creatorLists = results.map(r => (r && r.data && r.data.bots) || (r && r.bots) || []);
-          const maxLen = Math.max(0, ...creatorLists.map(l => l.length));
-          const mixedBots = [];
-          const seenIds = new Set();
-
-          // Round-robin interleave across creators so feed is evenly mixed
-          for (let i = 0; i < maxLen; i++) {
-            for (const list of creatorLists) {
-              if (list[i] && !seenIds.has(list[i].id)) {
-                seenIds.add(list[i].id);
-                this.cacheBot(list[i]);
-                mixedBots.push(list[i]);
+        try {
+          const params = new URLSearchParams();
+          params.set('limit', '48');
+          params.set('sort', 'latest');
+          if (followingList.length > 0) {
+            params.set('ids', followingList.join(','));
+          }
+          const res = await fetch(`/api/connect/following/feed?${params.toString()}`);
+          if (res.ok) {
+            const data = await res.json();
+            const bots = data.bots || (data.data && data.data.bots) || [];
+            if (Array.isArray(bots)) {
+              this._cachedFollowingBots = bots;
+              bots.forEach(b => this.cacheBot(b));
+              const grid = document.getElementById('following-grid');
+              if (grid) {
+                if (bots.length > 0) {
+                  grid.innerHTML = bots.map((b, i) => this.renderBotCardHTML(b, i)).join('');
+                } else {
+                  grid.innerHTML = `<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--c-text-muted);">No cards found from your followed creators yet.</div>`;
+                }
               }
             }
           }
-
-          const grid = document.getElementById('following-grid');
-          if (grid) {
-            if (mixedBots.length > 0) {
-              grid.innerHTML = mixedBots.map((b, i) => this.renderBotCardHTML(b, i)).join('');
-            } else {
-              grid.innerHTML = `<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--c-text-muted);">No cards found from your followed creators yet.</div>`;
-            }
-          }
-        });
+        } catch (err) {
+          console.warn('[S-Connect] Following feed fetch failed:', err);
+        }
       }
     },
 
@@ -1948,6 +2109,31 @@
     // -------------------------------------------------------------------------
     async renderCreatorsView(container) {
       const followingList = Array.from(this.followingCreatorIds);
+
+      // Collect whatever we already have in local cache or bot cache for instant 0ms render
+      const initialCards = [];
+      for (const id of followingList) {
+        let c = this.creatorCache ? this.creatorCache.get(id) : null;
+        if (!c || !c.displayName || this.isUuid(c.displayName) || !c.avatar) {
+          if (this.botCache) {
+            for (const [_, b] of this.botCache) {
+              if ((b.creator_id === id || (b.creator && b.creator.id === id)) && b.author && !this.isUuid(b.author)) {
+                c = {
+                  id,
+                  username: b.creator?.username || b.author,
+                  displayName: b.author,
+                  avatar: b.creator_avatar || b.creator?.avatar || '',
+                  followers: c?.followers || 0,
+                  bio: c?.bio || 'JanitorAI creator crafting immersive character cards.'
+                };
+                break;
+              }
+            }
+          }
+        }
+        if (c) initialCards.push(c);
+      }
+
       container.innerHTML = `
         <div style="padding: var(--c-space-6) 0;">
           <div class="section-header">
@@ -1965,145 +2151,245 @@
                 <p style="font-size: 0.8125rem; color: var(--c-text-muted); margin-bottom: 20px; max-width: 440px; margin-left: auto; margin-right: auto;">Follow your favorite authors on character cards or dossiers to easily track their releases here.</p>
                 <button class="search-submit-btn" onclick="SConnect.navigate('discover')">Explore Characters</button>
               </div>
-            ` : Array.from({ length: Math.min(followingList.length, 6) }, () => `<div class="creator-card" style="opacity:0.4; height:120px;"></div>`).join('')}
+            ` : (initialCards.length > 0
+                ? initialCards.map((c, i) => this.renderCreatorCardHTML(c, i)).join('')
+                : Array.from({ length: Math.min(followingList.length, 6) }, () => `<div class="creator-card" style="opacity:0.4; height:120px;"></div>`).join('')
+              )}
           </div>
         </div>
       `;
 
       if (followingList.length > 0) {
         try {
-          const results = await Promise.all(
-            followingList.map(id =>
-              fetch(`/api/connect/creators/${encodeURIComponent(id)}`)
-                .then(r => r.json())
-                .catch(() => null)
-            )
-          );
+          let res = null;
+          try {
+            res = await fetch(`/api/connect/creators/batch?ids=${encodeURIComponent(followingList.join(','))}`).then(r => r.json());
+          } catch (_) {}
 
-          const creators = [];
-          results.forEach((r, idx) => {
-            const rawId = followingList[idx];
-            if (r && (r.data || r.creator)) {
-              const c = (r.data && (r.data.creator || r.data)) || r.creator || r;
-              if (c && !c.id) c.id = rawId;
-              creators.push(c);
-            } else {
-              creators.push({
-                id: rawId,
-                username: rawId,
-                displayName: rawId,
-                followers: 0,
-                bio: 'Creator on JanitorAI'
-              });
+          let creators = (res && Array.isArray(res.creators)) ? res.creators : [];
+          if (creators.length === 0 && followingList.length > 0) {
+            try {
+              const ind = await Promise.all(
+                followingList.map(cid =>
+                  fetch(`/api/connect/creators/${encodeURIComponent(cid)}`)
+                    .then(r => r.json())
+                    .then(j => (j && j.data && j.data.creator) ? j.data.creator : null)
+                    .catch(() => null)
+                )
+              );
+              creators = ind.filter(Boolean);
+            } catch (_) {}
+          }
+
+          creators.forEach(c => {
+            if (c) this.cacheCreator(c);
+          });
+
+          // Build final list in exact order of followingList
+          const finalCreators = followingList.map(id => {
+            let found = creators.find(c => c && c.id === id);
+            if (!found && this.creatorCache && this.creatorCache.has(id)) {
+              found = this.creatorCache.get(id);
             }
+            if (!found && this.botCache) {
+              for (const [_, b] of this.botCache) {
+                if ((b.creator_id === id || (b.creator && b.creator.id === id)) && b.author && !this.isUuid(b.author)) {
+                  found = {
+                    id,
+                    username: b.creator?.username || b.author,
+                    displayName: b.author,
+                    avatar: b.creator_avatar || b.creator?.avatar || '',
+                    followers: 0,
+                    bio: 'JanitorAI creator crafting immersive character cards.'
+                  };
+                  break;
+                }
+              }
+            }
+            return found || { id, username: 'creator', displayName: 'Janitor Creator', followers: 0 };
           });
 
           const grid = document.getElementById('creators-page-grid');
           if (grid) {
-            if (creators.length > 0) {
-              grid.innerHTML = creators.map((c, i) => this.renderCreatorCardHTML(c, i)).join('');
-            } else {
-              grid.innerHTML = `<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--c-text-muted);">No followed creator profiles available.</div>`;
+            const newHTML = finalCreators.map((c, i) => this.renderCreatorCardHTML(c, i)).join('');
+            if (grid.innerHTML !== newHTML) {
+              grid.innerHTML = newHTML;
             }
           }
         } catch (e) {
-          console.warn('Failed to load followed creators:', e);
+          console.warn('Failed to refresh followed creators:', e);
         }
       }
     },
 
     async renderCreatorDetailView(container, creatorId) {
-      container.innerHTML = `
-        <div class="bot-detail-page">
-          <button class="back-nav-btn" onclick="SConnect.navigateBack()">
-            ${ICONS.back}
-            <span>Back</span>
-          </button>
-          <div style="padding:60px; text-align:center; color:var(--c-text-muted);">Loading creator profile...</div>
-        </div>
-      `;
+      this._activeCreatorId = creatorId;
 
-      try {
-        const res = await fetch(`/api/connect/creators/${encodeURIComponent(creatorId)}`).then(r => r.json());
-        const data = res.data || res;
-        const creator = data.creator || data;
-        const bots = data.bots || [];
-        const isFollowing = this.followingCreatorIds.has(creator.id);
-        const cAvatar = creator.avatar || DEFAULT_AVATAR;
-        const cName = creator.displayName || creator.username || 'Creator';
+      // Tier 1: Check cache or synthesize from botCache for 0ms instant display
+      let creator = null;
+      if (this.creatorCache && this.creatorCache.has(creatorId)) {
+        creator = this.creatorCache.get(creatorId);
+      }
+      const authoredBots = [];
+      if (this.botCache) {
+        for (const [_, b] of this.botCache) {
+          if (b && (b.creator_id === creatorId || (b.creator && b.creator.id === creatorId))) {
+            authoredBots.push(b);
+          }
+        }
+      }
 
+      if (!creator || !creator.displayName || this.isUuid(creator.displayName)) {
+        if (authoredBots.length > 0) {
+          const first = authoredBots[0];
+          creator = {
+            id: creatorId,
+            username: first.creator?.username || first.author || 'creator',
+            displayName: first.author || first.creator?.username || 'Creator',
+            avatar: first.creator_avatar || first.creator?.avatar || '',
+            bio: (creator && creator.bio) || '',
+            followers: (creator && creator.followers) || 0,
+            totalBots: authoredBots.length
+          };
+        }
+      }
+
+      // If we have a cached creator profile, render immediately at 0ms
+      if (creator && (creator.avatar || (creator.displayName && !this.isUuid(creator.displayName)))) {
+        this.drawCreatorDetailPage(container, creator, authoredBots);
+      } else {
         container.innerHTML = `
-          <div class="bot-detail-page profile-page-container css-14l6kwv">
+          <div class="bot-detail-page">
             <button class="back-nav-btn" onclick="SConnect.navigateBack()">
               ${ICONS.back}
               <span>Back</span>
             </button>
+            <div style="padding:60px; text-align:center; color:var(--c-text-muted);">Loading creator profile...</div>
+          </div>
+        `;
+      }
 
-            <!-- Native Janitor Creator Profile Header (Zero synthetic gradient, exact Puppy JAI CSS selectors) -->
-            <div class="pp-uc-background profile-uc-background-flex css-vqimyu">
-              <div class="profile-info-wrapper-box css-15vqpxh">
-                <div class="profile-info-stack css-8g8ihq">
-                  <div class="creator-profile-header profile-info-hstack css-1uodvt1">
-                    <div class="creator-identity-group">
-                      <div class="creator-avatar-wrapper profile-avatar-container pp-uc-avatar-container css-79elbk" onclick="SConnect.openImageLightbox('${cAvatar}', '${this.escapeHTML(cName)}')">
-                        <img class="profile-avatar pp-uc-avatar css-18bnokj" src="${cAvatar}" alt="${this.escapeHTML(cName)}" onerror="if(this.src.includes('/user-avatars/')){this.src=this.src.replace('/user-avatars/','/avatars/');}else if(this.src.includes('/avatars/')){this.src=this.src.replace('/avatars/','/user-avatars/');}else{this.onerror=null;this.src='${DEFAULT_AVATAR}';}">
-                      </div>
-                      <div class="creator-names-wrap profile-info-stack-inner css-8g8ihq">
-                        <div class="profile-info-stack-inner-flex css-70qvj9">
-                          <h1 class="creator-display-name profile-title-heading pp-uc-title css-o5an2m">${this.escapeHTML(cName)}</h1>
-                          <div class="creator-meta-sub">@${this.escapeHTML(creator.username || 'creator')}</div>
-                        </div>
+      // Tier 2: Asynchronously revalidate from server
+      try {
+        const res = await fetch(`/api/connect/creators/${encodeURIComponent(creatorId)}`).then(r => r.json());
+        if (this.currentView !== 'creator' || this._activeCreatorId !== creatorId) return;
+
+        const data = res.data || res;
+        const freshCreator = data.creator || data;
+        let freshBots = data.bots || [];
+
+        if (freshBots.length === 0 && authoredBots.length > 0) {
+          freshBots = authoredBots;
+        }
+
+        if (freshCreator) {
+          if (freshCreator.id) this.cacheCreator(freshCreator);
+          if (Array.isArray(freshBots)) {
+            freshBots.forEach(b => this.cacheBot(b));
+          }
+          this.drawCreatorDetailPage(container, freshCreator, freshBots);
+        }
+      } catch (e) {
+        console.warn('Failed to fetch full creator profile:', e);
+        if (!creator && container) {
+          container.innerHTML = `<div class="bot-detail-page"><button class="back-nav-btn" onclick="SConnect.navigateBack()">${ICONS.back} <span>Back</span></button><div style="color:var(--c-amber); padding:40px;">Creator not found.</div></div>`;
+        }
+      }
+    },
+
+    drawCreatorDetailPage(container, creator, bots = []) {
+      const isFollowing = this.followingCreatorIds.has(creator.id);
+      let cAvatar = creator.avatar || DEFAULT_AVATAR;
+      if (cAvatar && cAvatar.includes('/bot-avatars/')) {
+        cAvatar = cAvatar.replace('/bot-avatars/', '/avatars/');
+      }
+      let cName = creator.displayName || creator.username || 'Creator';
+      if (this.isUuid(cName)) {
+        if (bots.length > 0 && bots[0].author && !this.isUuid(bots[0].author)) {
+          cName = bots[0].author;
+        } else {
+          cName = 'Janitor Creator';
+        }
+      }
+      let cHandle = creator.username || 'creator';
+      if (this.isUuid(cHandle)) {
+        cHandle = cName.toLowerCase().replace(/[^a-z0-9_]/g, '') || 'creator';
+      }
+      const followersCount = Number(creator.followers || 0);
+      const totalCards = Math.max(Number(creator.totalBots || 0), bots.length);
+
+      container.innerHTML = `
+        <div class="bot-detail-page profile-page-container css-14l6kwv">
+          <button class="back-nav-btn" onclick="SConnect.navigateBack()">
+            ${ICONS.back}
+            <span>Back</span>
+          </button>
+
+          <!-- Native Janitor Creator Profile Header (Zero synthetic gradient, exact Puppy JAI CSS selectors) -->
+          <div class="pp-uc-background profile-uc-background-flex css-vqimyu">
+            <div class="profile-info-wrapper-box css-15vqpxh">
+              <div class="profile-info-stack css-8g8ihq">
+                <div class="creator-profile-header profile-info-hstack css-1uodvt1">
+                  <div class="creator-identity-group">
+                    <div class="creator-avatar-wrapper profile-avatar-container pp-uc-avatar-container css-79elbk" onclick="SConnect.openImageLightbox('${cAvatar}', '${this.escapeHTML(cName)}')">
+                      <img class="profile-avatar pp-uc-avatar css-18bnokj" src="${cAvatar}" alt="${this.escapeHTML(cName)}" onerror="SConnect.handleAvatarError(this)">
+                    </div>
+                    <div class="creator-names-wrap profile-info-stack-inner css-8g8ihq">
+                      <div class="profile-info-stack-inner-flex css-70qvj9">
+                        <h1 class="creator-display-name profile-title-heading pp-uc-title css-o5an2m">${this.escapeHTML(cName)}</h1>
+                        <div class="creator-meta-sub">@${this.escapeHTML(cHandle)}</div>
                       </div>
                     </div>
+                  </div>
 
-                    <div class="creator-header-right">
-                      <div class="creator-stats-bar">
-                        <div class="creator-stat-box pp-uc-followers-count profile-followers-count">
-                          <span class="creator-stat-val">${this.formatNumber(creator.followers)}</span>
-                          <span class="creator-stat-lbl">Followers</span>
-                        </div>
-                        <div class="creator-stat-box pp-pg-total">
-                          <span class="creator-stat-val">${bots.length}</span>
-                          <span class="creator-stat-lbl">Characters</span>
-                        </div>
+                  <div class="creator-header-right">
+                    <div class="creator-stats-bar">
+                      <div class="creator-stat-box pp-uc-followers-count profile-followers-count">
+                        <span class="creator-stat-val">${this.formatNumber(followersCount)}</span>
+                        <span class="creator-stat-lbl">Followers</span>
                       </div>
-                      <div class="profile-uc-follow-flex css-1vakbk4">
-                        <button class="follow-toggle-btn profile-uc-follow-button pp-uc-follow-button Btn ${isFollowing ? 'is-following' : ''}" onclick="SConnect.toggleFollowCreator('${creator.id}', this)">
-                          ${isFollowing ? ICONS.check : '+'}
-                          <span>${isFollowing ? 'Following' : 'Follow Creator'}</span>
-                        </button>
+                      <div class="creator-stat-box pp-pg-total">
+                        <span class="creator-stat-val">${totalCards}</span>
+                        <span class="creator-stat-lbl">Characters</span>
                       </div>
+                    </div>
+                    <div class="profile-uc-follow-flex css-1vakbk4">
+                      <button class="follow-toggle-btn profile-uc-follow-button pp-uc-follow-button Btn ${isFollowing ? 'is-following' : ''}" onclick="SConnect.toggleFollowCreator('${creator.id}', this)">
+                        ${isFollowing ? ICONS.check : '+'}
+                        <span>${isFollowing ? 'Following' : 'Follow Creator'}</span>
+                      </button>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <!-- Creator Bio Dossier with Full Rich HTML/Markdown Parsing (.profile-about-me / .pp-uc-about-me / .css-1bn1yyx) -->
-            ${creator.bio ? `
-              <div class="creator-bio-card profile-about-me pp-uc-about-me css-1bn1yyx">
-                <div class="detail-panel-body creator-bio-body">
-                  ${this.renderRichText(creator.bio)}
-                </div>
-              </div>
-            ` : ''}
-
-            <!-- Authored Characters Grid (.profile-page-container-flex-box / .pp-cc-list-container / .css-1bx5ylf) -->
-            <div class="section-header">
-              <div class="section-title-wrap">
-                <h2 class="section-title">Characters by ${cName}</h2>
-                <span class="section-subtitle">${bots.length} publicly available cards</span>
+          <!-- Creator Bio Dossier with Full Rich HTML/Markdown Parsing (.profile-about-me / .pp-uc-about-me / .css-1bn1yyx) -->
+          ${creator.bio ? `
+            <div class="creator-bio-card profile-about-me pp-uc-about-me css-1bn1yyx">
+              <div class="detail-panel-body creator-bio-body">
+                ${this.renderRichText(creator.bio)}
               </div>
             </div>
+          ` : ''}
 
-            <div class="bot-cards-grid pp-cc-list-container profile-page-container-flex-box css-1bx5ylf">
-              ${bots.map((b, i) => this.renderBotCardHTML(b, i)).join('')}
+          <!-- Authored Characters Grid (.profile-page-container-flex-box / .pp-cc-list-container / .css-1bx5ylf) -->
+          <div class="section-header">
+            <div class="section-title-wrap">
+              <h2 class="section-title">Characters by ${this.escapeHTML(cName)}</h2>
+              <span class="section-subtitle">${bots.length < totalCards ? `${bots.length} of ${totalCards} publicly available cards` : `${bots.length} publicly available cards`}</span>
             </div>
           </div>
-        `;
-      } catch (e) {
-        container.innerHTML = `<div class="bot-detail-page"><button class="back-nav-btn" onclick="SConnect.navigateBack()">${ICONS.back} <span>Back</span></button><div style="color:var(--c-amber); padding:40px;">Creator not found.</div></div>`;
-      }
+
+          <div class="bot-cards-grid pp-cc-list-container profile-page-container-flex-box css-1bx5ylf">
+            ${bots.length > 0 
+              ? bots.map((b, i) => this.renderBotCardHTML(b, i)).join('')
+              : `<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--c-text-muted);">No cards loaded yet for this creator.</div>`
+            }
+          </div>
+        </div>
+      `;
     },
 
     // -------------------------------------------------------------------------
@@ -3013,6 +3299,22 @@
         creatorMeta = this.activeCreator;
       }
 
+      if ((!creatorMeta.displayName || this.isUuid(creatorMeta.displayName) || !creatorMeta.avatar) && this.botCache) {
+        for (const [_, b] of this.botCache) {
+          if ((b.creator_id === creatorId || (b.creator && b.creator.id === creatorId)) && b.author && !this.isUuid(b.author)) {
+            creatorMeta = {
+              ...creatorMeta,
+              id: creatorId,
+              name: b.author,
+              displayName: b.author,
+              username: b.creator?.username || b.author,
+              avatar: b.creator_avatar || b.creator?.avatar || creatorMeta.avatar || ''
+            };
+            break;
+          }
+        }
+      }
+
       if (isFollowing) {
         this.followingCreatorIds.delete(creatorId);
         if (btn) {
@@ -3029,20 +3331,25 @@
           btn.classList.add('is-following');
           btn.innerHTML = `${ICONS.check} <span>Following</span>`;
         }
+        if (creatorMeta && creatorMeta.id) {
+          this.cacheCreator(creatorMeta);
+        }
         // Explicit atomic save in cloud and SQLite
+        const payloadName = creatorMeta.displayName || creatorMeta.name;
         fetch(`/api/connect/creators/${encodeURIComponent(creatorId)}/follow`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: creatorId,
-            name: creatorMeta.name || creatorMeta.displayName || creatorId,
-            username: creatorMeta.username || creatorId,
+            name: (payloadName && !this.isUuid(payloadName)) ? payloadName : 'Creator',
+            username: (creatorMeta.username && !this.isUuid(creatorMeta.username)) ? creatorMeta.username : 'creator',
             avatar: creatorMeta.avatar || '',
             bio: creatorMeta.bio || ''
           })
         }).catch(() => {});
       }
       localStorage.setItem('s_connect_following', JSON.stringify(Array.from(this.followingCreatorIds)));
+      this._cachedFollowingBots = null;
 
       // Reactive cloud sync to Supabase
       window.dispatchEvent(new CustomEvent('singularity-cloud-sync-needed'));
@@ -5744,7 +6051,19 @@
 
     stripHTML(html) {
       if (!html) return '';
-      return String(html).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      return String(html)
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&bull;/gi, '•')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
     },
 
     escapeHTML(str) {

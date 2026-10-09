@@ -420,6 +420,55 @@ def _create_tables() -> None:
             );
         """)
         conn.execute("""
+            CREATE TABLE IF NOT EXISTS connect_creators (
+                creator_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL DEFAULT '',
+                display_name TEXT NOT NULL DEFAULT '',
+                avatar_url TEXT NOT NULL DEFAULT '',
+                bio TEXT NOT NULL DEFAULT '',
+                followers INTEGER NOT NULL DEFAULT 0,
+                total_bots INTEGER NOT NULL DEFAULT 0,
+                badges_json TEXT NOT NULL DEFAULT '[]',
+                style_json TEXT NOT NULL DEFAULT '{}',
+                raw_payload_json TEXT NOT NULL DEFAULT '{}',
+                updated_at REAL NOT NULL DEFAULT 0.0
+            );
+        """)
+        conn.execute("""
+            INSERT OR IGNORE INTO connect_creators (
+                creator_id, username, display_name, avatar_url, bio, followers, total_bots, updated_at
+            )
+            SELECT 
+                creator_id, 
+                creator_name, 
+                creator_name, 
+                creator_avatar, 
+                'JanitorAI author with ' || count(*) || ' character cards', 
+                0, 
+                count(*), 
+                strftime('%s', 'now')
+            FROM connect_cards 
+            WHERE length(creator_id) > 0 
+            GROUP BY creator_id
+        """)
+        conn.execute("""
+            UPDATE connect_creators 
+            SET avatar_url = REPLACE(avatar_url, '/bot-avatars/', '/avatars/')
+            WHERE avatar_url LIKE '%/bot-avatars/%'
+        """)
+        conn.execute("""
+            UPDATE connect_cards 
+            SET creator_avatar = REPLACE(creator_avatar, '/bot-avatars/', '/avatars/')
+            WHERE creator_avatar LIKE '%/bot-avatars/%'
+        """)
+        conn.execute("""
+            UPDATE connect_creators 
+            SET bio = ''
+            WHERE bio LIKE 'Creator of %' OR bio LIKE 'JanitorAI author of %'
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_connect_cards_creator ON connect_cards(creator_id);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_connect_cards_updated ON connect_cards(updated_at DESC);")
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS custom_voices (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 voice_id TEXT UNIQUE NOT NULL,
@@ -972,7 +1021,102 @@ def parse_credential(provider: str, raw: str) -> Optional[Dict[str, Any]]:
             "metadata": json.dumps(metadata),
         }
 
+    # 11. Xiaomi MiMo AI
+    elif provider in ("mimo", "xiaomi", "xiaomimimo"):
+        raw_str = raw.strip()
+        if raw_str.lower().startswith("cookie:"):
+            raw_str = raw_str[7:].strip()
+        raw_str = re.sub(r'[\r\n]+', '; ', raw_str)
+
+        st = ""
+        uid = ""
+        ph = ""
+        pass_token = ""
+
+        if raw_str.startswith("{") or raw_str.startswith("["):
+            try:
+                d = json.loads(raw_str)
+                if isinstance(d, dict):
+                    st = d.get("serviceToken") or d.get("token") or d.get("accessToken") or ""
+                    uid = str(d.get("userId") or d.get("user_id") or d.get("uid") or "")
+                    ph = d.get("xiaomichatbot_ph") or ""
+                    pass_token = d.get("passToken") or ""
+                    if "cookies" in d and isinstance(d["cookies"], list):
+                        for c in d["cookies"]:
+                            if isinstance(c, dict):
+                                n, v = c.get("name"), c.get("value")
+                                if n == "serviceToken": st = v
+                                elif n == "userId": uid = str(v)
+                                elif n == "xiaomichatbot_ph": ph = v
+                                elif n == "passToken": pass_token = v
+                elif isinstance(d, list):
+                    for c in d:
+                        if isinstance(c, dict):
+                            n, v = c.get("name"), c.get("value")
+                            if n == "serviceToken": st = v
+                            elif n == "userId": uid = str(v)
+                            elif n == "xiaomichatbot_ph": ph = v
+                            elif n == "passToken": pass_token = v
+            except Exception:
+                pass
+
+        if not st:
+            st_m = re.search(r"(?:xiaomichatbot_)?serviceToken=([^;\s&]+)", raw_str)
+            if st_m:
+                st = st_m.group(1).strip()
+            elif len(raw_str) > 30 and not raw_str.startswith("{") and "=" not in raw_str:
+                st = raw_str.strip()
+
+        if not uid:
+            uid_m = re.search(r"userId=([^;\s&]+)", raw_str)
+            if uid_m:
+                uid = uid_m.group(1).strip()
+
+        if not ph:
+            ph_m = re.search(r"xiaomichatbot_ph=([^;\s&]+)", raw_str)
+            if ph_m:
+                ph = ph_m.group(1).strip()
+
+        if not pass_token:
+            pass_m = re.search(r"passToken=([^;\s&]+)", raw_str)
+            if pass_m:
+                pass_token = pass_m.group(1).strip()
+
+        def _clean_c(val: str) -> str:
+            s = str(val or "").strip()
+            if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+                s = s[1:-1].strip()
+            return s
+
+        st = _clean_c(st)
+        uid = _clean_c(uid)
+        ph = _clean_c(ph)
+        pass_token = _clean_c(pass_token)
+
+        identifier = (uid or (f"mimo_{st[:16]}" if st else f"mimo_{raw_str[:16]}")).strip().lower()
+        name = f"Xiaomi MiMo ({uid})" if uid else f"MiMo ({identifier[:10]}...)"
+        metadata = {
+            "serviceToken": st,
+            "userId": uid,
+            "xiaomichatbot_ph": ph,
+            "passToken": pass_token,
+            "has_pass_token": bool(pass_token),
+        }
+        if not ph:
+            metadata["warning"] = "Missing xiaomichatbot_ph cookie. MiMo chat endpoints require xiaomichatbot_ph."
+
+        return {
+            "provider": "mimo",
+            "identifier": identifier,
+            "name": name,
+            "token": raw_str,
+            "plan": "Xiaomi AI Studio",
+            "status": "active",
+            "metadata": json.dumps(metadata),
+        }
+
     return None
+
 
 
 # ==============================================================================
@@ -1045,6 +1189,20 @@ def save_account(
         conn.commit()
 
     return True, f"Saved account '{final_name}' for {provider}."
+
+
+def add_account(provider: str, credential_or_raw: Any) -> Tuple[bool, str]:
+    """Helper to save an account given either a raw string or parsed dict."""
+    if isinstance(credential_or_raw, dict):
+        raw = credential_or_raw.get("token") or json.dumps(credential_or_raw)
+        return save_account(
+            provider,
+            raw,
+            name=credential_or_raw.get("name"),
+            plan=credential_or_raw.get("plan"),
+            status=credential_or_raw.get("status", "active"),
+        )
+    return save_account(provider, str(credential_or_raw))
 
 
 def save_accounts(provider: str, items: List[str]) -> Tuple[int, int]:
@@ -1173,6 +1331,7 @@ def export_all_json() -> Dict[str, Any]:
         "qwen": [],
         "antigravity": [],
         "aistudio": [],
+        "mimo": [],
     }
 
     for acc in accounts:
@@ -3024,6 +3183,22 @@ def list_connect_cards(
         return [_format_connect_card_row(dict(r)) for r in rows]
 
 
+def get_connect_cards_by_creators(creator_ids: List[str], limit: int = 60) -> List[Dict[str, Any]]:
+    """Retrieve character cards authored by a list of creator IDs."""
+    if not creator_ids:
+        return []
+    clean_ids = [str(c).strip() for c in creator_ids if str(c).strip()]
+    if not clean_ids:
+        return []
+    placeholders = ",".join(["?"] * len(clean_ids))
+    with closing(get_db_connection()) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM connect_cards WHERE creator_id IN ({placeholders}) ORDER BY created_at DESC, updated_at DESC LIMIT ?",
+            (*clean_ids, limit)
+        ).fetchall()
+        return [_format_connect_card_row(dict(r)) for r in rows]
+
+
 def delete_connect_card(bot_id: str) -> bool:
     """Delete a stored card from vault."""
     clean_id = str(bot_id or "").strip()
@@ -3124,6 +3299,147 @@ def _format_connect_card_row(r: Dict[str, Any]) -> Dict[str, Any]:
         "created_at": r["created_at"],
         "updated_at": r["updated_at"]
     }
+
+
+def save_creator_profile(creator: Dict[str, Any]) -> None:
+    """Insert or update a creator profile in the S-Connect vault."""
+    if not creator or not isinstance(creator, dict):
+        return
+    cid = str(creator.get("id") or creator.get("creator_id") or "").strip()
+    if not cid:
+        return
+    username = str(creator.get("username") or creator.get("user_name") or creator.get("displayName") or creator.get("name") or "").strip()
+    display_name = str(creator.get("displayName") or creator.get("display_name") or creator.get("user_name") or creator.get("username") or creator.get("name") or "").strip()
+    avatar_url = str(creator.get("avatar") or creator.get("avatar_url") or creator.get("creator_avatar") or "").strip()
+    if "/bot-avatars/" in avatar_url:
+        avatar_url = avatar_url.replace("/bot-avatars/", "/avatars/")
+    bio = str(creator.get("bio") or creator.get("about_me") or "").strip()
+    try:
+        followers = int(creator.get("followers") or creator.get("followers_count") or 0)
+    except Exception:
+        followers = 0
+    try:
+        total_bots = int(creator.get("totalBots") or creator.get("total_bots") or len(creator.get("bots") or []) or 0)
+    except Exception:
+        total_bots = 0
+
+    badges = creator.get("badges") or []
+    style = creator.get("style") or {}
+    now = time.time()
+
+    with closing(get_db_connection()) as conn:
+        conn.execute("""
+            INSERT INTO connect_creators (
+                creator_id, username, display_name, avatar_url, bio,
+                followers, total_bots, badges_json, style_json,
+                raw_payload_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(creator_id) DO UPDATE SET
+                username = CASE WHEN length(excluded.username) > 0 AND excluded.username != excluded.creator_id THEN excluded.username ELSE connect_creators.username END,
+                display_name = CASE WHEN length(excluded.display_name) > 0 AND excluded.display_name != excluded.creator_id THEN excluded.display_name ELSE connect_creators.display_name END,
+                avatar_url = CASE WHEN length(excluded.avatar_url) > 0 THEN excluded.avatar_url ELSE connect_creators.avatar_url END,
+                bio = CASE 
+                    WHEN (excluded.bio LIKE 'Creator of %' OR excluded.bio LIKE 'JanitorAI author of %' OR length(excluded.bio) = 0) AND length(connect_creators.bio) > 0 AND connect_creators.bio NOT LIKE 'Creator of %' AND connect_creators.bio NOT LIKE 'JanitorAI author of %' THEN connect_creators.bio
+                    WHEN length(excluded.bio) > 0 THEN excluded.bio 
+                    ELSE connect_creators.bio 
+                END,
+                followers = CASE WHEN excluded.followers > 0 THEN excluded.followers ELSE connect_creators.followers END,
+                total_bots = CASE WHEN excluded.total_bots > 0 THEN excluded.total_bots ELSE connect_creators.total_bots END,
+                badges_json = CASE WHEN length(excluded.badges_json) > 2 THEN excluded.badges_json ELSE connect_creators.badges_json END,
+                style_json = CASE WHEN length(excluded.style_json) > 2 THEN excluded.style_json ELSE connect_creators.style_json END,
+                raw_payload_json = CASE WHEN length(excluded.raw_payload_json) > 2 THEN excluded.raw_payload_json ELSE connect_creators.raw_payload_json END,
+                updated_at = excluded.updated_at
+        """, (
+            cid,
+            username or cid,
+            display_name or cid,
+            avatar_url,
+            bio,
+            followers,
+            total_bots,
+            json.dumps(badges) if isinstance(badges, list) else "[]",
+            json.dumps(style) if isinstance(style, dict) else "{}",
+            json.dumps(creator),
+            now
+        ))
+        conn.commit()
+
+
+def get_creator_profile(creator_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve creator profile from vault, or synthesize from authored cards if available."""
+    cid = str(creator_id or "").strip()
+    if not cid:
+        return None
+    with closing(get_db_connection()) as conn:
+        r = conn.execute("SELECT * FROM connect_creators WHERE creator_id = ?", (cid,)).fetchone()
+        if r:
+            row = dict(r)
+            badges = []
+            try:
+                badges = json.loads(row.get("badges_json") or "[]")
+            except Exception:
+                pass
+            style = {}
+            try:
+                style = json.loads(row.get("style_json") or "{}")
+            except Exception:
+                pass
+            av = str(row["avatar_url"] or "")
+            if "/bot-avatars/" in av:
+                av = av.replace("/bot-avatars/", "/avatars/")
+            return {
+                "id": row["creator_id"],
+                "username": row["username"] or cid,
+                "displayName": row["display_name"] or row["username"] or cid,
+                "avatar": av,
+                "bio": row["bio"],
+                "followers": row["followers"],
+                "totalBots": row["total_bots"],
+                "badges": badges,
+                "style": style,
+                "raw_payload_json": row.get("raw_payload_json") or "{}",
+                "updated_at": row["updated_at"]
+            }
+
+        # Fallback: synthesize in-memory from connect_cards without polluting vault
+        card_row = conn.execute("""
+            SELECT creator_name, creator_avatar, count(*) as bot_cnt 
+            FROM connect_cards 
+            WHERE creator_id = ? 
+            GROUP BY creator_id
+        """, (cid,)).fetchone()
+        if card_row and (card_row["creator_name"] or card_row["creator_avatar"]):
+            syn_av = str(card_row["creator_avatar"] or "")
+            if "/bot-avatars/" in syn_av:
+                syn_av = syn_av.replace("/bot-avatars/", "/avatars/")
+            return {
+                "id": cid,
+                "username": card_row["creator_name"] or cid,
+                "displayName": card_row["creator_name"] or cid,
+                "avatar": syn_av,
+                "bio": f"JanitorAI creator with {card_row['bot_cnt']} authored cards",
+                "followers": 0,
+                "totalBots": card_row["bot_cnt"],
+                "badges": [],
+                "style": {},
+                "updated_at": time.time()
+            }
+    return None
+
+
+def get_creator_profiles_batch(creator_ids: List[str]) -> List[Dict[str, Any]]:
+    """Batch fetch creator profiles."""
+    results = []
+    seen = set()
+    for cid in creator_ids:
+        clean = str(cid or "").strip()
+        if not clean or clean in seen:
+            continue
+        seen.add(clean)
+        p = get_creator_profile(clean)
+        if p:
+            results.append(p)
+    return results
 
 
 def save_connect_intercept(intercept: Dict[str, Any]) -> int:
@@ -3358,6 +3674,7 @@ def get_full_connect_sync_payload() -> Dict[str, Any]:
     saved_bots = get_connect_vault_val("saved_bots", [])
     following = get_connect_vault_val("following", [])
     active_chats = get_connect_vault_val("active_chats", {})
+    creator_profiles = get_creator_profiles_batch(following)
 
     return {
         "version": 2,
@@ -3367,6 +3684,7 @@ def get_full_connect_sync_payload() -> Dict[str, Any]:
         "active_persona_id": active_persona_id,
         "saved_bots": saved_bots,
         "following": following,
+        "creator_profiles": creator_profiles,
         "active_chats": active_chats
     }
 
@@ -3398,6 +3716,11 @@ def merge_connect_sync_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         local_following = set(get_connect_vault_val("following", []))
         local_following.update(payload["following"])
         set_connect_vault_val("following", list(local_following))
+
+    if "creator_profiles" in payload and isinstance(payload["creator_profiles"], list):
+        for cp in payload["creator_profiles"]:
+            if isinstance(cp, dict) and (cp.get("id") or cp.get("creator_id")):
+                save_creator_profile(cp)
 
     if "active_chats" in payload and isinstance(payload["active_chats"], dict):
         local_active = get_connect_vault_val("active_chats", {})

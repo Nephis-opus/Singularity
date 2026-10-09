@@ -23,6 +23,8 @@ from .qwen import stream_qwen_chat, generate_qwen_chat
 from .openai_compat import stream_openai_compat_chat
 from .antigravity import stream_antigravity_chat, generate_antigravity_chat
 from .aistudio import stream_aistudio_chat, generate_aistudio_chat, generate_aistudio_speech
+from .mimo import stream_mimo_chat, generate_mimo_chat, generate_mimo_speech
+
 
 
 async def stream_chat(
@@ -140,6 +142,13 @@ async def stream_chat(
         async for chunk in _aistudio_mod.stream_aistudio_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
             yield chunk
         return
+
+    # 11. Xiaomi MiMo AI
+    if pid in ("mimo", "xiaomi", "xiaomimimo"):
+        async for chunk in stream_mimo_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
+            yield chunk
+        return
+
 
     # Fallback for providers undergoing direct bridge configuration
     chat_id = f"chatcmpl-{pid}-{uuid.uuid4().hex[:12]}"

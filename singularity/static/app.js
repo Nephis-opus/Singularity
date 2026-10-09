@@ -1219,7 +1219,8 @@ function initClaudeSettings() {
       { id: 'kimi', name: 'Moonshot Kimi', meta: 'Kimi K2.5, K1.5 Long Context & Research', icon: '/static/icons/kimi.svg' },
       { id: 'glm', name: 'Zhipu GLM', meta: 'GLM-5, GLM-4 Plus & Flash', icon: '/static/icons/glm.svg' },
       { id: 'qwen', name: 'Alibaba Qwen', meta: 'Qwen 2.5 Max, QwQ 32B Reasoner', icon: '/static/icons/qwen.svg' },
-      { id: 'antigravity', name: 'DeepMind Antigravity', meta: 'Claude Opus 5.5, Sonnet 5.5, Gemini 3.8 Flash, GPT-OSS', icon: '/static/icons/antigravity.svg' }
+      { id: 'antigravity', name: 'DeepMind Antigravity', meta: 'Claude Opus 5.5, Sonnet 5.5, Gemini 3.8 Flash, GPT-OSS', icon: '/static/icons/antigravity.svg' },
+      { id: 'mimo', name: 'Xiaomi MiMo AI', meta: 'MiMo-V2.6-Pro Reasoning, MiMo-V2.6-Flash, TTS & ASR', icon: '/static/icons/mimo.svg' }
     ];
 
     connectorsGrid.innerHTML = providers.map(p => `
@@ -1468,6 +1469,8 @@ function renderServices() {
       deepseek: '/static/icons/deepseek.svg',
       qwen: '/static/icons/qwen.svg',
       antigravity: '/static/icons/antigravity.svg',
+      aistudio: '/static/icons/aistudio.svg',
+      mimo: '/static/icons/mimo.svg',
     };
     const iconUrl = providerIcons[srv.id] || '/logo.svg';
 
@@ -2075,6 +2078,7 @@ const PROVIDER_METAS = {
   qwen: { name: 'Qwen', icon: '/static/icons/qwen.svg' },
   antigravity: { name: 'Antigravity', icon: '/static/icons/antigravity.svg' },
   aistudio: { name: 'AI Studio', icon: '/static/icons/aistudio.svg' },
+  mimo: { name: 'Xiaomi MiMo', icon: '/static/icons/mimo.svg' },
   external: { name: 'API Connections', icon: '/static/icons/chatgpt.svg' },
 };
 
@@ -2090,7 +2094,7 @@ function initModelFilters() {
       pills.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      if (['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'antigravity', 'aistudio', 'external'].includes(filter)) {
+      if (['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'antigravity', 'aistudio', 'mimo', 'external'].includes(filter)) {
         const sec = document.getElementById(`models-section-${filter}`);
         const viewport = document.querySelector('.panel-viewport');
         if (sec && viewport) {
@@ -2247,7 +2251,7 @@ function renderModels() {
     return true;
   });
 
-  const providerOrder = ['antigravity', 'aistudio', 'chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'external'];
+  const providerOrder = ['antigravity', 'aistudio', 'mimo', 'chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'external'];
   const grouped = {};
   providerOrder.forEach(p => grouped[p] = []);
 
@@ -2604,26 +2608,25 @@ const TOKEN_GUIDES = {
     steps: [
       {
         num: '1',
-        text: 'Sign in to your Google Account at <a href="https://one.google.com/ai" target="_blank" rel="noopener" class="token-guide-link">one.google.com/ai</a> or launch <strong>Google Antigravity IDE</strong> and sign into your account.'
+        text: '<strong>1-Click Google OAuth Sign-In (Recommended for 1 or Multiple Accounts):</strong><br>' +
+              '<div style="margin-top:9px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">' +
+              '  <button type="button" class="btn btn-primary btn-sm" id="btn-oauth-login-antigravity" style="padding: 7px 15px; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; background: linear-gradient(135deg, #ea4335 0%, #d97757 100%); border: 1px solid rgba(234,67,53,0.3); border-radius: 6px; box-shadow: 0 2px 8px rgba(234,67,53,0.25); cursor: pointer; color: #fff;">' +
+              '    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>' +
+              '    <span>Connect Google Account</span>' +
+              '  </button>' +
+              '  <button type="button" class="btn btn-secondary btn-sm" id="btn-autofetch-antigravity" style="padding: 6px 12px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: var(--text-secondary); border-radius: 6px;">' +
+              '    ⚡ Auto-Detect Local IDE' +
+              '  </button>' +
+              '</div>' +
+              '<div style="font-size: 11.5px; color: var(--text-muted); margin-top: 7px; line-height: 1.45;">Click <strong>Connect Google Account</strong> to sign in. Repeat for each of your accounts (Account #1, #2, #3, #4) &mdash; each is automatically saved to your vault with quota failover!</div>'
       },
       {
         num: '2',
-        text: 'Obtain your Google Cloud Code OAuth session using any of these simple methods:<br>' +
-              '<div style="margin-top:7px; display:flex; flex-direction:column; gap:7px;">' +
-              '  <div><strong>Method A (1-Click Local Auto-Detect):</strong> If Antigravity IDE or Gemini is installed on this PC, click <button type="button" class="btn btn-secondary btn-sm" id="btn-autofetch-antigravity" style="padding: 2px 9px; font-size: 11px; margin-left: 4px; display:inline-flex; align-items:center; gap:4px; vertical-align:middle; cursor:pointer; background:rgba(217,119,87,0.15); border:1px solid var(--brand-primary); color:var(--brand-primary); font-weight:600; border-radius:4px;">⚡ Auto-Detect Local Token</button> to immediately import your session.</div>' +
-              '  <div><strong>Method B (Credential File):</strong> Open your local storage file and copy the text:<br>' +
-              '    <span style="font-size:11.5px; color:var(--text-muted); line-height:1.5;">' +
-              '      &bull; <strong>Windows:</strong> <code>%APPDATA%\\Antigravity\\User\\globalStorage\\state.vscdb</code> or <code>%USERPROFILE%\\.gemini\\oauth_creds.json</code><br>' +
-              '      &bull; <strong>Linux / Termux:</strong> <code>~/.config/Antigravity/User/globalStorage/state.vscdb</code> or <code>~/.gemini/oauth_creds.json</code><br>' +
-              '      &bull; <strong>macOS:</strong> <code>~/Library/Application Support/Antigravity/User/globalStorage/state.vscdb</code>' +
-              '    </span>' +
-              '  </div>' +
-              '  <div><strong>Method C (Browser OAuth Login):</strong> Log in directly via the official <a href="' + ('https://accounts.google.com/o/oauth2/v2/auth?client_id=' + '1b1a1d1b1a1a1c1a1c1a1f131b075e4742595943441842181b4649584f18191f5c5e45464540421e4d1e1a194f5a044b5a5a59044d45454d464f5f594f584945445e4f445e04494547'.match(/.{2}/g).map(b => String.fromCharCode(parseInt(b, 16) ^ 42)).join('') + '&redirect_uri=http%3A%2F%2Flocalhost%3A51121%2Foauth-callback&response_type=code&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email%20openid&access_type=offline&prompt=consent') + '" target="_blank" rel="noopener" class="token-guide-link">Google Cloud Code Sign-In Portal</a> in your browser.</div>' +
-              '</div>'
+        text: '<strong>Zero Manual Token Expiration:</strong> When you authorize in the Google window, Singularity automatically captures the OAuth session on port 51121, stores the refresh token into SQLite, and auto-refreshes access tokens every hour.'
       },
       {
         num: '3',
-        text: 'Paste your <code>refresh_token</code> (starts with <code>1//</code>), Bearer access token (starts with <code>ya29.</code>), or full JSON file dump into the box below and click <strong>Save & Stack</strong>.'
+        text: '<strong>Manual Entry (Optional):</strong> If you already have a <code>refresh_token</code> (starts with <code>1//</code>) or full JSON credentials dump, you can still paste it into the box below and click <strong>Save & Stack</strong>.'
       }
     ],
     rules: [
@@ -2670,6 +2673,44 @@ const TOKEN_GUIDES = {
         icon: 'cpu',
         title: 'Dual-Channel Failover',
         desc: 'Singularity balances between MakerSuite Build and Playground RPC pipelines for maximum rate limit resilience.'
+      }
+    ]
+  },
+  mimo: {
+    title: 'How to Connect Xiaomi MiMo AI Studio',
+    steps: [
+      {
+        num: '⚡',
+        text: '<strong>One-Click Auto-Discovery:</strong> Click the button below to auto-fetch your live Xiaomi MiMo session directly from your local browser cookies (Chrome, Brave, Edge, Firefox):<br><button class="btn btn-secondary btn-sm" id="btn-autofetch-mimo" style="margin-top: 8px; border-color: #FF6900; color: #FF6900;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg> <span>Auto-Fetch Local Browser Token</span></button>'
+      },
+      {
+        num: '1',
+        text: 'Alternatively, sign in to <a href="https://aistudio.xiaomimimo.com" target="_blank" rel="noopener" class="token-guide-link">aistudio.xiaomimimo.com</a> with your Xiaomi Account.'
+      },
+      {
+        num: '2',
+        text: 'Open DevTools (<kbd>F12</kbd>) &rarr; <strong>Application</strong> &rarr; <strong>Cookies</strong> &rarr; Copy <code>serviceToken</code>, <code>userId</code>, and <code>xiaomichatbot_ph</code>.'
+      },
+      {
+        num: '3',
+        text: '<strong>Permanent 24h Auto-Renewal:</strong> Also copy <code>passToken</code> from <a href="https://passport.xiaomi.com" target="_blank" rel="noopener" class="token-guide-link">passport.xiaomi.com</a>. Singularity will then auto-renew your 24h serviceToken seamlessly forever!'
+      }
+    ],
+    rules: [
+      {
+        icon: 'zap',
+        title: '1M Context Window & Deep Thinking',
+        desc: 'Unlocks flagship MiMo-V2.6-Pro with native reasoning traces, 1M context, and MiMo-V2.6-Flash ultra-fast inference.'
+      },
+      {
+        icon: 'volume-2',
+        title: 'High-Fidelity Neural Speech & ASR',
+        desc: 'Supports MiMo-V2.5-TTS expressive voice synthesis and MiMo-V2.5-ASR voice transcription.'
+      },
+      {
+        icon: 'shield',
+        title: 'Automatic Background Renewal',
+        desc: 'When passToken is provided or auto-detected, Singularity automatically exchanges it for fresh 24h serviceTokens.'
       }
     ]
   }
@@ -2757,6 +2798,11 @@ async function loadCookiesTab() {
       desc: 'Paste Google AI Studio cookie header (__Secure-1PSID=...; SAPISID=...), Playwright storageState JSON, or AI Studio API key.',
       placeholder: 'Paste Google AI Studio cookies, API key, or storageState dump...',
     },
+    mimo: {
+      title: 'Xiaomi MiMo Account Stacker',
+      desc: 'Paste Xiaomi MiMo cookies (serviceToken=...; xiaomichatbot_ph=...; passToken=...) or click Auto-Fetch.',
+      placeholder: 'serviceToken=...; userId=...; xiaomichatbot_ph=...; passToken=...',
+    },
   }[p] || { title: 'Account Stacker', desc: '', placeholder: '' };
 
   title.textContent = meta.title;
@@ -2815,6 +2861,74 @@ async function loadCookiesTab() {
         </div>
       `;
 
+      const btnOAuthAgy = document.getElementById('btn-oauth-login-antigravity');
+      if (btnOAuthAgy) {
+        btnOAuthAgy.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const origHtml = btnOAuthAgy.innerHTML;
+          btnOAuthAgy.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            <span>Opening Google Sign-In...</span>
+          `;
+          btnOAuthAgy.disabled = true;
+          try {
+            const resp = await fetch('/api/antigravity/oauth/start', { method: 'POST' });
+            const data = await resp.json();
+            if (data.ok && data.url) {
+              showToast('Google Sign-In opened. Select your account to link.', 'info');
+              const authWin = window.open(data.url, 'GoogleOAuth', 'width=620,height=750,status=no,resizable=yes');
+              
+              const startTime = Date.now();
+              let pollTimer = null;
+
+              const cleanup = () => {
+                if (pollTimer) clearInterval(pollTimer);
+                window.removeEventListener('message', onMsg);
+                btnOAuthAgy.innerHTML = origHtml;
+                btnOAuthAgy.disabled = false;
+              };
+
+              const onMsg = async (ev) => {
+                if (ev.data && ev.data.type === 'antigravity_oauth_success') {
+                  cleanup();
+                  showToast(`Google account (${ev.data.email || 'connected'}) stacked into vault!`, 'success');
+                  await loadCookiesTab();
+                }
+              };
+              window.addEventListener('message', onMsg);
+
+              pollTimer = setInterval(async () => {
+                if (Date.now() - startTime > 180000) {
+                  cleanup();
+                  return;
+                }
+                try {
+                  const stResp = await fetch('/api/antigravity/oauth/status');
+                  const stData = await stResp.json();
+                  if (stData.latest && stData.latest.timestamp && (stData.latest.timestamp * 1000) >= (startTime - 2000)) {
+                    cleanup();
+                    showToast(`Google account (${stData.latest.email}) stacked into vault!`, 'success');
+                    if (authWin && !authWin.closed) {
+                      try { authWin.close(); } catch(_) {}
+                    }
+                    await loadCookiesTab();
+                  }
+                } catch (_) {}
+              }, 1500);
+
+            } else {
+              showToast('Could not start OAuth: ' + (data.message || 'Unknown error'), 'error');
+              btnOAuthAgy.innerHTML = origHtml;
+              btnOAuthAgy.disabled = false;
+            }
+          } catch (err) {
+            showToast('OAuth Error: ' + err.message, 'error');
+            btnOAuthAgy.innerHTML = origHtml;
+            btnOAuthAgy.disabled = false;
+          }
+        });
+      }
+
       const btnAutoFetchAgy = document.getElementById('btn-autofetch-antigravity');
       if (btnAutoFetchAgy) {
         btnAutoFetchAgy.addEventListener('click', async (e) => {
@@ -2842,6 +2956,37 @@ async function loadCookiesTab() {
           } finally {
             btnAutoFetchAgy.innerHTML = origText;
             btnAutoFetchAgy.disabled = false;
+          }
+        });
+      }
+
+      const btnAutoMimo = document.getElementById('btn-autofetch-mimo');
+      if (btnAutoMimo) {
+        btnAutoMimo.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const origText = btnAutoMimo.innerHTML;
+          btnAutoMimo.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            Scanning Browsers...
+          `;
+          btnAutoMimo.disabled = true;
+          try {
+            const resp = await fetch('/api/mimo/autofetch', { method: 'POST' });
+            const data = await resp.json();
+            if (data.ok) {
+              showToast(data.message || 'Xiaomi MiMo session auto-fetched & stacked!', 'success');
+              if (data.token) {
+                textarea.value = data.token;
+              }
+              await loadCookiesTab();
+            } else {
+              showToast(data.detail || data.message || 'No Xiaomi MiMo session found in local browser cookies.', 'warning');
+            }
+          } catch (err) {
+            showToast('Auto-fetch error: ' + err.message, 'error');
+          } finally {
+            btnAutoMimo.innerHTML = origText;
+            btnAutoMimo.disabled = false;
           }
         });
       }

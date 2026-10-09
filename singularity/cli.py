@@ -342,6 +342,28 @@ def cmd_limits(args):
         print_table(headers, rows)
     else:
         print("    No AI Studio accounts configured in vault (Auto-shares Gemini cookies if present).")
+
+    # 11. Xiaomi MiMo AI
+    mimo_obj = data.get("mimo", {})
+    mimo_accounts = mimo_obj.get("accounts", [])
+    print(f"\n[11] {mimo_obj.get('title', 'Xiaomi MiMo AI Studio Quotas')} ({len(mimo_accounts)} accounts)")
+    if mimo_accounts:
+        headers = ["Account / User", "Plan", "Status", "Renewal Mode", "Chat Quota", "Rate Limit", "Context Window", "Multimodal / Voice"]
+        rows = []
+        for a in mimo_accounts:
+            rows.append([
+                a.get("email", "—"),
+                a.get("type", "Xiaomi AI Studio"),
+                a.get("status", "Active"),
+                str(a.get("token_renewal", "Auto-Renewing")),
+                str(a.get("chat_quota", "Soft Fair Use")),
+                str(a.get("rate_limit", "10-15 req/min")),
+                str(a.get("context_window", "1M Tokens")),
+                str(a.get("multimodal", "Vision + TTS + ASR")),
+            ])
+        print_table(headers, rows)
+    else:
+        print("    No Xiaomi MiMo accounts configured in vault. Run './singular autofetch mimo' or paste in Cookie Stacker.")
     print()
 
 
@@ -906,6 +928,45 @@ def cmd_update(args):
         print(f"  [!] Auto-update error: {e}")
 
 
+def cmd_login(args):
+    """Authenticate and stack an account via official browser OAuth login flow."""
+    provider = (getattr(args, "provider", None) or "antigravity").lower().strip()
+    if provider in ("antigravity", "agy", "google", "google-antigravity"):
+        try:
+            from engines import antigravity
+        except ImportError:
+            from singularity.engines import antigravity
+        antigravity.start_oauth_listener()
+        oauth_url = antigravity.get_oauth_url()
+        print_header("⚡ SINGULARITY: GOOGLE ANTIGRAVITY OAUTH LOGIN")
+        print("  1. Opening official Google Sign-In in your default browser...")
+        print(f"     Direct Link:\n     {oauth_url}\n")
+        print("  2. Select your Google account and grant permissions.")
+        print(f"  3. Waiting for authentication callback on port {antigravity.OAUTH_PORT}...\n")
+        try:
+            import webbrowser
+            webbrowser.open(oauth_url)
+        except Exception:
+            pass
+
+        start_time = time.time()
+        while (time.time() - start_time) < 180:
+            latest = antigravity.get_latest_oauth_event()
+            if latest and latest.get("timestamp", 0) >= (start_time - 3):
+                accounts = db.get_accounts("antigravity")
+                print("=" * 70)
+                print(f"  [+] SUCCESS! Account '{latest.get('email')}' connected and saved to SQLite vault!")
+                print(f"  [+] Total Antigravity accounts stacked: {len(accounts)}")
+                print(f"  [+] Stack another account: ./singular login antigravity")
+                print(f"  [+] Test inference anytime: ./singular chat 'Hello' -m agy-gemini-3-8-flash")
+                print("=" * 70)
+                return
+            time.sleep(1)
+        print("[-] Login timed out (180s). Please try again or paste credentials manually.")
+    else:
+        print(f"[-] Browser login not currently supported for provider '{provider}'. Use './singular accounts {provider}' to manage.")
+
+
 def cmd_restart(args):
     """Restart Singularity gateway and Tavern Studio by clearing ports and launching server."""
     from server import free_listening_ports
@@ -916,6 +977,68 @@ def cmd_restart(args):
     print("  [✓] Ports successfully cleared. Launching gateway...\n", flush=True)
     # Clean exec replacement
     os.execv(sys.executable, [sys.executable, str(SCRIPT_DIR / "server.py")])
+
+
+def cmd_autofetch(args):
+    """Auto-discover tokens from local browsers (mimo, janitor, or antigravity)."""
+    target = (args.target or "mimo").lower().strip()
+    print_header(f"AUTO-FETCH BROWSER TOKENS ({target.upper()})")
+
+    if target in ("mimo", "xiaomi"):
+        try:
+            from mimo import auto_fetch_mimo_token
+        except ImportError:
+            from singularity.mimo import auto_fetch_mimo_token
+        print("  [*] Scanning local browser cookie vaults (Chrome, Brave, Edge, Firefox, Chromium)...")
+        res = auto_fetch_mimo_token(save_to_db=True)
+        if res.get("ok"):
+            print(f"  [✓] Successfully detected Xiaomi MiMo session from {res.get('browser')} ({res.get('profile', 'Default')})!")
+            print(f"  [✓] User ID    : {res.get('user_id') or '—'}")
+            print(f"  [✓] Token      : {res.get('token_masked')}")
+            print(f"  [✓] Auto-Renew : {'passToken Active (24h transparent refresh)' if res.get('has_pass_token') else 'serviceToken session'}")
+            print(f"  [✓] Saved into SQLite vault successfully!")
+            print(f"\n  Test chat inference:")
+            print(f"    ./singular chat \"Hello MiMo\" -m mimo-v2.6-pro")
+        else:
+            print(f"  [-] {res.get('detail', 'No active session found.')}")
+            print(f"  [TIP] Log into https://aistudio.xiaomimimo.com in Chrome, Brave, Edge, or Firefox, then re-run:")
+            print(f"    ./singular autofetch mimo")
+
+    elif target in ("janitor", "janitorai"):
+        try:
+            from janitor import auto_fetch_janitor_token
+        except ImportError:
+            from singularity.janitor import auto_fetch_janitor_token
+        print("  [*] Scanning browser cookies for JanitorAI auth tokens...")
+        res = auto_fetch_janitor_token()
+        if res.get("ok"):
+            print(f"  [✓] Successfully detected Janitor token from {res.get('browser')}!")
+            print(f"  [✓] Token: {res.get('token')[:16]}...")
+        else:
+            print(f"  [-] {res.get('detail', 'No token found.')}")
+
+    elif target in ("antigravity", "agy"):
+        try:
+            from engines import antigravity
+        except ImportError:
+            from singularity.engines import antigravity
+        print("  [*] Scanning local IDE storage and ~/.gemini credentials...")
+        creds = antigravity._load_local_fallback_credentials()
+        if creds:
+            saved = 0
+            for c in creds:
+                raw = c.get("token") or ""
+                if raw:
+                    parsed = db.parse_credential("antigravity", raw)
+                    if parsed:
+                        db.add_account("antigravity", parsed)
+                        saved += 1
+            print(f"  [✓] Successfully auto-detected and stacked {saved} Antigravity account(s) into vault!")
+        else:
+            print("  [-] No local Antigravity credentials found.")
+    else:
+        print(f"  [-] Unknown autofetch target '{target}'. Supported: mimo, janitor, antigravity")
+
 
 
 # ==============================================================================
@@ -999,6 +1122,14 @@ def main():
     p_key.add_argument("action", nargs="?", default="show", help="'show', 'rotate', or key string to set")
     p_key.add_argument("new_key", nargs="?", default=None, help="Key value when using 'set <key>'")
 
+    # login
+    p_login = subparsers.add_parser("login", help="Authenticate and stack account via official Google OAuth")
+    p_login.add_argument("provider", nargs="?", default="antigravity", help="Provider to login (default: antigravity)")
+
+    # autofetch
+    p_autofetch = subparsers.add_parser("autofetch", help="Auto-discover tokens from local browsers (mimo, janitor, antigravity)")
+    p_autofetch.add_argument("target", nargs="?", default="mimo", help="Target: mimo, janitor, or antigravity (default: mimo)")
+
     # update / upgrade
     subparsers.add_parser("update", help="Check and pull latest updates from repository")
     subparsers.add_parser("upgrade", help="Alias for update")
@@ -1010,6 +1141,10 @@ def main():
 
     if not args.subcommand or args.subcommand == "status":
         cmd_status(args if args.subcommand else argparse.Namespace(json=False))
+    elif args.subcommand == "login":
+        cmd_login(args)
+    elif args.subcommand == "autofetch":
+        cmd_autofetch(args)
     elif args.subcommand == "limits":
         cmd_limits(args)
     elif args.subcommand == "accounts":

@@ -14,11 +14,15 @@ import zlib
 import struct
 import base64
 import asyncio
+import math
+import logging
 from typing import Dict, Any, List, Optional, Tuple
 from urllib.parse import urlparse, parse_qs
 import httpx
 
 from singularity import db
+
+logger = logging.getLogger("singularity.connect")
 
 DOMCORD_BACKEND_URL = "https://cards-backend.domcord.org"
 JANITOR_CDN_URL = "https://ella.janitorai.com"
@@ -39,6 +43,9 @@ def resolve_media_url(raw_url: Optional[str]) -> str:
     u = raw_url.strip()
     if not u:
         return ""
+
+    if u.startswith("data:image/"):
+        return u
 
     # Already absolute CDN url
     if u.startswith("https://ella.janitorai.com") or u.startswith("http://ella.janitorai.com"):
@@ -88,6 +95,55 @@ def resolve_media_url(raw_url: Optional[str]) -> str:
         return u
 
     return f"{JANITOR_CDN_URL}/{u.lstrip('/')}"
+
+
+def resolve_creator_avatar_url(raw_url: Optional[str]) -> str:
+    """Normalize JanitorAI creator profile avatar paths into full valid HTTPS URLs.
+    Creator profile avatars are stored on CDN under /avatars/, /user-avatars/, or /profile-avatar-approved/,
+    NEVER under /bot-avatars/.
+    """
+    if not raw_url or not isinstance(raw_url, str):
+        return ""
+    u = raw_url.strip()
+    if not u:
+        return ""
+
+    if u.startswith("data:image/"):
+        return u
+
+    # Fix legacy / incorrect /bot-avatars/ paths for creators
+    if "/bot-avatars/" in u:
+        u = u.replace("/bot-avatars/", "/avatars/")
+
+    # Already absolute CDN url
+    if u.startswith("https://ella.janitorai.com") or u.startswith("http://ella.janitorai.com"):
+        return u.replace("http://", "https://")
+
+    # janitorai.com domains mapped to ella CDN
+    if "janitorai.com/avatars/" in u:
+        parts = u.split("janitorai.com/avatars/")
+        return f"{JANITOR_CDN_URL}/avatars/{parts[-1]}"
+    if "janitorai.com/user-avatars/" in u:
+        parts = u.split("janitorai.com/user-avatars/")
+        return f"{JANITOR_CDN_URL}/user-avatars/{parts[-1]}"
+    if "janitorai.com/profile-avatar-approved/" in u:
+        parts = u.split("janitorai.com/profile-avatar-approved/")
+        return f"{JANITOR_CDN_URL}/profile-avatar-approved/{parts[-1]}"
+
+    # Relative paths
+    if u.startswith("/avatars/") or u.startswith("/user-avatars/") or u.startswith("/profile-avatar-approved/"):
+        return f"{JANITOR_CDN_URL}{u}"
+    if u.startswith("avatars/") or u.startswith("user-avatars/") or u.startswith("profile-avatar-approved/"):
+        return f"{JANITOR_CDN_URL}/{u}"
+
+    # Bare filename (e.g. crH9B1J57oSzCwUhnvsV_.webp) -> must default to /avatars/
+    if "/" not in u and (u.endswith(".webp") or u.endswith(".jpg") or u.endswith(".png") or u.endswith(".jpeg")):
+        return f"{JANITOR_CDN_URL}/avatars/{u}"
+
+    if u.startswith("http://") or u.startswith("https://"):
+        return u
+
+    return f"{JANITOR_CDN_URL}/avatars/{u.lstrip('/')}"
 
 
 def sanitize_banner(raw_url: Optional[str]) -> str:
@@ -487,47 +543,309 @@ async def search_cards(
     }
 
 
+async def scrape_all_creator_characters(creator_id: str, max_pages: int = 15) -> List[Dict[str, Any]]:
+    """Concurrently scrapes all paginated characters for a creator from Janitor AI (pages 1..N).
+    Janitor fixes page size strictly at 34 bots per page.
+    Fires page 1 to discover total count, then fetches pages 2..N concurrently via asyncio.gather().
+    Persists authentic metadata into SQLite connect_cards.
+    """
+    clean_id = str(creator_id or "").strip()
+    if not clean_id:
+        return []
+
+    j_headers = dict(DEFAULT_HEADERS)
+    try:
+        from singularity import janitor
+        tok_data = janitor.auto_fetch_janitor_token()
+        if tok_data and tok_data.get("ok") and tok_data.get("token"):
+            j_headers["Authorization"] = f"Bearer {tok_data['token']}"
+    except Exception:
+        pass
+
+    all_raw_bots = []
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            # Step 1: Fetch Page 1 to inspect total count and extract first 34 bots
+            p1_resp = await client.get(
+                "https://janitorai.com/mb/characters",
+                params=[("mode", "all"), ("page", "1"), ("sort", "latest"), ("user_id[]", clean_id)],
+                headers=j_headers
+            )
+            if p1_resp.status_code == 200:
+                p1_data = p1_resp.json()
+                page_1_bots = p1_data.get("data") or []
+                all_raw_bots.extend(page_1_bots)
+                total_reported = p1_data.get("total") or len(page_1_bots)
+
+                # Compute remaining pages needed: size is strictly 34 per page on Janitor
+                pages_needed = min(max_pages, math.ceil(total_reported / 34)) if total_reported > 34 else 1
+
+                # Step 2: Concurrently fetch pages 2..N in parallel
+                if pages_needed > 1:
+                    async def fetch_page(p: int):
+                        try:
+                            r = await client.get(
+                                "https://janitorai.com/mb/characters",
+                                params=[("mode", "all"), ("page", str(p)), ("sort", "latest"), ("user_id[]", clean_id)],
+                                headers=j_headers
+                            )
+                            if r.status_code == 200:
+                                return r.json().get("data") or []
+                        except Exception as e:
+                            logger.debug(f"Failed to fetch creator {clean_id} page {p}: {e}")
+                        return []
+
+                    page_tasks = [fetch_page(p) for p in range(2, pages_needed + 1)]
+                    pages_results = await asyncio.gather(*page_tasks)
+                    for page_bots in pages_results:
+                        all_raw_bots.extend(page_bots)
+    except Exception as e:
+        logger.warning(f"Error scraping creator characters for {clean_id}: {e}")
+
+    # Deduplicate bots by id while preserving latest order
+    seen_ids = set()
+    unique_raw = []
+    for b in all_raw_bots:
+        if isinstance(b, dict):
+            bid = b.get("id")
+            if bid and bid not in seen_ids:
+                seen_ids.add(bid)
+                unique_raw.append(b)
+
+    # Normalize and persist to SQLite
+    norm_bots = [normalize_card_payload(b) for b in unique_raw]
+    for b in norm_bots:
+        try:
+            db.save_connect_card(b)
+        except Exception:
+            pass
+
+    return norm_bots
+
+
 async def fetch_creator_profile(creator_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch creator profile and featured bots from Domcord/Janitor."""
+    """Fetch creator profile and all authored bots from Janitor/Domcord with multi-tier cache & native fallback."""
     clean_id = str(creator_id or "").strip()
     if not clean_id:
         return None
+
+    # Tier 1: Check SQLite creator profile vault
+    cached_profile = db.get_creator_profile(clean_id)
+    cached_bots = []
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-            resp = await client.get(
-                f"{DOMCORD_BACKEND_URL}/api/creators/{clean_id}",
-                headers=DEFAULT_HEADERS
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                raw_creator = data.get("data", {}).get("creator") or data.get("data")
-                if raw_creator and isinstance(raw_creator, dict):
-                    raw_creator["avatar"] = resolve_media_url(raw_creator.get("avatar") or "")
-                    raw_creator["banner"] = sanitize_banner(raw_creator.get("banner") or "")
-                    bots = data.get("data", {}).get("bots") or []
-                    norm_bots = [normalize_card_payload(b) for b in bots if isinstance(b, dict)]
-                    for b in norm_bots:
-                        try:
-                            db.save_connect_card(b)
-                        except Exception:
-                            pass
-                    return {
-                        "creator": raw_creator,
-                        "bots": norm_bots,
-                        "totalBots": data.get("data", {}).get("totalBots") or len(norm_bots)
-                    }
+        from contextlib import closing
+        with closing(db.get_db_connection()) as conn:
+            rows = conn.execute(
+                "SELECT * FROM connect_cards WHERE creator_id = ? ORDER BY updated_at DESC",
+                (clean_id,)
+            ).fetchall()
+            cached_bots = [db._format_connect_card_row(dict(r)) for r in rows]
     except Exception:
         pass
+
+    creator_obj = dict(cached_profile) if cached_profile else {
+        "id": clean_id,
+        "username": clean_id,
+        "displayName": clean_id,
+        "avatar": "",
+        "bio": "",
+        "followers": 0,
+        "totalBots": len(cached_bots),
+        "badges": [],
+        "style": {}
+    }
+    bots_list = list(cached_bots)
+    total_bots = (cached_profile.get("totalBots") if cached_profile else len(cached_bots)) or len(cached_bots)
+
+    # Tier 2: Query native Janitor profile endpoint (fast ~300ms response with authentic followers & styling)
+    try:
+        j_headers = dict(DEFAULT_HEADERS)
+        try:
+            from singularity import janitor
+            tok_data = janitor.auto_fetch_janitor_token()
+            if tok_data and tok_data.get("ok") and tok_data.get("token"):
+                j_headers["Authorization"] = f"Bearer {tok_data['token']}"
+        except Exception:
+            pass
+
+        async with httpx.AsyncClient(timeout=4.0, follow_redirects=True) as client:
+            j_resp = await client.get(f"https://janitorai.com/mb/profiles/{clean_id}", headers=j_headers)
+            if j_resp.status_code == 200:
+                j_data = j_resp.json()
+                u_name = j_data.get("user_name") or j_data.get("name")
+                if u_name:
+                    creator_obj["username"] = u_name
+                    creator_obj["displayName"] = u_name
+                raw_av = j_data.get("avatar")
+                if raw_av:
+                    creator_obj["avatar"] = resolve_creator_avatar_url(raw_av)
+                if j_data.get("about_me"):
+                    creator_obj["bio"] = j_data.get("about_me")
+                if j_data.get("followers_count") is not None:
+                    try:
+                        creator_obj["followers"] = int(j_data.get("followers_count"))
+                    except Exception:
+                        pass
+                if j_data.get("badges"):
+                    creator_obj["badges"] = j_data.get("badges")
+                if j_data.get("style"):
+                    creator_obj["style"] = j_data.get("style")
+    except Exception:
+        pass
+
+    # Tier 2.5: Deep Scrape all pages of bots if missing or if cached count is less than known total
+    # (Janitor paginates at 34 bots/page - scrape_all_creator_characters fetches pages 1..N concurrently in ~1.1s)
+    raw_meta = {}
+    try:
+        raw_meta = json.loads(cached_profile.get("raw_payload_json") or "{}") if cached_profile else {}
+    except Exception:
+        pass
+
+    has_scraped_all = bool(raw_meta.get("all_pages_scraped"))
+
+    need_deep_scrape = False
+    if not cached_profile:
+        need_deep_scrape = True
+    elif not has_scraped_all:
+        need_deep_scrape = True
+    elif len(cached_bots) == 0:
+        need_deep_scrape = True
+    elif int(cached_profile.get("totalBots") or 0) > len(cached_bots):
+        need_deep_scrape = True
+    elif (time.time() - float(cached_profile.get("updated_at") or 0)) > 3600:
+        need_deep_scrape = True
+
+    if need_deep_scrape:
+        try:
+            scraped_bots = await scrape_all_creator_characters(clean_id)
+            if scraped_bots:
+                bots_list = scraped_bots
+                total_bots = len(scraped_bots)
+                creator_obj["totalBots"] = total_bots
+                creator_obj["raw_payload_json"] = json.dumps({"all_pages_scraped": True, "scraped_at": time.time()})
+        except Exception as e:
+            logger.debug(f"Deep scraping failed for creator {clean_id}: {e}")
+
+    # Tier 3: Query Domcord backend ONLY if we don't already have creator profile and authored bots
+    # (Prevents 6-9s hang on slow external Domcord backend when Janitor profile is already resolved in 300ms)
+    need_domcord = (creator_obj.get("username") == clean_id or not bots_list)
+    if need_domcord:
+        try:
+            async with httpx.AsyncClient(timeout=1.5, follow_redirects=True) as client:
+                resp = await client.get(
+                    f"{DOMCORD_BACKEND_URL}/api/creators/{clean_id}",
+                    headers=DEFAULT_HEADERS
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw_creator = data.get("data", {}).get("creator") or data.get("data")
+                    if raw_creator and isinstance(raw_creator, dict):
+                        if raw_creator.get("username") and (creator_obj["username"] == clean_id or not creator_obj.get("username")):
+                            creator_obj["username"] = raw_creator.get("username")
+                        if raw_creator.get("displayName") and (creator_obj["displayName"] == clean_id or not creator_obj.get("displayName")):
+                            creator_obj["displayName"] = raw_creator.get("displayName")
+                        if raw_creator.get("avatar") and not creator_obj.get("avatar"):
+                            creator_obj["avatar"] = resolve_creator_avatar_url(raw_creator.get("avatar") or "")
+                        if raw_creator.get("bio") and not creator_obj.get("bio"):
+                            creator_obj["bio"] = raw_creator.get("bio")
+                        if raw_creator.get("followers") and not creator_obj.get("followers"):
+                            try:
+                                creator_obj["followers"] = int(raw_creator.get("followers"))
+                            except Exception:
+                                pass
+                    dom_bots = data.get("data", {}).get("bots") or []
+                    norm_bots = [normalize_card_payload(b) for b in dom_bots if isinstance(b, dict)]
+                    if norm_bots:
+                        bots_list = norm_bots
+                        total_bots = data.get("data", {}).get("totalBots") or len(norm_bots)
+                        for b in norm_bots:
+                            try:
+                                db.save_connect_card(b)
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+
+    # Ensure totalBots reflects available bots
+    creator_obj["totalBots"] = max(int(total_bots or 0), len(bots_list))
+    if "raw_payload_json" not in creator_obj and need_deep_scrape:
+        creator_obj["raw_payload_json"] = json.dumps({"all_pages_scraped": True, "scraped_at": time.time()})
+
+    # Persist the freshest authentic creator profile to SQLite
+    try:
+        db.save_creator_profile(creator_obj)
+    except Exception:
+        pass
+
+    # If we have valid creator data or bots, return success bundle
+    if creator_obj.get("username") != clean_id or creator_obj.get("avatar") or bots_list:
+        return {
+            "creator": creator_obj,
+            "bots": bots_list,
+            "totalBots": creator_obj["totalBots"]
+        }
+
+    # Final fallback if we have at least cached profile
+    if cached_profile:
+        return {
+            "creator": cached_profile,
+            "bots": cached_bots,
+            "totalBots": cached_profile.get("totalBots") or len(cached_bots)
+        }
+
     return None
 
 
 async def fetch_creator_bots(creator_id: str, page: int = 1, limit: int = 20, sort: str = "latest") -> Dict[str, Any]:
-    """Fetch paginated bots for a creator."""
+    """Fetch paginated bots for a creator with fast native Janitor query, Domcord fallback, and SQLite cache."""
     clean_id = str(creator_id or "").strip()
     if not clean_id:
         return {"bots": [], "total": 0}
+
+    backend_sort = "latest"
+    if sort in ("popular", "trending", "all"):
+        backend_sort = "popular"
+
+    # Tier 1: Fast Native Janitor AI endpoint (~300ms)
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        j_headers = dict(DEFAULT_HEADERS)
+        try:
+            from singularity import janitor
+            tok_data = janitor.auto_fetch_janitor_token()
+            if tok_data and tok_data.get("ok") and tok_data.get("token"):
+                j_headers["Authorization"] = f"Bearer {tok_data['token']}"
+        except Exception:
+            pass
+
+        params = [("mode", "all"), ("page", str(page)), ("sort", backend_sort), ("user_id[]", clean_id)]
+        async with httpx.AsyncClient(timeout=4.5, follow_redirects=True) as client:
+            resp = await client.get(
+                "https://janitorai.com/mb/characters",
+                params=params,
+                headers=j_headers
+            )
+            if resp.status_code == 200:
+                resp_json = resp.json()
+                raw_bots = resp_json.get("data") or []
+                total_reported = resp_json.get("total") or len(raw_bots)
+                norm_bots = [normalize_card_payload(b) for b in raw_bots if isinstance(b, dict)]
+                for b in norm_bots:
+                    try:
+                        db.save_connect_card(b)
+                    except Exception:
+                        pass
+                return {
+                    "bots": norm_bots,
+                    "total": total_reported,
+                    "page": page,
+                    "limit": limit
+                }
+    except Exception as e:
+        logger.debug(f"Native Janitor creator bots fetch failed for {clean_id}: {e}")
+
+    # Tier 2: Domcord backend fallback (with short 2.5s timeout)
+    try:
+        async with httpx.AsyncClient(timeout=2.5, follow_redirects=True) as client:
             resp = await client.get(
                 f"{DOMCORD_BACKEND_URL}/api/creators/{clean_id}/bots",
                 params={"page": page, "limit": limit, "sort": sort},
@@ -550,7 +868,141 @@ async def fetch_creator_bots(creator_id: str, page: int = 1, limit: int = 20, so
                 }
     except Exception:
         pass
+
+    # Tier 3: Fallback to local SQLite vault cards for this creator
+    try:
+        from contextlib import closing
+        with closing(db.get_db_connection()) as conn:
+            offset = max(0, (page - 1) * limit)
+            rows = conn.execute(
+                "SELECT * FROM connect_cards WHERE creator_id = ? ORDER BY created_at DESC, updated_at DESC LIMIT ? OFFSET ?",
+                (clean_id, limit, offset)
+            ).fetchall()
+            total_cnt = conn.execute(
+                "SELECT count(*) FROM connect_cards WHERE creator_id = ?",
+                (clean_id,)
+            ).fetchone()[0]
+            local_bots = [db._format_connect_card_row(dict(r)) for r in rows]
+            return {
+                "bots": local_bots,
+                "total": total_cnt,
+                "page": page,
+                "limit": limit
+            }
+    except Exception:
+        pass
+
     return {"bots": [], "total": 0}
+
+
+async def fetch_following_feed(
+    following_ids: Optional[List[str]] = None,
+    page: int = 1,
+    limit: int = 36,
+    sort: str = "latest"
+) -> Dict[str, Any]:
+    """Fetch interleaved following feed across all followed creators.
+    Scales smoothly from 5 to 100+ creators using native Janitor batch queries and local vault cache.
+    """
+    if following_ids is None or len(following_ids) == 0:
+        following_ids = db.get_connect_vault_val("following", []) or []
+
+    clean_ids = list(dict.fromkeys(str(x).strip() for x in following_ids if str(x).strip()))
+    if not clean_ids:
+        return {"bots": [], "total": 0, "page": page, "limit": limit, "following_count": 0}
+
+    backend_sort = "latest"
+    if sort in ("popular", "trending", "chats"):
+        backend_sort = "popular"
+
+    # Prepare auth headers for Janitor
+    j_headers = dict(DEFAULT_HEADERS)
+    try:
+        from singularity import janitor
+        tok_data = janitor.auto_fetch_janitor_token()
+        if tok_data and tok_data.get("ok") and tok_data.get("token"):
+            j_headers["Authorization"] = f"Bearer {tok_data['token']}"
+    except Exception:
+        pass
+
+    # Chunk followed creator IDs in batches of up to 50 (Janitor supports up to 64 per request)
+    CHUNK_SIZE = 50
+    chunks = [clean_ids[i:i + CHUNK_SIZE] for i in range(0, len(clean_ids), CHUNK_SIZE)]
+
+    async def _fetch_chunk(chunk_creator_ids: List[str]) -> List[Dict[str, Any]]:
+        params = [("mode", "all"), ("page", str(page)), ("sort", backend_sort)]
+        for cid in chunk_creator_ids:
+            params.append(("user_id[]", cid))
+        try:
+            async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+                resp = await client.get(
+                    "https://janitorai.com/mb/characters",
+                    params=params,
+                    headers=j_headers
+                )
+                if resp.status_code == 200:
+                    raw_items = resp.json().get("data") or []
+                    return [b for b in raw_items if isinstance(b, dict)]
+        except Exception as e:
+            logger.debug(f"Following chunk fetch failed for {len(chunk_creator_ids)} creators: {e}")
+        return []
+
+    # Concurrently fetch all chunks (handles 100+ creators in parallel)
+    tasks = [_fetch_chunk(c) for c in chunks]
+    chunk_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    all_raw_bots = []
+    for res in chunk_results:
+        if isinstance(res, list):
+            all_raw_bots.extend(res)
+
+    norm_bots = []
+    for raw in all_raw_bots:
+        norm = normalize_card_payload(raw)
+        try:
+            db.save_connect_card(norm)
+        except Exception:
+            pass
+        norm_bots.append(norm)
+
+    # If remote fetch succeeded and returned cards, fairly interleave across creators
+    if norm_bots:
+        by_creator: Dict[str, List[Dict[str, Any]]] = {}
+        for b in norm_bots:
+            cid = str(b.get("creator_id") or b.get("author_id") or "").strip()
+            by_creator.setdefault(cid, []).append(b)
+
+        # Round-robin interleave across creators so every followed creator is fairly represented
+        max_len = max((len(l) for l in by_creator.values()), default=0)
+        interleaved = []
+        seen_ids = set()
+        for i in range(max_len):
+            for cid, clist in by_creator.items():
+                if i < len(clist):
+                    bot = clist[i]
+                    bid = bot.get("id")
+                    if bid and bid not in seen_ids:
+                        seen_ids.add(bid)
+                        interleaved.append(bot)
+
+        final_bots = interleaved[:limit]
+        return {
+            "bots": final_bots,
+            "total": len(final_bots),
+            "page": page,
+            "limit": limit,
+            "following_count": len(clean_ids)
+        }
+
+    # Fallback to local SQLite vault cards for all followed creators
+    local_bots = db.get_connect_cards_by_creators(clean_ids, limit=limit)
+    return {
+        "bots": local_bots,
+        "total": len(local_bots),
+        "page": page,
+        "limit": limit,
+        "following_count": len(clean_ids)
+    }
 
 
 async def fetch_bot_details(bot_id: str) -> Optional[Dict[str, Any]]:

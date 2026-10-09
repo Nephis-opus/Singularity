@@ -12,12 +12,16 @@ reasoning/thinking streams, and full current frontier model catalog.
 
 import asyncio
 import base64
+import http.server
 import json
 import logging
 import os
 import random
 import re
+import threading
 import time
+import urllib.parse
+import urllib.request
 import uuid
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Union
@@ -299,6 +303,263 @@ OAUTH_CLIENT_PAIRS = [
         _COMPANION_CLIENT_SECRET,
     ),
 ]
+
+OAUTH_PORT = 51121
+_OAUTH_SERVER: Optional[http.server.HTTPServer] = None
+_OAUTH_THREAD: Optional[threading.Thread] = None
+_LATEST_OAUTH_EVENT: Optional[Dict[str, Any]] = None
+
+
+def get_oauth_url() -> str:
+    """Generate the official Google Cloud Code OAuth consent URL for Antigravity."""
+    client_id = os.getenv("AGY_CLIENT_ID", _DEFAULT_CLIENT_ID)
+    params = {
+        "client_id": client_id,
+        "redirect_uri": f"http://localhost:{OAUTH_PORT}/oauth-callback",
+        "response_type": "code",
+        "scope": "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email openid",
+        "access_type": "offline",
+        "prompt": "consent",
+    }
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+
+
+def exchange_code_for_tokens(code: str) -> Optional[Dict[str, Any]]:
+    """Exchange OAuth authorization code for Google refresh & access tokens using registered client pairs."""
+    clean_code = code.strip()
+    for client_id, client_secret in OAUTH_CLIENT_PAIRS:
+        data = urllib.parse.urlencode({
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": clean_code,
+            "grant_type": "authorization_code",
+            "redirect_uri": f"http://localhost:{OAUTH_PORT}/oauth-callback",
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            AGY_TOKEN_ENDPOINT,
+            data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                if resp.status == 200:
+                    payload = json.loads(resp.read().decode("utf-8"))
+                    return payload
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="ignore")
+            logger.debug(f"OAuth code exchange failed with client pair ({e.code}): {err_body}")
+        except Exception as e:
+            logger.debug(f"OAuth code exchange error: {e}")
+    return None
+
+
+def handle_oauth_callback_code(code: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """Exchange code and persist account to DB. Returns (success, message_or_email, cred_data)."""
+    global _LATEST_OAUTH_EVENT
+    payload = exchange_code_for_tokens(code)
+    if not payload:
+        return False, "Failed to exchange authorization code with Google token endpoint.", None
+
+    id_token = payload.get("id_token")
+    access_token = payload.get("access_token")
+    refresh_token = payload.get("refresh_token")
+
+    email = ""
+    if id_token and hasattr(db, "_decode_jwt_payload"):
+        jwt = db._decode_jwt_payload(id_token)
+        if jwt and jwt.get("email"):
+            email = jwt.get("email")
+    if not email and access_token and hasattr(db, "_decode_jwt_payload"):
+        jwt = db._decode_jwt_payload(access_token)
+        if jwt and jwt.get("email"):
+            email = jwt.get("email")
+
+    if not email:
+        email = f"google_user_{int(time.time())}"
+
+    cred_dict = {
+        "email": email,
+        "refresh_token": refresh_token,
+        "access_token": access_token,
+        "project_id": DEFAULT_PROJECT_ID,
+        "source": "oauth_browser_flow",
+    }
+    raw_str = json.dumps(cred_dict)
+    parsed = db.parse_credential("antigravity", raw_str)
+    if parsed:
+        if hasattr(db, "add_account"):
+            db.add_account("antigravity", parsed)
+        else:
+            db.save_account("antigravity", raw_str)
+        _LATEST_OAUTH_EVENT = {
+            "ok": True,
+            "email": email,
+            "timestamp": time.time(),
+            "identifier": parsed.get("identifier"),
+        }
+        logger.info(f"Successfully stacked Antigravity account: {email}")
+        return True, email, cred_dict
+    return False, "Could not parse or persist credentials into vault.", None
+
+
+class _OAuthCallbackHandler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+    def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/oauth-callback":
+            qs = urllib.parse.parse_qs(parsed.query)
+            code = qs.get("code", [None])[0]
+            if code:
+                ok, res, cred_data = handle_oauth_callback_code(code)
+                if ok:
+                    email_display = res
+                    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Account Connected &mdash; Singularity</title>
+  <style>
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      background: #141414;
+      color: #f5f5f4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }}
+    .card {{
+      background: #1c1b1a;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 40px 36px;
+      text-align: center;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 24px 48px rgba(0,0,0,0.5);
+    }}
+    .icon-wrap {{
+      width: 64px;
+      height: 64px;
+      background: rgba(34, 197, 94, 0.12);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      color: #22c55e;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 22px;
+    }}
+    h2 {{ font-size: 22px; font-weight: 700; color: #ffffff; margin-bottom: 12px; }}
+    .email-pill {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(217, 119, 87, 0.15);
+      border: 1px solid rgba(217, 119, 87, 0.35);
+      color: #d97757;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 999px;
+      margin-bottom: 18px;
+    }}
+    p {{ font-size: 13.5px; color: #a8a29e; line-height: 1.6; margin-bottom: 24px; }}
+    .subtext {{ font-size: 12px; color: #78716c; }}
+    .close-btn {{
+      background: #262626;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 22px;
+      border-radius: 8px;
+      cursor: pointer;
+    }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-wrap">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    </div>
+    <h2>Account Connected!</h2>
+    <div class="email-pill">
+      <span>{email_display}</span>
+    </div>
+    <p>This Google account is now securely stacked into Singularity. Token refreshes and quota failover are fully active.</p>
+    <button class="close-btn" onclick="window.close()">Close Window</button>
+    <div class="subtext" style="margin-top: 14px;">This tab will close automatically in 3 seconds.</div>
+  </div>
+  <script>
+    try {{
+      if (window.opener) {{
+        window.opener.postMessage({{ type: 'antigravity_oauth_success', email: '{email_display}' }}, '*');
+      }}
+    }} catch(e) {{}}
+    setTimeout(function() {{
+      try {{ window.close(); }} catch(e) {{}}
+    }}, 2800);
+  </script>
+</body>
+</html>"""
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(html.encode("utf-8"))
+                    return
+                else:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "text/plain; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(f"OAuth Exchange Error: {res}".encode("utf-8"))
+                    return
+
+        # Fallback redirect to Google OAuth URL
+        self.send_response(302)
+        self.send_header("Location", get_oauth_url())
+        self.end_headers()
+
+
+def start_oauth_listener(port: int = OAUTH_PORT) -> bool:
+    """Start the background HTTP server on port 51121 to catch OAuth callbacks."""
+    global _OAUTH_SERVER, _OAUTH_THREAD
+    if _OAUTH_SERVER is not None:
+        return True
+    try:
+        server = http.server.HTTPServer(("127.0.0.1", port), _OAuthCallbackHandler)
+        _OAUTH_SERVER = server
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        _OAUTH_THREAD = thread
+        logger.info(f"Antigravity OAuth callback listener started on 127.0.0.1:{port}")
+        return True
+    except OSError as e:
+        logger.warning(f"Could not bind OAuth callback listener on port {port}: {e}")
+        return False
+
+
+def stop_oauth_listener():
+    """Stop the background OAuth listener."""
+    global _OAUTH_SERVER, _OAUTH_THREAD
+    if _OAUTH_SERVER:
+        try:
+            _OAUTH_SERVER.shutdown()
+        except Exception:
+            pass
+        _OAUTH_SERVER = None
+        _OAUTH_THREAD = None
+
+
+def get_latest_oauth_event() -> Optional[Dict[str, Any]]:
+    return _LATEST_OAUTH_EVENT
 
 
 async def _refresh_google_oauth_token(refresh_token: str) -> Optional[Dict[str, Any]]:

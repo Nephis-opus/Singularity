@@ -697,6 +697,7 @@
           }
 
           // 1c. Sync Down Followed Creators (Non-destructive Union with local state)
+          let hasFollowingChanged = false;
           const followed = sett.followedCreators || sett.followed_creators;
           if (Array.isArray(followed)) {
             let localFollowed = [];
@@ -705,14 +706,18 @@
               ...(Array.isArray(localFollowed) ? localFollowed : []),
               ...followed
             ]));
-            localStorage.setItem('s_connect_following', JSON.stringify(mergedFollowed));
-            const sConn = window.SConnect || window.sConnect;
-            if (sConn) {
-              sConn.followingCreatorIds = new Set(mergedFollowed);
+            if (JSON.stringify(mergedFollowed) !== JSON.stringify(localFollowed)) {
+              hasFollowingChanged = true;
+              localStorage.setItem('s_connect_following', JSON.stringify(mergedFollowed));
+              const sConn = window.SConnect || window.sConnect;
+              if (sConn) {
+                sConn.followingCreatorIds = new Set(mergedFollowed);
+              }
             }
           }
 
-          // 1d. Sync Down Creator Profiles Cache
+          // 1d. Sync Down Creator Profiles Cache (Filter out dummy corrupted records)
+          let hasCreatorProfilesChanged = false;
           const creatorProfiles = sett.creatorProfiles || sett.creator_profiles;
           if (Array.isArray(creatorProfiles) && creatorProfiles.length > 0) {
             const sConn = window.SConnect || window.sConnect;
@@ -720,13 +725,35 @@
               if (!sConn.creatorCache) sConn.creatorCache = new Map();
               creatorProfiles.forEach(cp => {
                 if (cp && (cp.id || cp.name)) {
-                  sConn.creatorCache.set(cp.id || cp.name, cp);
+                  const key = cp.id || cp.name;
+                  // Only accept authentic profiles
+                  if (cp.avatar || (cp.username && cp.username !== key)) {
+                    const existing = sConn.creatorCache.get(key);
+                    // Quality guard: never let a lower-fidelity cloud profile downgrade an authentic cached profile!
+                    const isDowngrade = existing && (
+                      (existing.followers > 0 && (!cp.followers || cp.followers === 0)) ||
+                      (existing.bio && !existing.bio.startsWith('Creator of ') && (!cp.bio || cp.bio.startsWith('Creator of ')))
+                    );
+                    if (!isDowngrade && (!existing || existing.avatar !== cp.avatar || existing.followers !== cp.followers || existing.bio !== cp.bio)) {
+                      const merged = { ...cp };
+                      if (existing) {
+                        if (existing.followers > 0 && (!merged.followers || merged.followers === 0)) merged.followers = existing.followers;
+                        if (existing.bio && (!merged.bio || merged.bio.startsWith('Creator of '))) merged.bio = existing.bio;
+                      }
+                      hasCreatorProfilesChanged = true;
+                      sConn.creatorCache.set(key, merged);
+                      if (typeof sConn.cacheCreator === 'function') {
+                        sConn.cacheCreator(merged);
+                      }
+                    }
+                  }
                 }
               });
             }
           }
 
           // 1e. Sync Down Saved Bots (Non-destructive Union with local state)
+          let hasLibraryChanged = false;
           const savedIds = sett.savedBotIds || sett.saved_bot_ids;
           if (Array.isArray(savedIds)) {
             let localSaved = [];
@@ -735,10 +762,13 @@
               ...(Array.isArray(localSaved) ? localSaved : []),
               ...savedIds
             ]));
-            localStorage.setItem('s_connect_saved_bots', JSON.stringify(mergedSaved));
-            const sConn = window.SConnect || window.sConnect;
-            if (sConn) {
-              sConn.savedBotIds = new Set(mergedSaved);
+            if (JSON.stringify(mergedSaved) !== JSON.stringify(localSaved)) {
+              hasLibraryChanged = true;
+              localStorage.setItem('s_connect_saved_bots', JSON.stringify(mergedSaved));
+              const sConn = window.SConnect || window.sConnect;
+              if (sConn) {
+                sConn.savedBotIds = new Set(mergedSaved);
+              }
             }
           }
 
@@ -760,19 +790,19 @@
             }
           }
 
-          // Re-render S-Connect active views if currently looking at Library, Creators, Following, or My Chats
+          // Re-render S-Connect active views ONLY IF data actually mutated (Zero flicker / Zero DOM wiping!)
           const sConn = window.SConnect || window.sConnect;
           if (sConn && sConn.currentView) {
             const v = sConn.currentView;
             const container = document.getElementById('connect-main-view');
             if (container) {
-              if (v === 'library' && typeof sConn.renderLibraryView === 'function') {
+              if (v === 'library' && hasLibraryChanged && typeof sConn.renderLibraryView === 'function') {
                 sConn.renderLibraryView(container);
-              } else if (v === 'creators' && typeof sConn.renderCreatorsView === 'function') {
+              } else if (v === 'creators' && (hasFollowingChanged || hasCreatorProfilesChanged) && typeof sConn.renderCreatorsView === 'function') {
                 sConn.renderCreatorsView(container);
-              } else if (v === 'following' && typeof sConn.renderFollowingView === 'function') {
+              } else if (v === 'following' && hasFollowingChanged && typeof sConn.renderFollowingView === 'function') {
                 sConn.renderFollowingView(container);
-              } else if (v === 'my-chats' && typeof sConn.renderMyChatsView === 'function') {
+              } else if (v === 'my-chats' && typeof sConn.renderMyChatsView === 'function' && hasLibraryChanged) {
                 sConn.renderMyChatsView(container, sConn._expandedBotId || null);
               }
             }
@@ -1039,33 +1069,14 @@
       const creatorProfilesMap = new Map();
       if (sConnObj && sConnObj.creatorCache) {
         sConnObj.creatorCache.forEach((cp, cid) => {
-          if (cp && cid) creatorProfilesMap.set(cid, cp);
-        });
-      }
-      for (const b of savedBotsData) {
-        if (b && (b.creator_id || b.creator_name)) {
-          const cId = b.creator_id || b.creator_name;
-          if (!creatorProfilesMap.has(cId)) {
-            creatorProfilesMap.set(cId, {
-              id: b.creator_id || cId,
-              name: b.creator_name || cId,
-              username: b.creator_name || cId,
-              avatar: b.creator_avatar || '',
-              bio: `Creator of ${b.name || 'characters'}`
-            });
+          if (cp && cid) {
+            const isSynthetic = cp.bio && (cp.bio.startsWith('Creator of ') || cp.bio.startsWith('JanitorAI author of '));
+            // Only sync authentic, high-quality creator profiles
+            if (!isSynthetic && (cp.followers > 0 || (cp.avatar && cp.username && cp.username !== cid))) {
+              creatorProfilesMap.set(cid, cp);
+            }
           }
-        }
-      }
-      for (const fId of followedCreators) {
-        if (fId && !creatorProfilesMap.has(fId)) {
-          creatorProfilesMap.set(fId, {
-            id: fId,
-            name: fId,
-            username: fId,
-            avatar: '',
-            bio: 'Creator on JanitorAI'
-          });
-        }
+        });
       }
       const creatorProfiles = Array.from(creatorProfilesMap.values());
 

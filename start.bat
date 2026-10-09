@@ -133,6 +133,8 @@ if "%ARG1%"=="restart" goto :RESTART_SERVER
 if "%ARG1%"=="status" goto :RUN_CLI
 if "%ARG1%"=="limits" goto :RUN_CLI
 if "%ARG1%"=="accounts" goto :RUN_CLI
+if "%ARG1%"=="login" goto :RUN_CLI
+if "%ARG1%"=="autofetch" goto :RUN_CLI
 if "%ARG1%"=="import" goto :RUN_CLI
 if "%ARG1%"=="export" goto :RUN_CLI
 if "%ARG1%"=="simulate" goto :RUN_CLI
@@ -180,17 +182,8 @@ set "API_HOST=127.0.0.1"
 if defined SINGULARITY_LAN set "API_HOST=0.0.0.0"
 set "RP_ALLOWED_ORIGINS="
 
-cls
-echo ======================================================================
-echo   SINGULARITY UNIFIED AI GATEWAY ^& TAVERN [Windows]
-echo ======================================================================
-echo   Dashboard:       http://localhost:9000
-echo   Tavern Studio:   http://localhost:5173
-echo   API Base:        http://localhost:9000/v1
-if defined SINGULARITY_LAN echo   Phone / Remote:  http://^<YOUR_PC_IP^>:9000 - log in with: start.bat key
-if defined SINGULARITY_LAN echo   NOTE: Do NOT type 0.0.0.0 on phones - always use your PC's LAN IP!
-if not defined SINGULARITY_LAN echo   Phone / Remote:  run start.bat --lan to allow other devices
-echo ======================================================================
+echo.
+echo   [*] Initializing Singularity Gateway [Windows]...
 echo.
 
 :: Launch Tavern Studio alongside Singularity if present
