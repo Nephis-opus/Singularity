@@ -605,7 +605,8 @@ def cmd_chat(args):
         payload["singularity_tools"] = tool_names
         if getattr(args, "max_steps", None):
             payload["singularity_max_steps"] = args.max_steps
-    timeout = 240.0 if tool_names else 60.0
+    is_reasoning = any(x in (model or "").lower() for x in ("think", "reason", "argon", "opus", "pro", "r1", "high", "medium"))
+    timeout = 240.0 if (tool_names or is_reasoning) else 90.0
 
     print(f"[*] Routing to Singularity Gateway ({model})...\n")
 

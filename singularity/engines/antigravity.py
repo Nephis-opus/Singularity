@@ -51,8 +51,8 @@ AGY_CLIENT_ID = os.getenv("AGY_CLIENT_ID", _DEFAULT_CLIENT_ID)
 AGY_CLIENT_SECRET = os.getenv("AGY_CLIENT_SECRET", _DEFAULT_CLIENT_SECRET)
 AGY_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 
-PRIMARY_HOST = "cloudcode-pa.googleapis.com"
-FALLBACK_HOST = "daily-cloudcode-pa.googleapis.com"
+PRIMARY_HOST = "daily-cloudcode-pa.googleapis.com"
+FALLBACK_HOST = "cloudcode-pa.googleapis.com"
 DEFAULT_PROJECT_ID = "aicode-consumers"
 
 UPSTREAM_ENDPOINTS = [
@@ -861,8 +861,8 @@ async def stream_antigravity_chat(
             if chunk.get("_error_status"):
                 err_status = chunk.get("_error_status")
                 err_msg = chunk.get("_error_msg") or f"HTTP {err_status}"
-                # Check for model not found (e.g. Claude 5.5 on non-Pro account)
-                if err_status == 404 and "5-5" in target_model:
+                # 1. Fallback for Claude 5.5 on non-Pro / free accounts
+                if err_status in (404, 429) and "5-5" in target_model:
                     fallback_model = "claude-opus-4-6-thinking" if "opus" in target_model else "claude-sonnet-4-6"
                     logger.info(f"Antigravity 5.5 model not accessible on current tier, falling back to {fallback_model}")
                     request_body["model"] = fallback_model
@@ -877,8 +877,23 @@ async def stream_antigravity_chat(
                         yield fb_chunk
                     if success:
                         break
-                    else:
-                        logger.warning(f"Antigravity fallback to {fallback_model} did not succeed, last_error={last_error}")
+
+                # 2. Fallback for Gemini 4 Argon on non-Ultra / free accounts
+                if err_status in (404, 429) and "argon" in target_model:
+                    fallback_model = "gemini-3.8-flash-tiered"
+                    logger.info(f"Antigravity Argon model not accessible on current tier, falling back to {fallback_model}")
+                    request_body["model"] = fallback_model
+                    async for fb_chunk in _execute_upstream_request(
+                        request_body, token, model, fallback_model
+                    ):
+                        if fb_chunk.get("_error_status"):
+                            last_error = fb_chunk.get("_error_msg")
+                            logger.warning(f"Antigravity fallback to {fallback_model} failed with status {fb_chunk.get('_error_status')}: {last_error}")
+                            break
+                        success = True
+                        yield fb_chunk
+                    if success:
+                        break
 
                 last_error = err_msg
                 break
@@ -960,7 +975,7 @@ async def _execute_upstream_request(
                         err_text = err_bytes.decode("utf-8", errors="replace")
                         logger.warning(f"Antigravity upstream error HTTP {resp.status_code} ({target_host}): {err_text[:300]}")
                         last_error_chunk = {"_error_status": resp.status_code, "_error_msg": err_text[:300]}
-                        if resp.status_code in (401, 403, 429):
+                        if resp.status_code in (401, 403, 404, 429):
                             yield last_error_chunk
                             return
                         continue
