@@ -8,7 +8,7 @@
   var state = {
     selectedModel: 'kimi-k3',
     selectedStyle: 'papercraft',
-    activeSubtab: 'concept',
+    activeSubtab: 'canvas',
     outputMode: 'split',
     isGenerating: false,
     generatedHtml: '',
@@ -477,6 +477,9 @@ Do NOT wrap in markdown \`\`\`html code blocks. Return ONLY the raw HTML string 
     document.querySelectorAll('.bio-tab-content').forEach(function(pane) {
       pane.classList.toggle('active', pane.id === 'bio-subtab-' + tabName);
     });
+    if (tabName === 'canvas' && window.JanitorBioCanvas && typeof window.JanitorBioCanvas.fit === 'function') {
+      setTimeout(function() { window.JanitorBioCanvas.fit(); }, 50);
+    }
   }
 
   function switchOutputMode(mode) {
@@ -912,9 +915,23 @@ Please generate the complete, production-ready, beautiful inline-styled HTML for
     }
 
     // Deploy button
-    var btnDeploy = document.getElementById('btn-bio-deploy');
+    var btnDeploy = document.getElementById('btn-bio-back-singularity');
     if (btnDeploy) {
-      btnDeploy.addEventListener('click', deployToJanitor);
+      btnDeploy.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (typeof window.switchTab === 'function') {
+          window.switchTab('playground');
+        } else {
+          var pgTab = document.querySelector('[data-tab="playground"]');
+          if (pgTab) pgTab.click();
+          else window.location.hash = '#playground';
+        }
+      });
+    }
+
+    var btnRealDeploy = document.getElementById('btn-bio-deploy');
+    if (btnRealDeploy) {
+      btnRealDeploy.addEventListener('click', deployToJanitor);
     }
 
     // Live code editor editing updates preview
@@ -938,7 +955,9 @@ Please generate the complete, production-ready, beautiful inline-styled HTML for
     synthesizeBio: synthesizeBio,
     deployToJanitor: deployToJanitor,
     saveCredentials: saveCredentials,
-    autoFetchToken: autoFetchToken
+    autoFetchToken: autoFetchToken,
+    showToast: showToast,
+    updateSandboxPreview: updateSandboxPreview
   };
 
   // Auto initialize on DOM ready

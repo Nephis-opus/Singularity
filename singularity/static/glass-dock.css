@@ -184,6 +184,14 @@ body.dock-vertical .glass-dock {
   border-radius: 22px !important;
 }
 
+/* In Tempest (Bio Studio), dock is completely removed */
+body[data-active-tab="bio"] .glass-dock-container {
+  display: none !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
 /* Divider formatting */
 .glass-dock-divider {
   width: 1px;
@@ -219,10 +227,15 @@ body:not(.dock-vertical) .glass-dock-tooltip {
 }
 
 /* Vertical mode: floats on the RIGHT of the vertical dock */
-body.dock-vertical .glass-dock-tooltip {
+body.dock-vertical:not([data-active-tab="bio"]) .glass-dock-tooltip {
   top: 0;
   left: calc(100% + 14px);
   transform: translate3d(-8px, 0, 0) scale(0.92);
+}
+
+body[data-active-tab="bio"] .glass-dock-tooltip {
+  top: -46px !important;
+  left: 0 !important;
 }
 
 .glass-dock-tooltip.visible {
@@ -901,8 +914,8 @@ body.dock-vertical .glass-dock-item.active::after {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  min-width: 140px;
+  gap: 8px;
+  min-width: 0;
   height: 34px;
   padding: 0 12px;
   border-radius: 8px;
@@ -915,6 +928,17 @@ body.dock-vertical .glass-dock-item.active::after {
   cursor: pointer;
   transition: all 0.15s ease;
   outline: none;
+  box-sizing: border-box;
+}
+
+.claude-custom-select-btn .selected-text,
+.claude-custom-select-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
 }
 
 [data-theme="light"] .claude-custom-select-btn {
@@ -986,6 +1010,18 @@ body.dock-vertical .glass-dock-item.active::after {
 
 .claude-select-option .option-check {
   display: none;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  max-width: 14px;
+  max-height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
 }
 
 .claude-select-option.active .option-check {
@@ -1012,12 +1048,32 @@ body.dock-vertical .glass-dock-item.active::after {
 }
 
 .claude-select-chevron {
-  transition: transform 0.18s ease;
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+  max-width: 12px;
+  max-height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--text-muted, #a1a1aa);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
   flex-shrink: 0;
+  pointer-events: none;
 }
 
 .claude-custom-select-wrap.open .claude-select-chevron {
   transform: rotate(180deg);
+  color: var(--brand-primary, #d97757);
+}
+
+.claude-custom-select-wrap.open > .claude-custom-select-menu,
+.claude-custom-select-menu.open {
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 #search-backend-select-wrap,

@@ -35,7 +35,7 @@ LOOPBACK_NAMES = {"localhost", "127.0.0.1", "::1"}
 FORWARDING_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "forwarded", "x-real-ip")
 
 PUBLIC_PATHS = {"/", "/logo.svg", "/favicon.ico", "/healthz", "/api/auth/status", "/api/auth/login", "/api/auth/logout"}
-PUBLIC_PREFIXES = ("/static/",)
+PUBLIC_PREFIXES = ("/static/", "/api/janitor/image-proxy")
 PROTECTED_PREFIXES = ("/static/generated/",)
 
 _KEY_CACHE: Optional[str] = None

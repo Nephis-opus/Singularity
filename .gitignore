@@ -45,6 +45,8 @@ laya/
 niste-sing/
 Janitor-Bio-Stuff*/
 Domcord-Cards/
+Tempest-Engine*/
+threejs-playground/
 # Media & test files
 *.mp3
 *.wav

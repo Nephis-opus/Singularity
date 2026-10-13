@@ -789,21 +789,16 @@ async def stream_aistudio_chat(
             logger.warning(f"Error on AI Studio {channel} channel: {e}")
             continue
 
-        # Informative guide if account not configured or cookies invalid/expired
+    if not success and not emitted_any:
         msg = (
-            f"⚠️ **Google AI Studio Connection Notice**\n\n"
+            f"⚠️ **Google AI Studio Model / Connection Notice**\n\n"
             f"Unable to connect to Google AI Studio (`{actual_model}`).\n\n"
-            "### 🔍 Why this happens:\n"
-            "1. **Expired or Logged-Out Cookies**: Google session cookies (`__Secure-1PSID`, `__Secure-1PSIDTS`, `SAPISID`) expire periodically or get revoked when logging out.\n"
-            "2. **Copied from Wrong Page**: Cookies must be copied from **aistudio.google.com** while signed in — NOT from `google.com` search.\n\n"
-            "### 🔑 How to resolve in 30 seconds:\n"
-            "- **Method 1 (Recommended & Permanent — 100% Free API Key)**:\n"
-            "  1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and click **Create API Key**.\n"
-            "  2. Paste your API key (starts with `AIzaSy...`) into **Control Center** -> **Cookie Stacker** -> **AI Studio** tab and save! (API keys never expire).\n"
-            "- **Method 2 (Browser Session Cookies)**:\n"
-            "  1. Open [aistudio.google.com](https://aistudio.google.com) and sign in.\n"
-            "  2. Open DevTools (`F12`), go to the **Network** tab, click any request, and copy the full **Cookie** header.\n"
-            "  3. Paste it into **Cookie Stacker** -> **AI Studio** tab and save!"
+            "### 🔍 Details:\n"
+            f"1. **Model Availability**: `{actual_model}` is currently not available or not yet deployed on public Google AI Studio endpoints (e.g. Gemini 4 Argon is restricted to closed Google Fairwind preview participants).\n"
+            "2. **Session / Credentials**: Ensure your Google AI Studio API Key or session cookies in Cookie Stacker are active.\n\n"
+            "### 🔑 How to test active models:\n"
+            "- Available models include: `ais-gemini-3.8-flash`, `ais-gemini-3.1-pro-preview`, `ais-gemini-2.5-flash`\n"
+            "- Check API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)."
         )
         yield {
             "id": chat_id,
