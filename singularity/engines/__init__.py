@@ -127,7 +127,13 @@ async def stream_chat(
 
     # 9. Google Antigravity (AGY)
     if pid in ("antigravity", "agy", "google-antigravity"):
-        async for chunk in stream_antigravity_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
+        import importlib, sys
+        for mod_name in list(sys.modules.keys()):
+            if mod_name in ("singularity.engines.antigravity", "engines.antigravity") or mod_name.endswith(".engines.antigravity"):
+                try: importlib.reload(sys.modules[mod_name])
+                except Exception: pass
+        from . import antigravity as _antigravity_mod
+        async for chunk in _antigravity_mod.stream_antigravity_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
             yield chunk
         return
 

@@ -1506,8 +1506,15 @@ def _get_family_candidates(model: str) -> List[str]:
             "claude-3-5-sonnet",
             "claude",
         ])
-    elif "gemini" in m:
+    elif "gemini" in m or "argon" in m:
         candidates.extend([
+            "gemini-4-argon",
+            "gemini-4-argon-thinking",
+            "gemini-4-pro",
+            "gemini-4-flash",
+            "gemini-3.8-flash",
+            "gemini-3.8-flash-thinking",
+            "gemini-3.1-pro",
             "gemini-2.5-flash-thinking",
             "gemini-2.5-flash",
             "gemini-2.5-pro",

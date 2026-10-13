@@ -24,6 +24,14 @@ import httpx
 GEMINI_BL = os.getenv("GEMINI_BL", "boq_assistant-bard-web-server_20260923.22_p0")
 
 MODEL_CONFIGS = {
+    # Gemini 4 Argon Frontier Family
+    "gemini-4-argon": {"mode": 3, "think": 0},
+    "gemini-4-argon-thinking": {"mode": 3, "think": 0},
+    "gemini-4-pro": {"mode": 3, "think": 0},
+    "gemini-4-flash": {"mode": 1, "think": 4},
+    "gemini-4": {"mode": 3, "think": 0},
+    "argon": {"mode": 3, "think": 0},
+    "argon-4": {"mode": 3, "think": 0},
     "gemini-3.8-flash": {"mode": 1, "think": 4},
     "gemini-3.8-flash-thinking": {"mode": 2, "think": 0},
     "gemini-3.7-flash": {"mode": 1, "think": 4},

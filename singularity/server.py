@@ -255,7 +255,7 @@ def resolve_model_provider(model_name: str) -> str:
         return "antigravity"
     if m.startswith("claude") or "fable" in m or "flable" in m or "opus" in m or "sonnet" in m or "haiku" in m:
         return "claude"
-    if m.startswith("gemini") or m.startswith("imagen") or m.startswith("nano-banana") or m.startswith("veo") or m.startswith("google-omni") or m == "omni" or m.startswith("omni-"):
+    if m.startswith("gemini") or m.startswith("argon") or "argon" in m or m.startswith("imagen") or m.startswith("nano-banana") or m.startswith("veo") or m.startswith("google-omni") or m == "omni" or m.startswith("omni-"):
         return "gemini"
     if m.startswith("kimi") or m.startswith("moonshot"):
         return "kimi"

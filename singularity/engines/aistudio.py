@@ -794,10 +794,10 @@ async def stream_aistudio_chat(
             f"⚠️ **Google AI Studio Model / Connection Notice**\n\n"
             f"Unable to connect to Google AI Studio (`{actual_model}`).\n\n"
             "### 🔍 Details:\n"
-            f"1. **Model Availability**: `{actual_model}` is currently not available or not yet deployed on public Google AI Studio endpoints (e.g. Gemini 4 Argon is restricted to closed Google Fairwind preview participants).\n"
+            f"1. **Model Availability**: `{actual_model}` may require a paid tier key or active Google AI Ultra quota in Google AI Studio.\n"
             "2. **Session / Credentials**: Ensure your Google AI Studio API Key or session cookies in Cookie Stacker are active.\n\n"
             "### 🔑 How to test active models:\n"
-            "- Available models include: `ais-gemini-3.8-flash`, `ais-gemini-3.1-pro-preview`, `ais-gemini-2.5-flash`\n"
+            "- Available models include: `ais-gemini-4-argon`, `ais-gemini-3.8-flash`, `ais-gemini-3.1-pro-preview`\n"
             "- Check API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)."
         )
         yield {

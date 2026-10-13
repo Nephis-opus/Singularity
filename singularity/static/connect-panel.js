@@ -5615,7 +5615,8 @@
         { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'deepseek' },
         { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', provider: 'chatgpt' },
         { id: 'gpt-5-6-mini', name: 'GPT-5.6 Mini', provider: 'chatgpt' },
-        { id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'claude' },
+        { id: 'gemini-4-argon', name: 'Gemini 4 Argon (Reasoning & Code)', provider: 'gemini' },
+        { id: 'gemini-4-argon-thinking', name: 'Gemini 4 Argon Thinking', provider: 'gemini' },
         { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'gemini' },
         { id: 'qwen-max-2025', name: 'Qwen Max 2025', provider: 'qwen' }
       ];

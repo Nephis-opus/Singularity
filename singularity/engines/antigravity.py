@@ -51,8 +51,8 @@ AGY_CLIENT_ID = os.getenv("AGY_CLIENT_ID", _DEFAULT_CLIENT_ID)
 AGY_CLIENT_SECRET = os.getenv("AGY_CLIENT_SECRET", _DEFAULT_CLIENT_SECRET)
 AGY_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 
-PRIMARY_HOST = "daily-cloudcode-pa.googleapis.com"
-FALLBACK_HOST = "cloudcode-pa.googleapis.com"
+PRIMARY_HOST = "cloudcode-pa.googleapis.com"
+FALLBACK_HOST = "daily-cloudcode-pa.googleapis.com"
 DEFAULT_PROJECT_ID = "aicode-consumers"
 
 UPSTREAM_ENDPOINTS = [
@@ -155,13 +155,26 @@ def resolve_antigravity_model(model_name: str) -> Tuple[str, Optional[str], int]
         budget = REASONING_BUDGET_MAP.get(effort or "high", 1024)
         return upstream, effort or "high", budget
 
-    # 5. Gemini 3.8 Flash
+    # 5. Gemini 4 Argon
+    if "argon" in cleaned or "gemini-4" in cleaned:
+        if effort == "high":
+            upstream = "gemini-4-argon-high"
+        elif effort == "low":
+            upstream = "gemini-4-argon-low"
+        elif effort == "medium":
+            upstream = "gemini-4-argon-medium"
+        else:
+            upstream = "gemini-4-argon"
+        budget = REASONING_BUDGET_MAP.get(effort or "medium", 2048)
+        return upstream, effort or "medium", budget
+
+    # 6. Gemini 3.8 Flash
     if "gemini-3-8" in cleaned or "gemini-3.8" in cleaned:
         upstream = "gemini-3.8-flash-tiered"
         budget = REASONING_BUDGET_MAP.get(effort or "medium", 2048)
         return upstream, effort or "medium", budget
 
-    # 6. Gemini 3.7 Flash
+    # 7. Gemini 3.7 Flash
     if "gemini-3-7" in cleaned or "gemini-3.7" in cleaned:
         upstream = "gemini-3.7-flash-tiered"
         budget = REASONING_BUDGET_MAP.get(effort or "medium", 2048)
@@ -879,6 +892,26 @@ async def stream_antigravity_chat(
 
     # If all accounts exhausted
     err_msg = last_error or "Antigravity service temporarily unavailable or accounts rate-limited."
+    if "RESOURCE_EXHAUSTED" in str(err_msg) or "429" in str(err_msg):
+        help_msg = (
+            f"⚠️ **Google Antigravity Rate Limit / Quota Notice**\n\n"
+            f"The model `{model}` has reached its rolling request quota across all stacked Antigravity accounts.\n\n"
+            f"• **Reasoning Tier**: Gemini 4 Argon utilizes high-budget reasoning pools with rolling windows.\n"
+            f"• **Remedy**: Wait a few moments for quota restoration, or switch to `agy-gemini-3-8-flash` in the model switcher."
+        )
+        yield {
+            "id": f"chatcmpl-agy-{uuid.uuid4().hex[:12]}",
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "delta": {"content": help_msg},
+                "finish_reason": "stop",
+            }],
+        }
+        return
+
     yield {
         "id": f"chatcmpl-agy-{uuid.uuid4().hex[:12]}",
         "object": "chat.completion.chunk",
@@ -902,6 +935,8 @@ async def _execute_upstream_request(
     chunk_id = f"chatcmpl-agy-{uuid.uuid4().hex[:12]}"
     now = int(time.time())
 
+    last_error_chunk = None
+
     for endpoint in UPSTREAM_ENDPOINTS:
         target_url = endpoint["stream_url"]
         target_host = endpoint["host"]
@@ -924,8 +959,9 @@ async def _execute_upstream_request(
                         err_bytes = await resp.aread()
                         err_text = err_bytes.decode("utf-8", errors="replace")
                         logger.warning(f"Antigravity upstream error HTTP {resp.status_code} ({target_host}): {err_text[:300]}")
-                        yield {"_error_status": resp.status_code, "_error_msg": err_text[:300]}
-                        if resp.status_code in (401, 404, 429):
+                        last_error_chunk = {"_error_status": resp.status_code, "_error_msg": err_text[:300]}
+                        if resp.status_code in (401, 403, 429):
+                            yield last_error_chunk
                             return
                         continue
 
@@ -1011,7 +1047,10 @@ async def _execute_upstream_request(
             logger.debug(f"Error connecting to {target_host}: {e}")
             continue
 
-    yield {"_error_status": 503, "_error_msg": "Failed to connect to Antigravity endpoints"}
+    if last_error_chunk:
+        yield last_error_chunk
+    else:
+        yield {"_error_status": 503, "_error_msg": "Failed to connect to Antigravity endpoints"}
 
 
 async def generate_antigravity_chat(
