@@ -42,6 +42,10 @@ except Exception:
     async def _http_exception_handler(request, exc):
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
+    async def _general_exception_handler(request, exc):
+        logger.debug(f"Unhandled route exception on {request.method} {request.url.path}: {exc}")
+        return JSONResponse({"error": "Internal server error", "detail": str(exc)}, status_code=500)
+
     @asynccontextmanager
     async def _gateway_lifespan(gateway_app):
         for handler in gateway_app._startup_handlers:
@@ -67,7 +71,10 @@ except Exception:
             self._startup_handlers = []
             self._shutdown_handlers = []
             super().__init__(
-                exception_handlers={HTTPException: _http_exception_handler},
+                exception_handlers={
+                    HTTPException: _http_exception_handler,
+                    Exception: _general_exception_handler,
+                },
                 lifespan=_gateway_lifespan,
             )
 
@@ -85,13 +92,19 @@ except Exception:
                             kwargs[p.name] = request.query_params[p.name]
                         elif p.default is not inspect.Parameter.empty:
                             kwargs[p.name] = p.default
-                    if inspect.iscoroutinefunction(func):
-                        res = await func(**kwargs)
-                    else:
-                        res = func(**kwargs)
-                    if isinstance(res, (dict, list)):
-                        return JSONResponse(res)
-                    return res
+                    try:
+                        if inspect.iscoroutinefunction(func):
+                            res = await func(**kwargs)
+                        else:
+                            res = func(**kwargs)
+                        if isinstance(res, (dict, list)):
+                            return JSONResponse(res)
+                        return res
+                    except HTTPException:
+                        raise
+                    except Exception as e:
+                        logger.debug(f"Route exception on {request.method} {request.url.path}: {e}")
+                        return JSONResponse({"error": "Internal server error", "detail": str(e)}, status_code=500)
                 self.router.routes.append(Route(path, handler, methods=methods))
                 return func
             return decorator
@@ -3566,46 +3579,153 @@ async def api_connect_creator_follow(creator_id: str, request: Request):
         from singularity import connect
         asyncio.create_task(connect.fetch_creator_profile(creator_id))
 
-    # 2. Update Supabase cloud profile immediately
+async def _bg_sync_follow_to_cloud(creator_id: str, body: dict, user_id_param: Optional[str] = None):
     try:
         url, secret_key, headers = _get_cloud_supabase_context()
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            user_id = await _resolve_cloud_user_id(client, url, headers, body.get("user_id") or request.query_params.get("user_id"))
-            if user_id:
-                p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
-                if p_res.status_code == 200 and p_res.json():
-                    prof = p_res.json()[0]
-                    sett = prof.get("settings_json") or {}
-                    if isinstance(sett, str):
-                        try:
-                            sett = json.loads(sett)
-                        except Exception:
-                            sett = {}
-                    cloud_following = sett.get("followedCreators") or sett.get("followed_creators") or []
-                    merged = list(dict.fromkeys([str(x) for x in cloud_following if x] + [creator_id]))
-                    sett["followedCreators"] = merged
-                    sett["followed_creators"] = merged
+        timeout_cfg = httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0)
+        async with httpx.AsyncClient(timeout=timeout_cfg) as client:
+            user_id = await _resolve_cloud_user_id(client, url, headers, user_id_param)
+            if not user_id:
+                return
+            p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+            if p_res.status_code == 200 and p_res.json():
+                prof = p_res.json()[0]
+                sett = prof.get("settings_json") or {}
+                if isinstance(sett, str):
+                    try:
+                        sett = json.loads(sett)
+                    except Exception:
+                        sett = {}
+                cloud_following = sett.get("followedCreators") or sett.get("followed_creators") or []
+                merged = list(dict.fromkeys([str(x) for x in cloud_following if x] + [creator_id]))
+                sett["followedCreators"] = merged
+                sett["followed_creators"] = merged
 
-                    if body.get("name") or body.get("avatar") or body.get("bio") or body.get("username"):
-                        cp_list = sett.get("creatorProfiles") or sett.get("creator_profiles") or []
-                        cp_map = {cp.get("id", ""): cp for cp in cp_list if isinstance(cp, dict)}
-                        cp_map[creator_id] = {
-                            "id": creator_id,
-                            "name": body.get("name") or body.get("displayName") or creator_id,
-                            "username": body.get("username") or creator_id,
-                            "avatar": body.get("avatar") or "",
-                            "bio": body.get("bio") or ""
-                        }
-                        sett["creatorProfiles"] = list(cp_map.values())
-                        sett["creator_profiles"] = list(cp_map.values())
+                if body and (body.get("name") or body.get("avatar") or body.get("bio") or body.get("username")):
+                    cp_list = sett.get("creatorProfiles") or sett.get("creator_profiles") or []
+                    cp_map = {cp.get("id", ""): cp for cp in cp_list if isinstance(cp, dict)}
+                    cp_map[creator_id] = {
+                        "id": creator_id,
+                        "name": body.get("name") or body.get("displayName") or creator_id,
+                        "username": body.get("username") or creator_id,
+                        "avatar": body.get("avatar") or "",
+                        "bio": body.get("bio") or ""
+                    }
+                    sett["creatorProfiles"] = list(cp_map.values())
+                    sett["creator_profiles"] = list(cp_map.values())
 
-                    await client.patch(
-                        f"{url}/rest/v1/profiles?id=eq.{user_id}",
-                        headers=headers,
-                        json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-                    )
+                await client.patch(
+                    f"{url}/rest/v1/profiles?id=eq.{user_id}",
+                    headers=headers,
+                    json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                )
     except Exception as e:
-        logger.warning(f"Error persisting follow to cloud: {e}")
+        logger.debug(f"Cloud follow sync skipped: {e}")
+
+
+async def _bg_sync_unfollow_to_cloud(creator_id: str, user_id_param: Optional[str] = None):
+    try:
+        url, secret_key, headers = _get_cloud_supabase_context()
+        timeout_cfg = httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0)
+        async with httpx.AsyncClient(timeout=timeout_cfg) as client:
+            user_id = await _resolve_cloud_user_id(client, url, headers, user_id_param)
+            if not user_id:
+                return
+            p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+            if p_res.status_code == 200 and p_res.json():
+                prof = p_res.json()[0]
+                sett = prof.get("settings_json") or {}
+                if isinstance(sett, str):
+                    try:
+                        sett = json.loads(sett)
+                    except Exception:
+                        sett = {}
+                cloud_following = sett.get("followedCreators") or sett.get("followed_creators") or []
+                updated_cloud = [str(x) for x in cloud_following if str(x) != creator_id]
+                sett["followedCreators"] = updated_cloud
+                sett["followed_creators"] = updated_cloud
+                await client.patch(
+                    f"{url}/rest/v1/profiles?id=eq.{user_id}",
+                    headers=headers,
+                    json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                )
+    except Exception as e:
+        logger.debug(f"Cloud unfollow sync skipped: {e}")
+
+
+async def _bg_sync_card_to_cloud(bot_id: str, norm: dict, user_id_param: Optional[str] = None):
+    try:
+        url, secret_key, headers = _get_cloud_supabase_context()
+        timeout_cfg = httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0)
+        async with httpx.AsyncClient(timeout=timeout_cfg) as client:
+            user_id = await _resolve_cloud_user_id(client, url, headers, user_id_param)
+            if not user_id:
+                return
+            p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+            if p_res.status_code == 200 and p_res.json():
+                prof = p_res.json()[0]
+                sett = prof.get("settings_json") or {}
+                if isinstance(sett, str):
+                    try:
+                        sett = json.loads(sett)
+                    except Exception:
+                        sett = {}
+                cloud_saved = sett.get("savedBotIds") or sett.get("saved_bot_ids") or []
+                merged_saved = list(dict.fromkeys([str(x) for x in cloud_saved if x] + [str(bot_id)]))
+                sett["savedBotIds"] = merged_saved
+                sett["saved_bot_ids"] = merged_saved
+
+                cloud_cards = sett.get("savedBotsData") or sett.get("saved_bots_data") or []
+                c_map = {c.get("id"): c for c in cloud_cards if isinstance(c, dict) and c.get("id")}
+                c_map[bot_id] = norm
+                sett["savedBotsData"] = list(c_map.values())
+                sett["saved_bots_data"] = list(c_map.values())
+
+                await client.patch(
+                    f"{url}/rest/v1/profiles?id=eq.{user_id}",
+                    headers=headers,
+                    json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                )
+    except Exception as e:
+        logger.debug(f"Cloud card save sync skipped: {e}")
+
+
+async def _bg_unsync_card_from_cloud(bot_id: str, user_id_param: Optional[str] = None):
+    try:
+        url, secret_key, headers = _get_cloud_supabase_context()
+        timeout_cfg = httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0)
+        async with httpx.AsyncClient(timeout=timeout_cfg) as client:
+            user_id = await _resolve_cloud_user_id(client, url, headers, user_id_param)
+            if not user_id:
+                return
+            p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+            if p_res.status_code == 200 and p_res.json():
+                prof = p_res.json()[0]
+                sett = prof.get("settings_json") or {}
+                if isinstance(sett, str):
+                    try:
+                        sett = json.loads(sett)
+                    except Exception:
+                        sett = {}
+                cloud_saved = sett.get("savedBotIds") or sett.get("saved_bot_ids") or []
+                sett["savedBotIds"] = [str(x) for x in cloud_saved if str(x) != bot_id]
+                sett["saved_bot_ids"] = sett["savedBotIds"]
+
+                cloud_cards = sett.get("savedBotsData") or sett.get("saved_bots_data") or []
+                sett["savedBotsData"] = [c for c in cloud_cards if isinstance(c, dict) and str(c.get("id")) != bot_id]
+                sett["saved_bots_data"] = sett["savedBotsData"]
+
+                await client.patch(
+                    f"{url}/rest/v1/profiles?id=eq.{user_id}",
+                    headers=headers,
+                    json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                )
+    except Exception as e:
+        logger.debug(f"Cloud card unsave sync skipped: {e}")
+
+
+    # 2. Update Supabase cloud profile in background (non-blocking, silent on network drop)
+    asyncio.create_task(_bg_sync_follow_to_cloud(creator_id, body, body.get("user_id") or request.query_params.get("user_id")))
 
     return JSONResponse({"success": True, "following": following, "creator_id": creator_id})
 
@@ -3613,7 +3733,7 @@ async def api_connect_creator_follow(creator_id: str, request: Request):
 @app.delete("/api/connect/creators/{creator_id}/follow")
 @app.post("/api/connect/creators/{creator_id}/unfollow")
 async def api_connect_creator_unfollow(creator_id: str, request: Request):
-    """Explicitly unfollow a creator. Removes from local SQLite and immediately updates cloud profile."""
+    """Explicitly unfollow a creator. Removes from local SQLite and updates cloud profile in background."""
     creator_id = str(creator_id).strip()
     user_id_override = request.query_params.get("user_id")
     if request.method == "POST":
@@ -3627,32 +3747,8 @@ async def api_connect_creator_unfollow(creator_id: str, request: Request):
     following = [str(x) for x in db.get_connect_vault_val("following", []) if str(x) != creator_id]
     db.set_connect_vault_val("following", following)
 
-    # 2. Update Supabase cloud profile immediately
-    try:
-        url, secret_key, headers = _get_cloud_supabase_context()
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            user_id = await _resolve_cloud_user_id(client, url, headers, user_id_override)
-            if user_id:
-                p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
-                if p_res.status_code == 200 and p_res.json():
-                    prof = p_res.json()[0]
-                    sett = prof.get("settings_json") or {}
-                    if isinstance(sett, str):
-                        try:
-                            sett = json.loads(sett)
-                        except Exception:
-                            sett = {}
-                    cloud_following = sett.get("followedCreators") or sett.get("followed_creators") or []
-                    updated_cloud = [str(x) for x in cloud_following if str(x) != creator_id]
-                    sett["followedCreators"] = updated_cloud
-                    sett["followed_creators"] = updated_cloud
-                    await client.patch(
-                        f"{url}/rest/v1/profiles?id=eq.{user_id}",
-                        headers=headers,
-                        json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-                    )
-    except Exception as e:
-        logger.warning(f"Error persisting unfollow to cloud: {e}")
+    # 2. Update Supabase cloud profile in background
+    asyncio.create_task(_bg_sync_unfollow_to_cloud(creator_id, user_id_override))
 
     return JSONResponse({"success": True, "following": following, "unfollowed": creator_id})
 
@@ -3673,39 +3769,8 @@ async def api_connect_save_card(request: Request):
     saved_bots = list(dict.fromkeys([str(x) for x in db.get_connect_vault_val("saved_bots", []) if x] + [str(bot_id)]))
     db.set_connect_vault_val("saved_bots", saved_bots)
 
-    # Persist immediately to Supabase cloud
-    try:
-        url, secret_key, headers = _get_cloud_supabase_context()
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            user_id = await _resolve_cloud_user_id(client, url, headers, card.get("user_id") or request.query_params.get("user_id"))
-            if user_id:
-                p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
-                if p_res.status_code == 200 and p_res.json():
-                    prof = p_res.json()[0]
-                    sett = prof.get("settings_json") or {}
-                    if isinstance(sett, str):
-                        try:
-                            sett = json.loads(sett)
-                        except Exception:
-                            sett = {}
-                    cloud_saved = sett.get("savedBotIds") or sett.get("saved_bot_ids") or []
-                    merged_saved = list(dict.fromkeys([str(x) for x in cloud_saved if x] + [str(bot_id)]))
-                    sett["savedBotIds"] = merged_saved
-                    sett["saved_bot_ids"] = merged_saved
-
-                    cloud_cards = sett.get("savedBotsData") or sett.get("saved_bots_data") or []
-                    c_map = {c.get("id"): c for c in cloud_cards if isinstance(c, dict) and c.get("id")}
-                    c_map[bot_id] = norm
-                    sett["savedBotsData"] = list(c_map.values())
-                    sett["saved_bots_data"] = list(c_map.values())
-
-                    await client.patch(
-                        f"{url}/rest/v1/profiles?id=eq.{user_id}",
-                        headers=headers,
-                        json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-                    )
-    except Exception as e:
-        logger.warning(f"Error syncing saved card to cloud: {e}")
+    # Persist to Supabase cloud in background (non-blocking, silent on network drop)
+    asyncio.create_task(_bg_sync_card_to_cloud(bot_id, norm, card.get("user_id") or request.query_params.get("user_id")))
 
     return JSONResponse({"success": True, "saved": True, "id": bot_id})
 
@@ -3717,36 +3782,8 @@ async def api_connect_unsave_card(bot_id: str, request: Request):
     saved_bots = [str(x) for x in db.get_connect_vault_val("saved_bots", []) if str(x) != bot_id]
     db.set_connect_vault_val("saved_bots", saved_bots)
 
-    # Persist removal immediately to Supabase cloud
-    try:
-        url, secret_key, headers = _get_cloud_supabase_context()
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            user_id = await _resolve_cloud_user_id(client, url, headers, request.query_params.get("user_id"))
-            if user_id:
-                p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
-                if p_res.status_code == 200 and p_res.json():
-                    prof = p_res.json()[0]
-                    sett = prof.get("settings_json") or {}
-                    if isinstance(sett, str):
-                        try:
-                            sett = json.loads(sett)
-                        except Exception:
-                            sett = {}
-                    cloud_saved = sett.get("savedBotIds") or sett.get("saved_bot_ids") or []
-                    sett["savedBotIds"] = [str(x) for x in cloud_saved if str(x) != bot_id]
-                    sett["saved_bot_ids"] = sett["savedBotIds"]
-
-                    cloud_cards = sett.get("savedBotsData") or sett.get("saved_bots_data") or []
-                    sett["savedBotsData"] = [c for c in cloud_cards if isinstance(c, dict) and str(c.get("id")) != bot_id]
-                    sett["saved_bots_data"] = sett["savedBotsData"]
-
-                    await client.patch(
-                        f"{url}/rest/v1/profiles?id=eq.{user_id}",
-                        headers=headers,
-                        json={"settings_json": sett, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-                    )
-    except Exception as e:
-        logger.warning(f"Error syncing unsave to cloud: {e}")
+    # Persist removal to Supabase cloud in background
+    asyncio.create_task(_bg_unsync_card_from_cloud(bot_id, request.query_params.get("user_id")))
 
     return JSONResponse({"success": True, "unsaved": deleted, "id": bot_id})
 
@@ -3906,9 +3943,10 @@ async def api_cloud_sync_pull(request: Request):
     }
 
     user_id = request.query_params.get("user_id")
+    timeout_cfg = httpx.Timeout(connect=6.0, read=15.0, write=15.0, pool=6.0)
     if not user_id:
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=timeout_cfg) as client:
                 r = await client.get(f"{url}/auth/v1/admin/users?per_page=1", headers=headers)
                 if r.status_code == 200:
                     users = r.json().get("users") or []
@@ -3921,7 +3959,7 @@ async def api_cloud_sync_pull(request: Request):
         return JSONResponse({"success": False, "error": "No authenticated cloud user found"}, status_code=400)
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=timeout_cfg) as client:
             # 1. Profiles
             p_res = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
             profiles = p_res.json() if p_res.status_code == 200 else []
@@ -4026,8 +4064,9 @@ async def api_cloud_sync_pull(request: Request):
                 "playground_chats": playground_chats
             })
     except Exception as e:
-        logger.exception("Error during cloud sync pull")
-        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+        logger.debug(f"Cloud sync pull unavailable or timed out: {e}")
+        status_code = 504 if isinstance(e, httpx.TimeoutException) else 502
+        return JSONResponse({"success": False, "error": f"Cloud sync unavailable: {str(e)}"}, status_code=status_code)
 
 
 @app.post("/api/cloud/sync/push")
@@ -4066,101 +4105,84 @@ async def api_cloud_sync_push(request: Request):
 
     now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     results = {}
+    timeout_cfg = httpx.Timeout(connect=6.0, read=20.0, write=20.0, pool=6.0)
 
-    async with httpx.AsyncClient(timeout=25.0) as client:
-        # A. Fetch existing profile from Supabase first
-        cloud_sett = {}
-        existing_profile = None
-        try:
-            p_get = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
-            if p_get.status_code == 200 and p_get.json():
-                existing_profile = p_get.json()[0]
-                cloud_sett = existing_profile.get("settings_json") or {}
-                if isinstance(cloud_sett, str):
-                    try:
-                        cloud_sett = json.loads(cloud_sett)
-                    except Exception:
-                        cloud_sett = {}
-        except Exception as e:
-            logger.debug(f"Could not fetch existing cloud profile: {e}")
+    try:
+        async with httpx.AsyncClient(timeout=timeout_cfg) as client:
+            # A. Fetch existing profile from Supabase first
+            cloud_sett = {}
+            existing_profile = None
+            try:
+                p_get = await client.get(f"{url}/rest/v1/profiles?id=eq.{user_id}&select=*", headers=headers)
+                if p_get.status_code == 200 and p_get.json():
+                    existing_profile = p_get.json()[0]
+                    cloud_sett = existing_profile.get("settings_json") or {}
+                    if isinstance(cloud_sett, str):
+                        try:
+                            cloud_sett = json.loads(cloud_sett)
+                        except Exception:
+                            cloud_sett = {}
+            except Exception as e:
+                logger.debug(f"Could not fetch existing cloud profile: {e}")
 
-        client_settings = body.get("settings") if isinstance(body.get("settings"), dict) else {}
+            client_settings = body.get("settings") if isinstance(body.get("settings"), dict) else {}
 
-        # B. Non-destructive Union for Followed Creators (Never wipe cloud if client sends empty)
-        cloud_following = cloud_sett.get("followedCreators") or cloud_sett.get("followed_creators") or []
-        sqlite_following = db.get_connect_vault_val("following", []) or []
-        client_following = client_settings.get("followedCreators") or body.get("followedCreators") or []
-        merged_following = list(dict.fromkeys(
-            [str(x) for x in cloud_following if x] +
-            [str(x) for x in sqlite_following if x] +
-            [str(x) for x in client_following if x]
-        ))
-        db.set_connect_vault_val("following", merged_following)
+            # B. Non-destructive Union for Followed Creators (Never wipe cloud if client sends empty)
+            cloud_following = cloud_sett.get("followedCreators") or cloud_sett.get("followed_creators") or []
+            sqlite_following = db.get_connect_vault_val("following", []) or []
+            client_following = client_settings.get("followedCreators") or body.get("followedCreators") or []
+            merged_following = list(dict.fromkeys(
+                [str(x) for x in cloud_following if x] +
+                [str(x) for x in sqlite_following if x] +
+                [str(x) for x in client_following if x]
+            ))
+            db.set_connect_vault_val("following", merged_following)
 
-        # C. Non-destructive Union for Saved Bots & Cards (Never wipe cloud if client sends empty)
-        cloud_saved_ids = cloud_sett.get("savedBotIds") or cloud_sett.get("saved_bot_ids") or []
-        sqlite_saved_ids = [c["id"] for c in db.list_saved_connect_cards(limit=500)] + (db.get_connect_vault_val("saved_bots", []) or [])
-        client_saved_ids = client_settings.get("savedBotIds") or body.get("savedBotIds") or []
-        merged_saved_ids = list(dict.fromkeys(
-            [str(x) for x in cloud_saved_ids if x] +
-            [str(x) for x in sqlite_saved_ids if x] +
-            [str(x) for x in client_saved_ids if x]
-        ))
-        db.set_connect_vault_val("saved_bots", merged_saved_ids)
+            # C. Non-destructive Union for Saved Bots & Cards (Never wipe cloud if client sends empty)
+            cloud_saved_ids = cloud_sett.get("savedBotIds") or cloud_sett.get("saved_bot_ids") or []
+            sqlite_saved_ids = [c["id"] for c in db.list_saved_connect_cards(limit=500)] + (db.get_connect_vault_val("saved_bots", []) or [])
+            client_saved_ids = client_settings.get("savedBotIds") or body.get("savedBotIds") or []
+            merged_saved_ids = list(dict.fromkeys(
+                [str(x) for x in cloud_saved_ids if x] +
+                [str(x) for x in sqlite_saved_ids if x] +
+                [str(x) for x in client_saved_ids if x]
+            ))
+            db.set_connect_vault_val("saved_bots", merged_saved_ids)
 
-        # Union cards by ID
-        cards_map = {}
-        for c in (cloud_sett.get("savedBotsData", []) or cloud_sett.get("saved_bots_data", []) or []):
-            if isinstance(c, dict) and c.get("id"):
-                cards_map[c["id"]] = c
-        for c in db.list_saved_connect_cards(limit=500):
-            if isinstance(c, dict) and c.get("id"):
-                cards_map[c["id"]] = c
-        client_saved_data = client_settings.get("savedBotsData") or body.get("savedBotsData") or []
-        if isinstance(client_saved_data, list):
-            for c in client_saved_data:
+            # Union cards by ID
+            cards_map = {}
+            for c in (cloud_sett.get("savedBotsData", []) or cloud_sett.get("saved_bots_data", []) or []):
                 if isinstance(c, dict) and c.get("id"):
                     cards_map[c["id"]] = c
-                    try:
-                        db.save_connect_card(c)
-                    except Exception:
-                        pass
-        merged_cards = list(cards_map.values())
+            for c in db.list_saved_connect_cards(limit=500):
+                if isinstance(c, dict) and c.get("id"):
+                    cards_map[c["id"]] = c
+            client_saved_data = client_settings.get("savedBotsData") or body.get("savedBotsData") or []
+            if isinstance(client_saved_data, list):
+                for c in client_saved_data:
+                    if isinstance(c, dict) and c.get("id"):
+                        cards_map[c["id"]] = c
+                        try:
+                            db.save_connect_card(c)
+                        except Exception:
+                            pass
+            merged_cards = list(cards_map.values())
 
-        # D. Creator Profiles Map - Resolve authentic profiles from SQLite connect_creators
-        creator_profiles_map = {}
-        for cp in (cloud_sett.get("creatorProfiles", []) or cloud_sett.get("creator_profiles", []) or []):
-            if isinstance(cp, dict) and (cp.get("id") or cp.get("name")):
-                cid = cp.get("id") or cp.get("name")
-                bio = cp.get("bio") or ""
-                is_synthetic = bio.startswith("Creator of ") or bio.startswith("JanitorAI author of ")
-                if not is_synthetic and (cp.get("followers", 0) > 0 or (cp.get("avatar") and cp.get("username") and cp.get("username") != cid)):
-                    creator_profiles_map[cid] = cp
+            # D. Creator Profiles Map - Resolve authentic profiles from SQLite connect_creators
+            creator_profiles_map = {}
+            for cp in (cloud_sett.get("creatorProfiles", []) or cloud_sett.get("creator_profiles", []) or []):
+                if isinstance(cp, dict) and (cp.get("id") or cp.get("name")):
+                    cid = cp.get("id") or cp.get("name")
+                    bio = cp.get("bio") or ""
+                    is_synthetic = bio.startswith("Creator of ") or bio.startswith("JanitorAI author of ")
+                    if not is_synthetic and (cp.get("followers", 0) > 0 or (cp.get("avatar") and cp.get("username") and cp.get("username") != cid)):
+                        creator_profiles_map[cid] = cp
 
-        # Populate/Upgrade with authentic profiles from local SQLite connect_creators vault
-        for fid in merged_following:
-            local_cp = db.get_creator_profile(fid)
-            if local_cp:
-                creator_profiles_map[fid] = {
-                    "id": local_cp["id"],
-                    "name": local_cp["displayName"] or local_cp["username"],
-                    "username": local_cp["username"],
-                    "displayName": local_cp["displayName"],
-                    "avatar": local_cp["avatar"],
-                    "bio": local_cp["bio"],
-                    "followers": local_cp["followers"],
-                    "totalBots": local_cp["totalBots"],
-                    "badges": local_cp.get("badges", []),
-                    "style": local_cp.get("style", {})
-                }
-
-        # Check merged_cards only for authentic cached profiles in SQLite, NEVER fabricate dummy records
-        for c in merged_cards:
-            cid = c.get("creator_id") or c.get("creator_name")
-            if cid and cid not in creator_profiles_map:
-                local_cp = db.get_creator_profile(cid)
-                if local_cp and local_cp.get("followers", 0) > 0:
-                    creator_profiles_map[cid] = {
+            # Populate/Upgrade with authentic profiles from local SQLite connect_creators vault
+            for fid in merged_following:
+                local_cp = db.get_creator_profile(fid)
+                if local_cp:
+                    creator_profiles_map[fid] = {
                         "id": local_cp["id"],
                         "name": local_cp["displayName"] or local_cp["username"],
                         "username": local_cp["username"],
@@ -4168,175 +4190,225 @@ async def api_cloud_sync_push(request: Request):
                         "avatar": local_cp["avatar"],
                         "bio": local_cp["bio"],
                         "followers": local_cp["followers"],
-                        "totalBots": local_cp["totalBots"]
+                        "totalBots": local_cp["totalBots"],
+                        "badges": local_cp.get("badges", []),
+                        "style": local_cp.get("style", {})
                     }
 
-        client_creators = client_settings.get("creatorProfiles") or body.get("creatorProfiles") or []
-        if isinstance(client_creators, list):
-            for cp in client_creators:
-                if isinstance(cp, dict) and (cp.get("id") or cp.get("name")):
-                    cid = cp.get("id") or cp.get("name")
-                    bio = cp.get("bio") or ""
-                    is_synthetic = bio.startswith("Creator of ") or bio.startswith("JanitorAI author of ")
-                    if not is_synthetic and (cp.get("avatar") or (cp.get("username") and cp.get("username") != cid)):
-                        existing = creator_profiles_map.get(cid)
-                        if not existing or (cp.get("followers", 0) >= existing.get("followers", 0)):
-                            creator_profiles_map[cid] = cp
-                            try:
-                                db.save_creator_profile(cp)
-                            except Exception:
-                                pass
+            # Check merged_cards only for authentic cached profiles in SQLite, NEVER fabricate dummy records
+            for c in merged_cards:
+                cid = c.get("creator_id") or c.get("creator_name")
+                if cid and cid not in creator_profiles_map:
+                    local_cp = db.get_creator_profile(cid)
+                    if local_cp and local_cp.get("followers", 0) > 0:
+                        creator_profiles_map[cid] = {
+                            "id": local_cp["id"],
+                            "name": local_cp["displayName"] or local_cp["username"],
+                            "username": local_cp["username"],
+                            "displayName": local_cp["displayName"],
+                            "avatar": local_cp["avatar"],
+                            "bio": local_cp["bio"],
+                            "followers": local_cp["followers"],
+                            "totalBots": local_cp["totalBots"]
+                        }
 
-        # E. Assemble settings payload (baseline is cloud_sett so cold client defaults NEVER clobber cloud customizations)
-        settings_payload = dict(cloud_sett)
-        for k, v in client_settings.items():
-            if v is not None and v != "":
-                settings_payload[k] = v
-            elif k not in settings_payload:
-                settings_payload[k] = v
+            client_creators = client_settings.get("creatorProfiles") or body.get("creatorProfiles") or []
+            if isinstance(client_creators, list):
+                for cp in client_creators:
+                    if isinstance(cp, dict) and (cp.get("id") or cp.get("name")):
+                        cid = cp.get("id") or cp.get("name")
+                        bio = cp.get("bio") or ""
+                        is_synthetic = bio.startswith("Creator of ") or bio.startswith("JanitorAI author of ")
+                        if not is_synthetic and (cp.get("avatar") or (cp.get("username") and cp.get("username") != cid)):
+                            existing = creator_profiles_map.get(cid)
+                            if not existing or (cp.get("followers", 0) >= existing.get("followers", 0)):
+                                creator_profiles_map[cid] = cp
+                                try:
+                                    db.save_creator_profile(cp)
+                                except Exception:
+                                    pass
 
-        display_name = client_settings.get("displayName") or body.get("displayName") or cloud_sett.get("displayName") or "Operator"
-        avatar = client_settings.get("avatar") or body.get("avatar") or cloud_sett.get("avatar") or ""
-        theme = body.get("theme") or client_settings.get("theme") or cloud_sett.get("theme") or "dark"
-        active_persona_id = body.get("active_persona_id") or client_settings.get("active_persona_id") or cloud_sett.get("active_persona_id") or db.get_connect_vault_val("active_persona_id", "persona_default")
-        db.set_connect_vault_val("active_persona_id", active_persona_id)
+            # E. Assemble settings payload (baseline is cloud_sett so cold client defaults NEVER clobber cloud customizations)
+            settings_payload = dict(cloud_sett)
+            for k, v in client_settings.items():
+                if v is not None and v != "":
+                    settings_payload[k] = v
+                elif k not in settings_payload:
+                    settings_payload[k] = v
 
-        settings_payload["displayName"] = display_name
-        settings_payload["avatar"] = avatar
-        settings_payload["theme"] = theme
-        settings_payload["active_persona_id"] = active_persona_id
-        settings_payload["savedBotIds"] = merged_saved_ids
-        settings_payload["saved_bot_ids"] = merged_saved_ids
-        settings_payload["savedBotsData"] = merged_cards
-        settings_payload["saved_bots_data"] = merged_cards
-        settings_payload["followedCreators"] = merged_following
-        settings_payload["followed_creators"] = merged_following
-        settings_payload["creatorProfiles"] = list(creator_profiles_map.values())
-        settings_payload["creator_profiles"] = list(creator_profiles_map.values())
+            display_name = client_settings.get("displayName") or body.get("displayName") or cloud_sett.get("displayName") or "Operator"
+            avatar = client_settings.get("avatar") or body.get("avatar") or cloud_sett.get("avatar") or ""
+            theme = body.get("theme") or client_settings.get("theme") or cloud_sett.get("theme") or "dark"
+            active_persona_id = body.get("active_persona_id") or client_settings.get("active_persona_id") or cloud_sett.get("active_persona_id") or db.get_connect_vault_val("active_persona_id", "persona_default")
+            db.set_connect_vault_val("active_persona_id", active_persona_id)
 
-        # F. Upsert profile
-        profile_row = {
-            "id": user_id,
-            "email": user_email or "operator@singularity.local",
-            "theme": theme,
-            "active_persona_id": active_persona_id,
-            "settings_json": settings_payload,
-            "updated_at": now_iso
-        }
-        p_res = await client.post(f"{url}/rest/v1/profiles", headers=headers, json=profile_row)
-        results["profiles"] = p_res.status_code in (200, 201)
+            settings_payload["displayName"] = display_name
+            settings_payload["avatar"] = avatar
+            settings_payload["theme"] = theme
+            settings_payload["active_persona_id"] = active_persona_id
+            settings_payload["savedBotIds"] = merged_saved_ids
+            settings_payload["savedBotsData"] = merged_cards
+            settings_payload["followedCreators"] = merged_following
+            settings_payload["creatorProfiles"] = list(creator_profiles_map.values())
+            # Clean up duplicate legacy keys to reduce payload transfer size
+            settings_payload.pop("saved_bot_ids", None)
+            settings_payload.pop("saved_bots_data", None)
+            settings_payload.pop("followed_creators", None)
+            settings_payload.pop("creator_profiles", None)
 
-        # G. Upsert connected accounts from SQLite credentials
-        accounts = db.get_accounts()
-        acc_synced = 0
-        for acc in accounts:
-            acc_id = acc.get("identifier") or f"{acc['provider']}_{acc.get('id', 1)}"
-            acc_row = {
-                "id": acc_id,
-                "user_id": user_id,
-                "provider": acc["provider"],
-                "credential_json": json.dumps(acc),
-                "status": acc.get("status", "active"),
+            # F. Upsert profile
+            profile_row = {
+                "id": user_id,
+                "email": user_email or "operator@singularity.local",
+                "theme": theme,
+                "active_persona_id": active_persona_id,
+                "settings_json": settings_payload,
                 "updated_at": now_iso
             }
-            a_res = await client.post(f"{url}/rest/v1/connected_accounts", headers=headers, json=acc_row)
-            if a_res.status_code in (200, 201):
-                acc_synced += 1
-        results["connected_accounts"] = acc_synced
+            try:
+                p_res = await client.post(f"{url}/rest/v1/profiles", headers=headers, json=profile_row)
+                results["profiles"] = p_res.status_code in (200, 201)
+            except Exception as e:
+                logger.debug(f"Could not upsert profile row to cloud: {e}")
+                results["profiles"] = False
 
-        # H. Non-destructive Union for Personas
-        cloud_personas = []
-        try:
-            pers_res = await client.get(f"{url}/rest/v1/personas?user_id=eq.{user_id}&select=*", headers=headers)
-            if pers_res.status_code == 200:
-                cloud_personas = pers_res.json() or []
-        except Exception:
-            pass
+            # G. Upsert connected accounts from SQLite credentials
+            accounts = db.get_accounts()
+            acc_synced = 0
+            for acc in accounts:
+                acc_id = acc.get("identifier") or f"{acc['provider']}_{acc.get('id', 1)}"
+                acc_row = {
+                    "id": acc_id,
+                    "user_id": user_id,
+                    "provider": acc["provider"],
+                    "credential_json": json.dumps(acc),
+                    "status": acc.get("status", "active"),
+                    "updated_at": now_iso
+                }
+                try:
+                    a_res = await client.post(f"{url}/rest/v1/connected_accounts", headers=headers, json=acc_row)
+                    if a_res.status_code in (200, 201):
+                        acc_synced += 1
+                except Exception as e:
+                    logger.debug(f"Failed to sync account {acc_id} to cloud: {e}")
+                    break
+            results["connected_accounts"] = acc_synced
 
-        personas_map = {p["id"]: p for p in cloud_personas if isinstance(p, dict) and p.get("id")}
-        for p in (db.get_connect_vault_val("personas", []) or []):
-            if isinstance(p, dict) and p.get("id"):
-                if p["id"] not in personas_map:
+            # H. Non-destructive Union for Personas
+            cloud_personas = []
+            try:
+                pers_res = await client.get(f"{url}/rest/v1/personas?user_id=eq.{user_id}&select=*", headers=headers)
+                if pers_res.status_code == 200:
+                    cloud_personas = pers_res.json() or []
+            except Exception:
+                pass
+
+            personas_map = {p["id"]: p for p in cloud_personas if isinstance(p, dict) and p.get("id")}
+            for p in (db.get_connect_vault_val("personas", []) or []):
+                if isinstance(p, dict) and p.get("id"):
+                    if p["id"] not in personas_map:
+                        personas_map[p["id"]] = p
+            for p in (body.get("personas") or []):
+                if isinstance(p, dict) and p.get("id"):
                     personas_map[p["id"]] = p
-        for p in (body.get("personas") or []):
-            if isinstance(p, dict) and p.get("id"):
-                personas_map[p["id"]] = p
 
-        if not personas_map:
-            personas_map["persona_default"] = {
-                "id": "persona_default",
-                "name": "Ayame",
-                "avatar": "/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg",
-                "description": "Ayame is visiting the club tonight, dressed comfortably yet stylishly, with quiet curiosity.",
-                "system_prompt": "",
-                "is_active": True
-            }
-
-        merged_personas = list(personas_map.values())
-        db.set_connect_vault_val("personas", merged_personas)
-
-        pers_synced = 0
-        for p in merged_personas:
-            if isinstance(p, dict) and p.get("id"):
-                persona_row = {
-                    "id": p["id"],
-                    "user_id": user_id,
-                    "name": p.get("name", "Persona"),
-                    "avatar": p.get("avatar", ""),
-                    "description": p.get("description", ""),
-                    "system_prompt": p.get("system_prompt", ""),
-                    "is_active": bool(p.get("is_active", False)),
-                    "updated_at": now_iso
+            if not personas_map:
+                personas_map["persona_default"] = {
+                    "id": "persona_default",
+                    "name": "Ayame",
+                    "avatar": "/static/preloader/3a6a0a99717d5533928eecd2046ec085.jpg",
+                    "description": "Ayame is visiting the club tonight, dressed comfortably yet stylishly, with quiet curiosity.",
+                    "system_prompt": "",
+                    "is_active": True
                 }
-                per_res = await client.post(f"{url}/rest/v1/personas", headers=headers, json=persona_row)
-                if per_res.status_code in (200, 201):
-                    pers_synced += 1
-        results["personas"] = pers_synced
 
-        # D. Upsert connect_chat_sessions if provided
-        client_sessions = body.get("sessions") or []
-        sess_synced = 0
-        for s in client_sessions:
-            if isinstance(s, dict) and s.get("id"):
-                sess_row = {
-                    "id": s["id"],
-                    "user_id": user_id,
-                    "bot_id": s.get("botId") or s.get("bot_id") or s["id"],
-                    "bot_name": s.get("botName") or s.get("bot_name") or "Chat",
-                    "bot_avatar": s.get("botAvatar") or s.get("bot_avatar") or "",
-                    "bot_description": s.get("botDescription") or s.get("bot_description") or "",
-                    "summary": s.get("summary") or "",
-                    "greeting_idx": int(s.get("greeting_idx") or 0),
-                    "persona_id": active_persona_id,
-                    "messages_json": s.get("messages_json") if isinstance(s.get("messages_json"), str) else json.dumps(s.get("messages_json") or []),
-                    "settings_json": s.get("settings_json") if isinstance(s.get("settings_json"), str) else json.dumps(s.get("settings_json") or {}),
-                    "created_at": s.get("createdAt") or s.get("created_at") or now_iso,
-                    "updated_at": now_iso
-                }
-                s_res = await client.post(f"{url}/rest/v1/connect_chat_sessions", headers=headers, json=sess_row)
-                if s_res.status_code in (200, 201):
-                    sess_synced += 1
-        results["connect_chat_sessions"] = sess_synced
+            merged_personas = list(personas_map.values())
+            db.set_connect_vault_val("personas", merged_personas)
 
-        # E. Upsert playground_chats if provided
-        client_chats = body.get("playground_chats") or []
-        chat_synced = 0
-        for c in client_chats:
-            if isinstance(c, dict) and c.get("id"):
-                chat_row = {
-                    "id": c["id"],
-                    "user_id": user_id,
-                    "title": c.get("title") or "Chat",
-                    "model": c.get("model") or "gpt-5.6-sol",
-                    "messages_json": c.get("messages_json") if isinstance(c.get("messages_json"), str) else json.dumps(c.get("messages") or []),
-                    "settings_json": c.get("settings_json") if isinstance(c.get("settings_json"), str) else json.dumps(c.get("settings") or {}),
-                    "created_at": c.get("created_at") or now_iso,
-                    "updated_at": now_iso
-                }
-                c_res = await client.post(f"{url}/rest/v1/playground_chats", headers=headers, json=chat_row)
-                if c_res.status_code in (200, 201):
-                    chat_synced += 1
-        results["playground_chats"] = chat_synced
+            pers_synced = 0
+            for p in merged_personas:
+                if isinstance(p, dict) and p.get("id"):
+                    persona_row = {
+                        "id": p["id"],
+                        "user_id": user_id,
+                        "name": p.get("name", "Persona"),
+                        "avatar": p.get("avatar", ""),
+                        "description": p.get("description", ""),
+                        "system_prompt": p.get("system_prompt", ""),
+                        "is_active": bool(p.get("is_active", False)),
+                        "updated_at": now_iso
+                    }
+                    try:
+                        per_res = await client.post(f"{url}/rest/v1/personas", headers=headers, json=persona_row)
+                        if per_res.status_code in (200, 201):
+                            pers_synced += 1
+                    except Exception as e:
+                        logger.debug(f"Failed to sync persona {p.get('id')} to cloud: {e}")
+                        break
+            results["personas"] = pers_synced
+
+            # D. Upsert connect_chat_sessions if provided
+            client_sessions = body.get("sessions") or []
+            sess_synced = 0
+            for s in client_sessions:
+                if isinstance(s, dict) and s.get("id"):
+                    sess_row = {
+                        "id": s["id"],
+                        "user_id": user_id,
+                        "bot_id": s.get("botId") or s.get("bot_id") or s["id"],
+                        "bot_name": s.get("botName") or s.get("bot_name") or "Chat",
+                        "bot_avatar": s.get("botAvatar") or s.get("bot_avatar") or "",
+                        "bot_description": s.get("botDescription") or s.get("bot_description") or "",
+                        "summary": s.get("summary") or "",
+                        "greeting_idx": int(s.get("greeting_idx") or 0),
+                        "persona_id": active_persona_id,
+                        "messages_json": s.get("messages_json") if isinstance(s.get("messages_json"), str) else json.dumps(s.get("messages_json") or []),
+                        "settings_json": s.get("settings_json") if isinstance(s.get("settings_json"), str) else json.dumps(s.get("settings_json") or {}),
+                        "created_at": s.get("createdAt") or s.get("created_at") or now_iso,
+                        "updated_at": now_iso
+                    }
+                    try:
+                        s_res = await client.post(f"{url}/rest/v1/connect_chat_sessions", headers=headers, json=sess_row)
+                        if s_res.status_code in (200, 201):
+                            sess_synced += 1
+                    except Exception as e:
+                        logger.debug(f"Failed to sync session {s.get('id')} to cloud: {e}")
+                        break
+            results["connect_chat_sessions"] = sess_synced
+
+            # E. Upsert playground_chats if provided
+            client_chats = body.get("playground_chats") or []
+            chat_synced = 0
+            for c in client_chats:
+                if isinstance(c, dict) and c.get("id"):
+                    chat_row = {
+                        "id": c["id"],
+                        "user_id": user_id,
+                        "title": c.get("title") or "Chat",
+                        "model": c.get("model") or "gpt-5.6-sol",
+                        "messages_json": c.get("messages_json") if isinstance(c.get("messages_json"), str) else json.dumps(c.get("messages") or []),
+                        "settings_json": c.get("settings_json") if isinstance(c.get("settings_json"), str) else json.dumps(c.get("settings") or {}),
+                        "created_at": c.get("created_at") or now_iso,
+                        "updated_at": now_iso
+                    }
+                    try:
+                        c_res = await client.post(f"{url}/rest/v1/playground_chats", headers=headers, json=chat_row)
+                        if c_res.status_code in (200, 201):
+                            chat_synced += 1
+                    except Exception as e:
+                        logger.debug(f"Failed to sync chat {c.get('id')} to cloud: {e}")
+                        break
+            results["playground_chats"] = chat_synced
+
+    except Exception as e:
+        logger.debug(f"Cloud push unavailable or timed out: {e}")
+        status_code = 504 if isinstance(e, httpx.TimeoutException) else 502
+        return JSONResponse({
+            "success": False,
+            "error": f"Cloud push unavailable: {str(e)}",
+            "user_id": user_id,
+            "results": results
+        }, status_code=status_code)
 
     return JSONResponse({
         "success": True,

@@ -957,10 +957,23 @@
     }
   }
 
+  let lastSyncSuccessTime = 0;
+  let syncBackoffUntil = 0;
+  let syncUpTimer = null;
+
+  function scheduleSyncUp(delayMs = 2000) {
+    if (!isAuthenticated()) return;
+    if (syncUpTimer) clearTimeout(syncUpTimer);
+    syncUpTimer = setTimeout(() => {
+      syncUpTimer = null;
+      syncUp();
+    }, delayMs);
+  }
+
   async function syncDown() {
+    if (Date.now() < syncBackoffUntil) return;
     const userId = await resolveCurrentUserId();
     if (!userId) {
-      console.warn('[SingularityCloud] syncDown skipped: no authenticated cloud user');
       return;
     }
     isSyncing = true;
@@ -979,10 +992,13 @@
 
       applyCloudState(cloudPayload);
       hasInitialPullCompleted = true;
+      lastSyncSuccessTime = Date.now();
+      syncBackoffUntil = 0;
       updateSyncBadge('Synced to Cloud', '#10b981');
     } catch (err) {
-      console.error('[SingularityCloud] syncDown failed:', err);
-      updateSyncBadge('Sync Warning', '#ef4444');
+      // Cooldown for 60 seconds on network / timeout errors to prevent error spam
+      syncBackoffUntil = Date.now() + 60000;
+      updateSyncBadge('Cloud Offline', '#78716c');
     } finally {
       isSyncing = false;
     }
@@ -990,13 +1006,12 @@
 
   async function syncUp() {
     if (isSyncing) return;
+    if (Date.now() < syncBackoffUntil) return;
     if (!hasInitialPullCompleted) {
-      console.log('[SingularityCloud] syncUp deferred: initial pull from cloud not yet completed');
       return;
     }
     const userId = await resolveCurrentUserId();
     if (!userId) {
-      console.warn('[SingularityCloud] syncUp skipped: no authenticated cloud user');
       updateSyncBadge('Please Sign In', '#f59e0b');
       return;
     }
@@ -1200,10 +1215,12 @@
         throw new Error(pushJson.error || 'Backend push failed');
       }
 
+      lastSyncSuccessTime = Date.now();
+      syncBackoffUntil = 0;
       updateSyncBadge('Synced to Cloud', '#10b981');
     } catch (err) {
-      console.error('[SingularityCloud] syncUp failed:', err);
-      updateSyncBadge('Sync Warning', '#ef4444');
+      syncBackoffUntil = Date.now() + 60000;
+      updateSyncBadge('Cloud Offline', '#78716c');
     } finally {
       isSyncing = false;
     }
@@ -1670,44 +1687,38 @@
     }
   });
 
-  // Background auto-sync interval (pull updates every 30s if authenticated)
+  // Background auto-sync interval (pull updates every 60s if authenticated and not in cooldown)
   setInterval(() => {
-    if (isAuthenticated() && !document.hidden) {
+    if (isAuthenticated() && !document.hidden && Date.now() >= syncBackoffUntil) {
       syncDown();
     }
-  }, 30000);
+  }, 60000);
 
-  // Instant cross-device sync: trigger syncDown whenever laptop tab is focused or becomes visible
+  // Instant cross-device sync: trigger syncDown on tab focus only if at least 60s since last success
   window.addEventListener('focus', () => {
-    if (isAuthenticated()) {
+    if (isAuthenticated() && (Date.now() - lastSyncSuccessTime > 60000) && Date.now() >= syncBackoffUntil) {
       syncDown();
     }
   });
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && isAuthenticated()) {
+    if (!document.hidden && isAuthenticated() && (Date.now() - lastSyncSuccessTime > 60000) && Date.now() >= syncBackoffUntil) {
       syncDown();
     }
   });
 
-  // Hook into S-Connect and Chat send events for reactive sync
+  // Hook into S-Connect and Chat send events for reactive sync with clean 2.0s debouncing
   window.addEventListener('singularity-chat-updated', () => {
-    if (isAuthenticated()) {
-      setTimeout(syncUp, 1000);
-    }
+    scheduleSyncUp(2000);
   });
 
-  // Reactive sync when S-Connect followed creators or saved bots change (fast 250ms push)
+  // Reactive sync when S-Connect followed creators or saved bots change (clean 2.0s debounce)
   window.addEventListener('singularity-cloud-sync-needed', () => {
-    if (isAuthenticated()) {
-      setTimeout(syncUp, 250);
-    }
+    scheduleSyncUp(2000);
   });
 
-  // Reactive sync when overall system settings change (fast 300ms push)
+  // Reactive sync when overall system settings change (clean 2.0s debounce)
   window.addEventListener('singularity-settings-updated', () => {
-    if (isAuthenticated()) {
-      setTimeout(syncUp, 300);
-    }
+    scheduleSyncUp(2000);
   });
 
   // Export to global scope
