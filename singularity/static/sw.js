@@ -79,17 +79,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Static Assets with Version Cache-Busters (?v=...): Network-First, Cache Fallback
+  // 4. Static Assets with Version Cache-Busters (?v=...): Cache-First, Network Fallback
+  // Since HTML navigation is Network-First, version bumps automatically fetch fresh assets
+  // while untouched assets serve instantly from local cache.
   if (url.pathname.startsWith('/static/') && url.searchParams.has('v')) {
     event.respondWith(
-      fetch(req).then((res) => {
-        if (res.status === 200) {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-        }
-        return res;
-      }).catch(async () => {
-        return (await caches.match(req)) || (await caches.match(url.pathname)) || new Response('Asset offline', { status: 503 });
+      caches.match(req).then((cached) => {
+        if (cached) return cached;
+        return fetch(req).then((res) => {
+          if (res.status === 200) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+          }
+          return res;
+        }).catch(async () => {
+          return (await caches.match(url.pathname)) || new Response('Asset offline', { status: 503 });
+        });
       })
     );
     return;

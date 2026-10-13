@@ -178,6 +178,7 @@ for %%P in (9000 5173 3001) do (
 set "SINGULARITY_LAN="
 for %%A in (%*) do if /I "%%~A"=="--lan" set "SINGULARITY_LAN=1"
 for %%A in (%*) do if /I "%%~A"=="--no-update" set "SINGULARITY_NO_UPDATE=1"
+for %%A in (%*) do if /I "%%~A"=="--no-tavern" set "SINGULARITY_NO_TAVERN=1"
 set "API_HOST=127.0.0.1"
 if defined SINGULARITY_LAN set "API_HOST=0.0.0.0"
 set "RP_ALLOWED_ORIGINS="
@@ -191,7 +192,7 @@ set "TAV_DIR="
 if exist "%ROOT_DIR%TAVERN\package.json" set "TAV_DIR=%ROOT_DIR%TAVERN"
 if not defined TAV_DIR if exist "%ROOT_DIR%TAV-TEST\package.json" set "TAV_DIR=%ROOT_DIR%TAV-TEST"
 
-if defined TAV_DIR (
+if defined TAV_DIR if not defined SINGULARITY_NO_TAVERN (
     netstat -ano | findstr ":5173" >nul 2>&1
     if errorlevel 1 (
         netstat -ano | findstr ":3001" >nul 2>&1

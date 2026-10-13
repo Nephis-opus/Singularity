@@ -187,6 +187,11 @@ except ImportError:
     from tools import loop as tools_loop
     from tools import web_search as tools_web_search
     from tools import protocol as tools_protocol
+try:
+    from singularity import openai_tools_bridge
+except ImportError:
+    import openai_tools_bridge
+
 from providers import (
     MODELS_CATALOG,
     PROVIDERS_CONFIG,
@@ -205,6 +210,12 @@ from providers import (
 
 # Authentication, origin checks and CORS for every route (see security.py for the policy).
 app.add_middleware(security.SecurityMiddleware)
+
+try:
+    from starlette.middleware.gzip import GZipMiddleware
+    app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
+except Exception:
+    pass
 
 
 def resolve_model_provider(model_name: str) -> str:
@@ -1114,6 +1125,12 @@ async def chat_completions(request: Request):
     elif tool_names:
         pipeline_info["tools_from"] = "request"
 
+    # External client tools (OpenAI function calling: Kimi Code, Cline, etc.)
+    client_tools = body.pop("tools", None) or body.pop("functions", None)
+    is_client_tool_request = isinstance(client_tools, list) and len(client_tools) > 0
+    if is_client_tool_request:
+        body["messages"] = openai_tools_bridge.adapt_messages_for_tools(body.get("messages", []), client_tools)
+
     # Forward kwargs to direct engines
     forward_kwargs = {
         k: v for k, v in body.items()
@@ -1286,7 +1303,9 @@ async def chat_completions(request: Request):
             rewriter = personas.PersonaStreamRewriter(persona_cfg) if persona_cfg else None
             smoothing_enabled = body.get("smooth", True) is not False and body.get("cadence_smoothing", True) is not False
             raw_source = _chat_source()
-            source = smooth_chat_stream(raw_source, target_interval=0.035, max_chars=40) if smoothing_enabled else raw_source
+            if is_client_tool_request:
+                raw_source = openai_tools_bridge.wrap_tool_stream(raw_source, requested_model)
+            source = smooth_chat_stream(raw_source, target_interval=0.035, max_chars=40) if (smoothing_enabled and not is_client_tool_request) else raw_source
             try:
                 async for chunk in source:
                     if trace is not None:
@@ -1410,6 +1429,22 @@ async def chat_completions(request: Request):
         try:
             step = trace.sent(body.get("messages", [])) if trace is not None else 0
             data = await engines.generate_chat(provider_id, backend_model, body.get("messages", []), **forward_kwargs)
+            if is_client_tool_request:
+                reply = ((data.get("choices") or [{}])[0].get("message") or {})
+                parsed_call = openai_tools_bridge.parse_tool_call_text(reply.get("content") or "")
+                if parsed_call:
+                    name, args, prefix = parsed_call
+                    reply["tool_calls"] = [{
+                        "id": f"call_{uuid.uuid4().hex[:12]}",
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "arguments": json.dumps(args, ensure_ascii=False)
+                        }
+                    }]
+                    reply["content"] = prefix or None
+                    if data.get("choices"):
+                        data["choices"][0]["finish_reason"] = "tool_calls"
             if trace is not None:
                 reply = ((data.get("choices") or [{}])[0].get("message") or {})
                 trace.set_reply(reply.get("content") or "", reply.get("reasoning_content") or "")
@@ -4413,6 +4448,40 @@ async def api_connect_clear_intercepts():
     return JSONResponse({"success": True, "cleared": True})
 
 
+@app.get("/api/janitor/image-proxy")
+async def api_janitor_image_proxy(request: Request):
+    """Proxy external JanitorAI CDN images to bypass client-side CORS and ad-blockers."""
+    url = request.query_params.get("url", "").strip()
+    if not url or not (url.startswith("https://") or url.startswith("http://")):
+        return JSONResponse({"error": "Invalid URL"}, status_code=400)
+
+    allowed_domains = ("ella.janitorai.com", "janitorai.com", "lh3.googleusercontent.com")
+    parsed = urlsplit(url)
+    if not any(parsed.netloc == d or parsed.netloc.endswith("." + d) for d in allowed_domains):
+        return JSONResponse({"error": "Domain not permitted for proxying"}, status_code=403)
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    }
+    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+        try:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code != 200:
+                return JSONResponse({"error": f"Upstream CDN returned {resp.status_code}"}, status_code=resp.status_code)
+            ct = resp.headers.get("content-type", "image/webp")
+            return Response(
+                content=resp.content,
+                media_type=ct,
+                headers={
+                    "Cache-Control": "public, max-age=604800, immutable",
+                    "Access-Control-Allow-Origin": "*",
+                }
+            )
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=502)
+
+
 # -------------------------------------------------------------------
 # S-Connect Cloud & Cross-Device State Synchronization
 # -------------------------------------------------------------------
@@ -4793,8 +4862,14 @@ async def serve_offline():
     return FileResponse(offline_path, media_type="text/html")
 
 
-# Mount static assets directory
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+# Mount static assets directory with cache headers for high-performance repeat loads
+class CachedStaticFiles(StaticFiles):
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers.setdefault("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
+        return resp
+
+app.mount("/static", CachedStaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 def _ensure_packages():

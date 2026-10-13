@@ -33,9 +33,18 @@
     });
   }
 
-  function initPreloader() {
+  function initPreloader(force = false) {
     const preloaderEl = document.getElementById('sunless-skiper-preloader');
     if (!preloaderEl) return;
+
+    // On mobile devices or repeated reloads in the same session, fast-track straight to the UI
+    const isMobile = window.innerWidth <= 768;
+    const hasSeen = sessionStorage.getItem('sunless_preloader_seen');
+    if (!force && (isMobile || hasSeen)) {
+      preloaderEl.classList.add('skiper7-hidden');
+      return;
+    }
+    sessionStorage.setItem('sunless_preloader_seen', '1');
 
     preloadAllImages();
 
@@ -124,7 +133,7 @@
   window.playSunlessPreloader = function () {
     const preloaderEl = document.getElementById('sunless-skiper-preloader');
     if (preloaderEl) {
-      initPreloader();
+      initPreloader(true);
     }
   };
   window.playPreloader = window.playSunlessPreloader;

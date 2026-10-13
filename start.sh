@@ -296,7 +296,7 @@ case "$1" in
         fi
 
         TAVERN_PID=""
-        if [ -n "$TAVERN_DIR" ]; then
+        if [ -n "$TAVERN_DIR" ] && [ "${SINGULARITY_NO_TAVERN:-0}" != "1" ] && [ "$1" != "--no-tavern" ]; then
             if ! (echo > /dev/tcp/127.0.0.1/5173) 2>/dev/null && ! nc -z 127.0.0.1 5173 2>/dev/null && ! nc -z 127.0.0.1 3001 2>/dev/null; then
                 (
                     cd "$TAVERN_DIR"

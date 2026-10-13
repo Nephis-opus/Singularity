@@ -302,3 +302,28 @@
   --shadow-md:          0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg:          0 8px 24px rgba(0, 0, 0, 0.12);
 }
+
+/* ==========================================================================
+   Mobile & Low-End GPU Performance Optimization (TBDR Fill-Rate Protection)
+   ========================================================================== */
+@media (max-width: 768px), (prefers-reduced-motion: reduce) {
+  /* Tame expensive 20px-28px multi-pass Gaussian convolution blurs on mobile GPUs */
+  .glass-dock,
+  .cards-top-user-dropdown,
+  .persona-popover-card,
+  .cards-nav-capsule,
+  .claude-settings-modal,
+  .model-select-popover,
+  .chat-code-header {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+  }
+
+  /* Prevent sub-pixel layer thrashing on mobile scrolls */
+  .chat-history,
+  .messages-container,
+  .cards-feed-viewport {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+}

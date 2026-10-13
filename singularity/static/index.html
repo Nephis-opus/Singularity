@@ -19,24 +19,27 @@
   <link rel="preload" href="/static/fonts/AnthropicSans-Text-Regular-Static.otf" as="font" type="font/otf" crossorigin />
   <link rel="preload" href="/static/fonts/AnthropicSerif-Display-Regular-Static.otf" as="font" type="font/otf" crossorigin />
 
-  <!-- Google Fonts: Plus Jakarta Sans, JetBrains Mono & Janitor AI Bio Fonts (14 official families) -->
+  <!-- Google Fonts: Asynchronously loaded to prevent render blocking on slow/offline connections -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Berkshire+Swash&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=Dancing+Script:wght@400..700&family=Fraunces:ital,opsz,wght@0,9..144,400..800;1,9..144,400..800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Jura:wght@400;500;600;700&family=Lexend:wght@400;600;700&family=Monoton&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:ital,wght@0,400;0,600;0,700;1,400&family=Press+Start+2P&family=Rock+Salt&family=VT323&display=swap"
-    rel="stylesheet" />
+    rel="stylesheet"
+    media="print"
+    onload="this.media='all'" />
 
   <link rel="stylesheet" href="/static/tokens.css?v=61" />
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css?v=1" />
-  <link rel="stylesheet" href="/static/style.css?v=87" />
+  <link rel="stylesheet" href="/static/style.css?v=89" />
   <link rel="stylesheet" href="/static/tool-steps.css?v=7" />
   <link rel="stylesheet" href="/static/message-controls.css?v=4" />
   <link rel="stylesheet" href="/static/chat-management.css?v=2" />
   <link rel="stylesheet" href="/static/chat-modes.css?v=7" />
   <link rel="stylesheet" href="/static/presets.css?v=10" />
-  <link rel="stylesheet" href="/static/glass-dock.css?v=66" />
+  <link rel="stylesheet" href="/static/glass-dock.css?v=70" />
   <link rel="stylesheet" href="/static/preloader.css?v=2" />
-  <link rel="stylesheet" href="/static/janitor-bio.css?v=2" />
+  <link rel="stylesheet" href="/static/janitor-bio.css?v=7" />
+  <link rel="stylesheet" href="/static/janitor-canvas.css?v=9" />
   <link rel="stylesheet" href="/static/updates.css?v=2" />
   <link rel="stylesheet" href="/static/connect.css?v=38" />
   <link rel="stylesheet" href="/static/login-portal.css?v=2" />
@@ -1629,48 +1632,450 @@
             <!-- Header Hero -->
             <div class="bio-hero">
               <div class="bio-hero-brand">
-                <div class="bio-hero-icon-wrap" title="Janitor Bio Studio">
+                <div class="bio-hero-icon-wrap" title="Tempest">
                   <svg viewBox="0 0 512 512" fill="currentColor">
-                    <g transform="matrix(-1, 0, 0, 1, 512, 0)">
-                      <path d="M161.33,230.809C132.658,198.504,106.362,164.047,82.482,128c-11.926-18.02-23.265-36.443-33.857-55.246 C38.046,53.957,28.1,34.765,19.587,15.236L0,23.712c8.98,20.547,19.192,40.208,30.033,59.516 c10.885,19.295,22.459,38.128,34.663,56.558c24.422,36.846,51.305,72.065,80.679,105.182L161.33,230.809z"/>
-                      <path d="M225.014,247.51c-7.97-11.684-15.588-23.58-22.869-35.622L123.078,284.4 c12.614,9.669,25.477,18.986,38.56,27.894c0.571-1.092,1.274-2.102,2.153-2.988l58.323-59.539 C222.993,248.873,223.96,248.125,225.014,247.51z"/>
-                      <path d="M425.123,330.563c-53.84-5.765-110.566-24.327-165.226-52.294c-0.557,1.428-1.319,2.769-2.344,3.955 l-54.133,63.37c-1.011,1.201-2.256,2.132-3.618,2.856c21.14,27.595,44.698,54.251,71.127,79.274 c26.415,25.016,55.744,48.39,88.254,69.04l6.446-16.269c-22.562-14.687-43.541-30.737-63.026-47.768 c21.536,13.376,44.127,25.499,67.669,36.062l9.216-23.214c-28.525-15.639-55.1-33.681-79.713-53.43 c26.561,16.57,54.588,31.125,83.83,43.043l11.456-28.861c-11.588-6.19-22.883-12.834-33.842-19.873 c12.175,4.57,24.481,8.658,36.89,12.225l12.98-32.736c-13.582-5.406-26.957-11.493-40.084-18.233 c15.061,2.974,30.019,5.106,44.772,6.417L425.123,330.563z"/>
-                      <path d="M245.877,259.465c-4.982-4.571-11.852-5.347-15.398-1.634l-57.37,60.455 c-3.56,3.714-1.861,11.075,3.867,16.335c5.743,5.274,13.259,6.322,16.643,2.454l55.202-62.432 C252.22,270.782,250.857,264.035,245.877,259.465z"/>
-                      <path d="M438.821,301.592c6.124,0,11.09-4.96,11.09-11.076c0-6.109-4.966-11.075-11.09-11.075 c-6.109,0-11.075,4.966-11.075,11.075C427.746,296.632,432.712,301.592,438.821,301.592z"/>
-                      <path d="M472.62,225.205c-4.147,0-7.501,3.354-7.501,7.501c0,4.146,3.354,7.501,7.501,7.501 c4.146,0,7.501-3.355,7.501-7.501C480.121,228.56,476.766,225.205,472.62,225.205z"/>
-                      <path d="M450.117,383.348c-5.186,0-9.376,4.19-9.376,9.376c0,5.178,4.19,9.376,9.376,9.376 c5.186,0,9.376-4.198,9.376-9.376C459.493,387.538,455.303,383.348,450.117,383.348z"/>
-                      <path d="M502.624,331.464c-5.186,0-9.376,4.19-9.376,9.376c0,5.179,4.19,9.376,9.376,9.376 c5.186,0,9.376-4.198,9.376-9.376C512,335.654,507.81,331.464,502.624,331.464z"/>
-                      <path d="M430.119,443.978c-5.186,0-9.376,4.19-9.376,9.376c0,5.178,4.19,9.376,9.376,9.376 c5.186,0,9.376-4.198,9.376-9.376C439.496,448.168,435.306,443.978,430.119,443.978z"/>
-                      <path d="M378.36,273.551c5.582,0,10.094-4.513,10.094-10.087c0-5.56-4.512-10.072-10.094-10.072 c-5.553,0-10.065,4.513-10.065,10.072C368.295,269.038,372.807,273.551,378.36,273.551z"/>
-                    </g>
+                    <path fill="currentColor" d="M277.38 21.66c-96.948-.878-173.34 86.818-197.982 179.76 0 .002 0 .004-.002.006-6.326 18.67-9.757 38.666-9.757 59.455 0 2.836.074 5.654.2 8.458-17.562-55.274-17.086-137.757 20.086-206.48C2.272 126.67-9.832 299.917 100.182 398.58c-22.78-2.325-46.352-9.837-70.147-24.225 78.56 96.676 160.54 101.437 227.393 91.487-23.15 12.557-50.73 19.886-83.272 19.228 92.947 37.552 157.73-7.642 194.62-60.908-3.368 19.416-10.61 39.33-22.75 59.406 75.302-61.19 94.838-124.455 95.097-181.033 5.027 52.445-7.262 120.805-55.344 191.85 137.474-80.25 141.267-308.97-44.49-397.783-1.718-.905-3.454-1.778-5.204-2.63 34.773-.313 70.898 10.356 105.168 38.25-54.364-94.094-142.49-91.19-206.094-66.456 26.697-20.213 60.655-32.96 103.078-32.102-20.95-8.053-41.322-11.827-60.86-12.004zm-20.292 72.42c27.385.31 53.167 7.19 75.85 19.15 11.03 34.65 10.764 85.084-35.82 110.73 57.38-8.063 68.747-56.41 65.92-90.386 31.604 26.8 53.065 65.168 57.894 108.617-11.442-11.052-27.03-18.682-47.832-18.995-4.228-.063-8.67.175-13.336.748 56.35 13.146 58.046 52.722 56.037 82.108-5.366 19.175-14.072 36.942-25.445 52.647 3.265-39.063-5.52-70.67-25.205-91.312-25.207-26.433-66.802-31.98-114.732-13.826-43.58 16.5-75.458 10.803-94.588-9.257-18.553-19.456-26.513-55.153-15.96-104.09 21.894-20.92 49.49-35.916 80.237-42.47 25.205 5.698 46.725 24.76 53.276 49.736 7.63 29.088-7.855 62.162-37.375 69.75-21.748 5.59-46.478-6.097-52.008-28.185-3.99-15.936 4.575-33.99 20.47-37.873 2.803-.685 5.7-.813 8.51-.447-2.895 3.556-4.636 8.09-4.636 13.033 0 11.41 9.25 20.662 20.662 20.662 11.41 0 20.664-9.25 20.664-20.662 0-5.404-2.092-10.308-5.488-13.99-9.197-14.293-27.572-20.797-44.147-16.748-26.926 6.576-40.487 35.292-34.16 60.564 8.268 33.023 43.65 49.744 74.785 41.742 40.45-10.398 60.882-54.14 50.797-92.59-5.31-20.24-17.91-37.11-34.37-48.656zm-140.086 73.168c-2.947 38.434 5.85 69.552 25.305 89.953 25.207 26.434 66.8 31.985 114.73 13.835h.002c43.58-16.508 75.457-10.814 94.587 9.246 18.525 19.428 26.487 55.05 16.002 103.878-22.39 20.436-50.385 34.833-81.43 40.66l.038-.205c-23.698-4.616-44.6-20.994-53.21-43.424-10.99-28.622 1.01-63.88 30.083-74.895 21.448-8.124 47.847.96 55.943 22.767 5.85 15.76-.836 35.1-16.582 40.848-3.484 1.272-7.217 1.67-10.818 1.28 3.006-3.587 4.82-8.207 4.82-13.254 0-11.412-9.252-20.665-20.663-20.665-11.413 0-20.664 9.254-20.664 20.666 0 3.68.973 7.13 2.66 10.123 9.034 19.034 32.092 26.332 51.073 19.403v-.002c26.41-9.642 36.89-40.114 27.69-64.9-9.013-24.28-32.39-37.62-56.384-37.894-8-.092-16.066 1.267-23.694 4.156-39.625 15.01-55.365 61.408-40.908 99.065 6.25 16.277 17.272 29.828 31.018 39.603-28.09-1.413-54.325-9.757-77.05-23.347-8.506-34.05-5.113-79.09 38.048-102.854-52.583 7.39-66.514 48.602-66.303 81.59-28.446-26.552-47.57-62.952-51.986-103.816 13.757 13.168 33.46 21.397 60.93 18.024-54.79-12.782-57.916-50.575-56.2-79.67 4.867-18.134 12.7-35.044 22.962-50.17z"/>
                   </svg>
                 </div>
                 <div class="bio-hero-title-area">
-                  <div class="bio-hero-title">Janitor Bio Studio</div>
+                  <div class="bio-hero-title">Tempest</div>
                 </div>
               </div>
 
               <!-- Sub-tab Navigation -->
               <div class="bio-subnav" role="tablist">
-                <button type="button" class="bio-subnav-btn active" data-subtab="concept" role="tab" aria-selected="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                  1. Concept &amp; Draft
+                <button type="button" class="bio-subnav-btn active" data-subtab="canvas" role="tab" aria-selected="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                  1. Bio Canvas
                 </button>
-                <button type="button" class="bio-subnav-btn" data-subtab="auth" role="tab" aria-selected="false">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                  2. API Credentials &amp; Vault
+                <button type="button" class="bio-subnav-btn" data-subtab="concept" role="tab" aria-selected="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                  2. AI Bio Writer
                 </button>
                 <button type="button" class="bio-subnav-btn" data-subtab="output" role="tab" aria-selected="false">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
                   3. Output &amp; Sandbox
+                </button>
+                <button type="button" class="bio-subnav-btn" data-subtab="auth" role="tab" aria-selected="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                  4. Credentials Vault
                 </button>
               </div>
             </div>
 
             <!-- View Stage -->
             <div class="bio-view-stage">
-              <!-- TAB 1: CONCEPT & DRAFT -->
-              <div class="bio-tab-content active" id="bio-subtab-concept">
+              <!-- TAB 1: BIO CANVAS (Visual Cover & Layout Studio) -->
+              <div class="bio-tab-content active" id="bio-subtab-canvas">
+                <div class="bio-canvas-app">
+                  <!-- Top Instrument Toolbar -->
+                  <div class="bio-canvas-top">
+                    <div class="bio-canvas-brand">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                      <span>Bio Canvas</span>
+                    </div>
+                    <button type="button" class="bio-c-btn" id="c-b-new" title="Create New Canvas">New</button>
+                    <button type="button" class="bio-c-btn" id="c-b-tpl" title="Load Character Template">Template</button>
+                    <button type="button" class="bio-c-btn" id="c-b-open" title="Open Bio Canvas JSON">Open</button>
+                    <button type="button" class="bio-c-btn" id="c-b-save" title="Ctrl+S: Save/Download Project JSON">Save</button>
+                    <span class="bio-canvas-sep"></span>
+                    <button type="button" class="bio-c-btn" id="c-b-un" title="Undo (Ctrl+Z)">↶</button>
+                    <button type="button" class="bio-c-btn" id="c-b-re" title="Redo (Ctrl+Y)">↷</button>
+                    <span class="bio-canvas-sep"></span>
+                    <button type="button" class="bio-c-btn" data-add="text" title="Add Text Layer">+ Text</button>
+                    <button type="button" class="bio-c-btn" data-add="img" title="Add Photo Layer">+ Photo</button>
+                    <button type="button" class="bio-c-btn" data-add="rect" title="Add Shape/Gradient Layer">+ Shape</button>
+                    <span class="bio-canvas-sep"></span>
+                    <button type="button" class="bio-c-btn" id="c-b-dup" title="Duplicate (Ctrl+D)">Duplicate</button>
+                    <button type="button" class="bio-c-btn" id="c-b-up" title="Bring Layer Up">Up</button>
+                    <button type="button" class="bio-c-btn" id="c-b-dn" title="Send Layer Down">Down</button>
+                    <button type="button" class="bio-c-btn" id="c-b-del" title="Delete Layer">Delete</button>
+                    <span class="bio-canvas-sep"></span>
+                    <button type="button" class="bio-c-btn ai-btn" id="c-b-ai" title="AI Auto-Layout & Design Generator">
+                      <svg viewBox="0 0 512 512" fill="currentColor" width="13" height="13"><path d="M503 114.333v280c0 60.711-49.29 110-110 110H113c-60.711 0-110-49.289-110-110v-280c0-60.71 49.289-110 110-110h280c60.71 0 110 49.29 110 110z"/><path d="M342.065 189.759c1.886-2.42 3.541-4.63 5.289-6.77.81-1.007.74-1.771-.046-2.824-7.58-9.965-8.298-21.028-3.935-32.254 3.275-8.448 10.52-12.406 19.373-13.25 5.52-.521 10.936.046 15.959 2.73 6.596 3.53 10.438 8.912 11.688 16.341.995 5.926.81 11.712-.868 17.452-2.974 10.161-10.277 15.427-20.287 16.758-8.31 1.11-16.734 1.25-25.113 1.817-.648.046-1.308 0-2.06 0z" fill="#027aff"/><path d="M321.512 144.254h-50.064l-39.637 90.384h-56.036v-89.99H131v232.868h44.787v-98.103h78.973c13.598 0 26.015-7.927 31.744-20.252v118.355h44.787v-98.103c0-23.342-18.239-42.97-41.523-44.671v-.116h-24.593a45.577 45.577 0 0026.884-24.534l29.453-65.838z" fill="#fff"/></svg>
+                      ✨ Kimi AI Generator
+                    </button>
+                    <span class="bio-canvas-sp"></span>
+                    <span class="bio-canvas-status-item" id="c-st"></span>
+                    <span class="bio-canvas-status-item" id="c-sv2" style="margin-left: 8px;"></span>
+                    <button type="button" class="bio-c-btn primary" id="c-b-deploy" title="Deploy directly to JanitorAI character">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
+                      Deploy to JAI
+                    </button>
+                  </div>
+
+                  <!-- Left Sidebar: Layers & Tips -->
+                  <div class="bio-canvas-left">
+                    <h4 class="bio-canvas-sec-title">Layers</h4>
+                    <div class="bio-layers-list" id="c-ll"></div>
+                    <h4 class="bio-canvas-sec-title">Tips &amp; Controls</h4>
+                    <div class="bio-canvas-tips-box">
+                      Double-click text to inline edit. Shift+click for multi-selection. Arrow keys to nudge (Shift ×10). Corner handles resize; top handle rotates (Shift for 15° steps). Drag images directly onto canvas.
+                    </div>
+                    <div class="bio-canvas-back-wrap">
+                      <button type="button" class="bio-back-singularity-btn" id="btn-bio-back-singularity" title="Return to Singularity Playground">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <line x1="19" y1="12" x2="5" y2="12"></line>
+                          <polyline points="12 19 5 12 12 5"></polyline>
+                        </svg>
+                        <span>Back to Singularity</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Center Infinite Canvas Stage -->
+                  <div class="bio-canvas-main" id="c-C">
+                    <!-- Top Dimension & Alignment Bar -->
+                    <div class="bio-canvas-controls-bar">
+                      <span class="bio-canvas-status-item">Canvas</span>
+                      <div class="bio-num-group bio-toolbar-num" title="Canvas width">
+                        <button type="button" class="bio-num-step-btn" data-step-for="c-tw" data-step="-10">−</button>
+                        <input class="bio-num-step-input" id="c-tw" type="text" inputmode="numeric" value="480" />
+                        <button type="button" class="bio-num-step-btn" data-step-for="c-tw" data-step="10">+</button>
+                      </div>
+                      <span class="bio-canvas-status-item">×</span>
+                      <div class="bio-num-group bio-toolbar-num" title="Canvas height">
+                        <button type="button" class="bio-num-step-btn" data-step-for="c-th" data-step="-10">−</button>
+                        <input class="bio-num-step-input" id="c-th" type="text" inputmode="numeric" value="608" />
+                        <button type="button" class="bio-num-step-btn" data-step-for="c-th" data-step="10">+</button>
+                      </div>
+                      <span class="bio-canvas-sep"></span>
+                      <div class="bio-canvas-zoom-group">
+                        <button type="button" class="bio-c-btn" id="c-zo" title="Zoom Out (Ctrl+Minus)">−</button>
+                        <span class="bio-canvas-zoom-text" id="c-zv">100%</span>
+                        <button type="button" class="bio-c-btn" id="c-zi" title="Zoom In (Ctrl+Plus)">+</button>
+                        <button type="button" class="bio-c-btn" id="c-z0" title="Fit to Viewport (Ctrl+0)">Fit</button>
+                        <button type="button" class="bio-c-btn" id="c-z1" title="100% Zoom (Ctrl+1)">100%</button>
+                      </div>
+                      <span class="bio-canvas-sep"></span>
+                      <!-- Figma Quick Alignment Toolbar -->
+                      <div class="bio-canvas-align-group" title="Align Selection (Figma Tools)">
+                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-l" title="Align Left"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="2" x2="4" y2="22"></line><rect x="8" y="5" width="12" height="5" rx="1"></rect><rect x="8" y="14" width="8" height="5" rx="1"></rect></svg></button>
+                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-c" title="Align Horizontal Center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"></line><rect x="5" y="5" width="14" height="5" rx="1"></rect><rect x="7" y="14" width="10" height="5" rx="1"></rect></svg></button>
+                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-r" title="Align Right"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="20" y1="2" x2="20" y2="22"></line><rect x="4" y="5" width="12" height="5" rx="1"></rect><rect x="8" y="14" width="8" height="5" rx="1"></rect></svg></button>
+                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-t" title="Align Top"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="4" x2="22" y2="4"></line><rect x="5" y="8" width="5" height="12" rx="1"></rect><rect x="14" y="8" width="5" height="8" rx="1"></rect></svg></button>
+                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-m" title="Align Vertical Middle"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"></line><rect x="5" y="5" width="5" height="14" rx="1"></rect><rect x="14" y="7" width="5" height="10" rx="1"></rect></svg></button>
+                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-b" title="Align Bottom"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="20" x2="22" y2="20"></line><rect x="5" y="4" width="5" height="12" rx="1"></rect><rect x="14" y="8" width="5" height="8" rx="1"></rect></svg></button>
+                      </div>
+                      <div class="bio-canvas-sp"></div>
+                      <div class="bio-canvas-pan-hint" title="Hold Spacebar + Left Mouse Drag or Middle Click to Pan">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"></path><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"></path><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"></path><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.83L7 15"></path></svg>
+                        <span>Space + Drag to pan</span>
+                      </div>
+                    </div>
+
+                    <!-- Infinite Canvas Stage World -->
+                    <div class="bio-canvas-world" id="c-world">
+                      <!-- Draggable Frame Wrapper -->
+                      <div class="bio-canvas-frame-container" id="c-frame-container">
+                        <!-- Figma-Style Frame Header Badge -->
+                        <div class="bio-frame-header" id="c-frame-header" title="Drag to move frame across infinite canvas">
+                          <div class="bio-frame-header-left">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path></svg>
+                            <span class="bio-frame-name">Character Frame</span>
+                          </div>
+                          <span class="bio-frame-dims" id="c-frame-dims">480 × 608</span>
+                        </div>
+
+                        <!-- Scaler & Layers Canvas -->
+                        <div class="bio-stage-scaler" id="c-S">
+                          <div class="bio-stage-canvas" id="c-cv"></div>
+                          <div class="bio-stage-overlay" id="c-ov"></div>
+                          <svg class="bio-stage-guides" id="c-guides"></svg>
+                        </div>
+
+                    <!-- Bottom Height Resize Handle -->
+                        <div class="bio-stage-resize-bar" id="c-rz" title="Drag down to lengthen canvas">
+                          <span class="bio-rz-label">⇅ Height <span id="c-rz-h">608</span> px — drag to extend</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Figma UI3 Floating Tools Dock -->
+                    <div class="bio-figma-dock" id="bio-figma-dock" role="toolbar" aria-label="Figma Canvas Tools">
+                      <!-- 1. Move Tool Group -->
+                      <div class="bio-dock-group" data-tool-group="move">
+                        <button type="button" class="bio-dock-btn active" id="btn-tool-move-primary" data-tool="move" title="Move (V)">
+                          <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 3l15 9-6.5 1.5L9 20z"/></svg>
+                        </button>
+                        <button type="button" class="bio-dock-chevron" data-menu="menu-move" title="Move tools">
+                          <svg viewBox="0 0 10 6" width="7" height="4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg>
+                        </button>
+                        <div class="bio-dock-menu" id="menu-move">
+                          <button type="button" class="bio-dock-menu-item active" data-tool="move">
+                            <span class="menu-check">✓</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M4 3l15 9-6.5 1.5L9 20z"/></svg>
+                            <span class="menu-label">Move</span>
+                            <span class="menu-key">V</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="hand">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.83L7 15"/></svg>
+                            <span class="menu-label">Hand tool</span>
+                            <span class="menu-key">H</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="scale">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3h-6M21 3v6M21 3l-8 8M3 21h6M3 21v-6M3 21l8-8"/></svg>
+                            <span class="menu-label">Scale</span>
+                            <span class="menu-key">K</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- 2. Frame Tool Group -->
+                      <div class="bio-dock-group" data-tool-group="frame">
+                        <button type="button" class="bio-dock-btn" id="btn-tool-frame-primary" data-tool="frame" title="Frame (F)">
+                          <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9h16M4 15h16M9 4v16M15 4v16"/></svg>
+                        </button>
+                        <button type="button" class="bio-dock-chevron" data-menu="menu-frame" title="Frame tools">
+                          <svg viewBox="0 0 10 6" width="7" height="4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg>
+                        </button>
+                        <div class="bio-dock-menu" id="menu-frame">
+                          <button type="button" class="bio-dock-menu-item active" data-tool="frame">
+                            <span class="menu-check">✓</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16M9 4v16M15 4v16"/></svg>
+                            <span class="menu-label">Frame</span>
+                            <span class="menu-key">F</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="section">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+                            <span class="menu-label">Section</span>
+                            <span class="menu-key">⇧S</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="slice">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l16 16M4 12l8 8M12 4l8 8"/></svg>
+                            <span class="menu-label">Slice</span>
+                            <span class="menu-key">S</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- 3. Shape Tool Group -->
+                      <div class="bio-dock-group" data-tool-group="shape">
+                        <button type="button" class="bio-dock-btn" id="btn-tool-shape-primary" data-tool="rect" title="Rectangle (R)">
+                          <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                        </button>
+                        <button type="button" class="bio-dock-chevron" data-menu="menu-shape" title="Shape tools">
+                          <svg viewBox="0 0 10 6" width="7" height="4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg>
+                        </button>
+                        <div class="bio-dock-menu" id="menu-shape">
+                          <button type="button" class="bio-dock-menu-item active" data-tool="rect">
+                            <span class="menu-check">✓</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                            <span class="menu-label">Rectangle</span>
+                            <span class="menu-key">R</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="line">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="4"/></svg>
+                            <span class="menu-label">Line</span>
+                            <span class="menu-key">L</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="arrow">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="9 5 19 5 19 15"/></svg>
+                            <span class="menu-label">Arrow</span>
+                            <span class="menu-key">⇧L</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="ellipse">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
+                            <span class="menu-label">Ellipse</span>
+                            <span class="menu-key">O</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="polygon">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 3 22 21 2 21"/></svg>
+                            <span class="menu-label">Polygon</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="star">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            <span class="menu-label">Star</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="image">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            <span class="menu-label">Image/video...</span>
+                            <span class="menu-key">Ctrl+⇧K</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- 4. Pen / Vector Tool Group -->
+                      <div class="bio-dock-group" data-tool-group="pen">
+                        <button type="button" class="bio-dock-btn" id="btn-tool-pen-primary" data-tool="pen" title="Pen (P)">
+                          <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+                        </button>
+                        <button type="button" class="bio-dock-chevron" data-menu="menu-pen" title="Pen tools">
+                          <svg viewBox="0 0 10 6" width="7" height="4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg>
+                        </button>
+                        <div class="bio-dock-menu" id="menu-pen">
+                          <button type="button" class="bio-dock-menu-item active" data-tool="pen">
+                            <span class="menu-check">✓</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+                            <span class="menu-label">Pen</span>
+                            <span class="menu-key">P</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="pencil">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                            <span class="menu-label">Pencil</span>
+                            <span class="menu-key">⇧P</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- 5. Text Tool Group -->
+                      <div class="bio-dock-group" data-tool-group="text">
+                        <button type="button" class="bio-dock-btn" id="btn-tool-text-primary" data-tool="text" title="Text (T)">
+                          <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+                        </button>
+                        <button type="button" class="bio-dock-chevron" data-menu="menu-text" title="Text tools">
+                          <svg viewBox="0 0 10 6" width="7" height="4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg>
+                        </button>
+                        <div class="bio-dock-menu" id="menu-text">
+                          <button type="button" class="bio-dock-menu-item active" data-tool="text">
+                            <span class="menu-check">✓</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+                            <span class="menu-label">Text</span>
+                            <span class="menu-key">T</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="header-text">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16M4 6h4M4 18h4M20 6h-4M20 18h-4"/></svg>
+                            <span class="menu-label">Display Heading</span>
+                          </button>
+                          <button type="button" class="bio-dock-menu-item" data-tool="quote-text">
+                            <span class="menu-check"></span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.75-2-2-2H4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h4c0 3-2 5-5 5"/></svg>
+                            <span class="menu-label">Quote Callout</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- 6. Comment / Note Tool -->
+                      <button type="button" class="bio-dock-btn" id="btn-tool-comment" data-tool="comment" title="Comment / Sticky Note (C)">
+                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      </button>
+
+                      <!-- 7. Components & Templates Tool -->
+                      <button type="button" class="bio-dock-btn" id="btn-tool-assets" data-tool="assets" title="Components & Templates (Shift+I)">
+                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                      </button>
+
+                      <div class="bio-dock-divider"></div>
+
+                      <!-- 8. Right Utility Tools -->
+                      <button type="button" class="bio-dock-btn" id="btn-tool-draw" data-tool="draw-toggle" title="Freehand Scribble / Doodle">
+                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19c4-1 6-4 8-8s4-7 8-7"/></svg>
+                      </button>
+                      <button type="button" class="bio-dock-btn active" id="btn-tool-measure" data-tool="measure-toggle" title="Smart Magnetic Guides & Distances">
+                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18M3 21h18M3 9h8M3 15h8M17 3v18"/></svg>
+                      </button>
+                      <button type="button" class="bio-dock-btn" id="btn-tool-preview" data-tool="preview-toggle" title="Toggle Live Bio Sandbox Preview">
+                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                      </button>
+                      <button type="button" class="bio-dock-btn" id="btn-tool-dev" data-tool="dev-mode" title="Dev Mode: Copy JanitorAI HTML (</>)">
+                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Right Inspector -->
+                  <div class="bio-canvas-right">
+                    <div class="bio-inspector-tabs">
+                      <button type="button" class="bio-inspector-tab-btn active" data-tab="1">Properties</button>
+                      <button type="button" class="bio-inspector-tab-btn" data-tab="4">Page</button>
+                      <button type="button" class="bio-inspector-tab-btn" data-tab="2">Export</button>
+                      <button type="button" class="bio-inspector-tab-btn" data-tab="3">Compatibility</button>
+                    </div>
+
+                    <!-- Inspector Pane 1: Properties -->
+                    <div class="bio-inspector-pane" id="c-p1"></div>
+
+                    <!-- Inspector Pane 4: Page Sections -->
+                    <div class="bio-inspector-pane" id="c-p4" hidden></div>
+
+                    <!-- Inspector Pane 2: Export & Validation -->
+                    <div class="bio-inspector-pane" id="c-p2" hidden>
+                      <h4 class="bio-sec-title">Render Mode</h4>
+                      <div class="bio-btn-row">
+                        <button type="button" class="bio-c-btn" id="c-m-img">Image</button>
+                        <button type="button" class="bio-c-btn active" id="c-m-hyb">Hybrid</button>
+                        <button type="button" class="bio-c-btn" id="c-m-live">Live HTML</button>
+                      </div>
+                      <p class="bio-canvas-status-item" id="c-mh" style="max-width:none; white-space:normal; margin: 4px 0;"></p>
+
+                      <div id="c-imgbox">
+                        <h4 class="bio-sec-title" style="margin-top: 6px;">Cover Image</h4>
+                        <div class="bio-btn-row">
+                          <div class="claude-custom-select-wrap bio-custom-dropdown" id="c-sc-wrap" data-k="sc" style="width: 76px; min-width: 76px; max-width: 76px; flex-shrink: 0;">
+                            <input type="hidden" id="c-sc" value="2">
+                            <button type="button" class="claude-custom-select-btn bio-dropdown-btn" style="height: 32px; padding: 4px 8px; width: 76px; min-width: 0; max-width: 76px;">
+                              <span class="selected-text" style="font-size: 12px; font-weight: 600;">2×</span>
+                              <svg class="claude-select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </button>
+                            <div class="claude-custom-select-menu bio-dropdown-menu" style="min-width: 76px; width: 76px;">
+                              <div class="claude-select-option" data-val="1">
+                                <span class="option-label">1×</span>
+                                <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              </div>
+                              <div class="claude-select-option active" data-val="2">
+                                <span class="option-label">2×</span>
+                                <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              </div>
+                              <div class="claude-select-option" data-val="3">
+                                <span class="option-label">3×</span>
+                                <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              </div>
+                            </div>
+                          </div>
+                          <button type="button" class="bio-c-btn primary" id="c-e-png">Download PNG</button>
+                          <button type="button" class="bio-c-btn" id="c-e-webp">WebP</button>
+                        </div>
+                        <p class="bio-canvas-status-item" id="c-es" style="margin-top: 4px;"></p>
+
+                        <label class="bio-f-label" style="margin-top: 8px;">
+                          JanitorAI Media Library URL
+                          <input class="bio-f-input" id="c-pu" placeholder="https://ella.janitorai.com/media-approved/….webp" />
+                        </label>
+                        <div class="bio-btn-row" style="margin-top: 6px;">
+                          <button type="button" class="bio-c-btn" id="c-pub">Link URL</button>
+                        </div>
+                        <div id="c-pst" class="bio-canvas-status-item" style="margin-top: 4px;"></div>
+
+                        <label class="bio-f-label" style="margin-top: 8px;">
+                          Image Description (alt)
+                          <input class="bio-f-input" id="c-alt" />
+                        </label>
+                      </div>
+
+                      <h4 class="bio-sec-title" style="margin-top: 8px;">Validation Checklist</h4>
+                      <div id="c-wn"></div>
+
+                      <h4 class="bio-sec-title" style="margin-top: 8px;">Generated Inline HTML</h4>
+                      <textarea class="bio-f-textarea" id="c-code" readonly style="font-family: var(--font-mono); font-size: 11px; height: 90px;"></textarea>
+
+                      <div class="bio-btn-row" style="margin-top: 6px;">
+                        <button type="button" class="bio-c-btn primary" id="c-copy">Copy HTML</button>
+                        <button type="button" class="bio-c-btn" id="c-dl">Download .html</button>
+                        <button type="button" class="bio-c-btn" id="c-pv-btn">Inspect in Sandbox</button>
+                      </div>
+                    </div>
+
+                    <!-- Inspector Pane 3: Compatibility -->
+                    <div class="bio-inspector-pane" id="c-p3" hidden></div>
+                  </div>
+                </div>
+                <input type="file" id="c-fi" hidden />
+              </div>
+
+              <!-- TAB 2: CONCEPT & DRAFT (AI BIO WRITER) -->
+              <div class="bio-tab-content" id="bio-subtab-concept">
                 <div class="bio-craft-grid">
                   <!-- Left: Input & Presets -->
                   <div class="bio-craft-card">
@@ -3086,9 +3491,7 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
     </div>
   </div>
 
-  <script src="/static/vendor/react.min.js"></script>
-  <script src="/static/vendor/react-dom.min.js"></script>
-  <script src="/static/vendor/babel.min.js" defer></script>
+  <!-- Core Markdown, Math & Interactive Shell Utilities -->
   <script src="/static/vendor/marked.umd.js?v=1"></script>
   <script src="/static/vendor/purify.min.js?v=1"></script>
   <script src="/static/vendor/katex/katex.min.js?v=1"></script>
@@ -3108,9 +3511,10 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
   <script src="/static/preloader.js?v=1"></script>
   <script src="/static/vendor/supabase.min.js"></script>
   <script src="/static/supabase-sync.js?v=5"></script>
-  <script src="/static/app.js?v=89"></script>
-  <script src="/static/glass-dock.js?v=64"></script>
-  <script src="/static/janitor-bio.js?v=1"></script>
+  <script src="/static/app.js?v=90"></script>
+  <script src="/static/glass-dock.js?v=67"></script>
+  <script src="/static/janitor-bio.js?v=6"></script>
+  <script src="/static/janitor-canvas.js?v=9"></script>
   <script src="/static/updates-panel.js?v=2"></script>
   <script src="/static/connect-panel.js?v=39"></script>
 </body>

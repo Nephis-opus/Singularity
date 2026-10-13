@@ -1376,7 +1376,7 @@ function switchTab(tabId, updateHash = true) {
       sub: '',
     },
     bio: {
-      h: 'Janitor Bio Studio',
+      h: 'Tempest',
       sub: '',
     },
     connect: {
@@ -1429,6 +1429,7 @@ function switchTab(tabId, updateHash = true) {
 // Control Center & Telemetry
 // ===================================================================
 async function fetchServices() {
+  if (document.hidden) return;
   try {
     const res = await fetch('/api/services');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1453,6 +1454,13 @@ function renderServices() {
   const totalCount = state.services.length || 8;
   const activeBadge = document.getElementById('nav-active-count');
   if (activeBadge) activeBadge.textContent = `${onlineCount}/${totalCount} Active`;
+
+  // Fingerprint check to avoid re-generating provider DOM when state has not changed
+  const servicesFingerprint = state.services.map(s => `${s.id}:${s.running}:${s.port}:${s.latency}`).join('|');
+  if (container._lastFingerprint === servicesFingerprint && container.children.length > 0) {
+    return;
+  }
+  container._lastFingerprint = servicesFingerprint;
 
   container.innerHTML = state.services.map(srv => {
     const isOnline = srv.running;
@@ -1628,6 +1636,12 @@ async function fetchLimits() {
 function renderLimits() {
   const container = document.getElementById('limits-container');
   if (!container) return;
+
+  const limitsFingerprint = JSON.stringify(state.limits || {});
+  if (container._lastLimitsFingerprint === limitsFingerprint && container.children.length > 0) {
+    return;
+  }
+  container._lastLimitsFingerprint = limitsFingerprint;
 
   const chatgpt = state.limits.chatgpt || {};
   const grok = state.limits.grok || {};
@@ -5950,12 +5964,15 @@ function handleStreamingArtifact(content, isFinished = false) {
         codeEl.textContent = cleanCode;
       }
       if (gutterEl) {
-        const lines = cleanCode.length > 0 ? cleanCode.split('\n') : [''];
-        let gutterHtml = '';
-        for (let i = 1; i <= lines.length; i++) {
-          gutterHtml += `<div class="line-number">${i}</div>`;
+        const lineCount = (cleanCode.match(/\n/g) || []).length + 1;
+        if (gutterEl._lastLineCount !== lineCount) {
+          gutterEl._lastLineCount = lineCount;
+          let gutterHtml = '';
+          for (let i = 1; i <= lineCount; i++) {
+            gutterHtml += `<div class="line-number">${i}</div>`;
+          }
+          gutterEl.innerHTML = gutterHtml;
         }
-        gutterEl.innerHTML = gutterHtml;
       }
       if (isTagClosed || isFinished) {
         const art = state.artifacts[id];
@@ -7907,6 +7924,51 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
 
+    // RAF Batching: Throttle DOM Markdown rendering to display refresh rate (~60fps)
+    // instead of running 25+ regular expressions synchronously on every single SSE chunk
+    let streamRafId = null;
+    let pendingStreamContent = '';
+    let pendingArtifactCheck = false;
+
+    const scheduleStreamRender = (rawText, checkArtifacts) => {
+      pendingStreamContent = rawText;
+      if (checkArtifacts) pendingArtifactCheck = true;
+      if (streamRafId) return;
+      streamRafId = requestAnimationFrame(() => {
+        streamRafId = null;
+        if (!pendingStreamContent) return;
+        const display = convertGenUiToArtifact(pendingStreamContent);
+        if (state.enableArtifacts && pendingArtifactCheck && (display.includes('<antArtifact') || pendingStreamContent.includes('※genui※'))) {
+          handleStreamingArtifact(display, false);
+          pendingArtifactCheck = false;
+        }
+        const contentBox = bubbleEl.querySelector('.chat-md-content');
+        if (contentBox) {
+          contentBox.innerHTML = renderMarkdown(display);
+        } else {
+          bubbleEl.innerHTML = `<div class="chat-md-content">${renderMarkdown(display)}</div>`;
+        }
+        const isNearBottom = (history.scrollHeight - history.scrollTop - history.clientHeight) < 160;
+        if (isNearBottom) {
+          history.scrollTop = history.scrollHeight;
+        }
+      });
+    };
+
+    const flushStreamRender = (rawText) => {
+      if (streamRafId) {
+        cancelAnimationFrame(streamRafId);
+        streamRafId = null;
+      }
+      const display = convertGenUiToArtifact(rawText);
+      const contentBox = bubbleEl.querySelector('.chat-md-content');
+      if (contentBox) {
+        contentBox.innerHTML = renderMarkdown(display);
+      } else {
+        bubbleEl.innerHTML = `<div class="chat-md-content">${renderMarkdown(display)}</div>`;
+      }
+    };
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -7986,12 +8048,6 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
               }
             }
 
-            // Realtime streaming artifact extraction
-            const displayContent = convertGenUiToArtifact(fullContent);
-            if (state.enableArtifacts && (displayContent.includes('<antArtifact') || fullContent.includes('※genui※'))) {
-              handleStreamingArtifact(displayContent, false);
-            }
-
             // Check if chunks contain base64 image or video data
             const isBase64Stream = fullContent.includes('data:image/') || fullContent.includes('data:video/') || /[A-Za-z0-9+/=]{180,}/.test(fullContent);
 
@@ -8006,23 +8062,18 @@ async function runAssistantStream(assistantMsgEl, bubbleEl, loaderObj, userText,
                 bubbleEl.classList.remove('playground-loader-bubble');
                 bubbleEl.innerHTML = '<div class="chat-md-content"></div>';
               }
-              const contentBox = bubbleEl.querySelector('.chat-md-content');
-              if (contentBox) {
-                contentBox.innerHTML = renderMarkdown(displayContent);
-              } else {
-                bubbleEl.innerHTML = `<div class="chat-md-content">${renderMarkdown(displayContent)}</div>`;
-              }
+              // Batch render via RAF to ensure smooth 60fps on mobile/low-end devices
+              scheduleStreamRender(fullContent, true);
             }
           }
         } catch (e) {
           // ignore chunk parse errors
         }
       }
-      const isNearBottom = (history.scrollHeight - history.scrollTop - history.clientHeight) < 160;
-      if (isNearBottom) {
-        history.scrollTop = history.scrollHeight;
-      }
     }
+
+    // Flush any pending stream text and finalize artifact
+    flushStreamRender(fullContent);
 
     // Finalize streaming artifact once stream finishes
     const finalDisplayContent = convertGenUiToArtifact(fullContent);
@@ -9713,8 +9764,9 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchTunnelStatus();
   updateTavernAndMobileChips();
 
-  // Background Telemetry Polling (every 3.5s)
+  // Background Telemetry Polling (every 5s, paused when tab is hidden)
   setInterval(() => {
+    if (document.hidden) return;
     fetchServices();
     if (state.currentTab === 'limits') {
       fetchLimits();
@@ -9722,15 +9774,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.currentTab === 'tunnel') {
       fetchTunnelStatus();
     }
-  }, 3500);
+  }, 5000);
 
-  // Periodic status refresh (every 10s)
+  // Periodic status refresh (every 12s, paused when tab is hidden)
   setInterval(() => {
+    if (document.hidden) return;
     updateTavernAndMobileChips();
     if (state.currentTab !== 'tunnel') {
       fetchTunnelStatus();
     }
-  }, 10000);
+  }, 12000);
 });
 
 // ===================================================================
