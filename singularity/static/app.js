@@ -6077,87 +6077,13 @@ function initArtifactResizer() {
 }
 
 // ===================================================================
-// VengeanceUI Animated Light Lines (Playground Background)
+// Playground Background (clean minimal backdrop, no animation overhead)
 // ===================================================================
-let playgroundLightLinesRunning = false;
-
 function initPlaygroundLightLines() {
-  if (playgroundLightLinesRunning) return;
-  const container = document.getElementById('playground-light-lines');
-  if (!container) return;
-
-  const lightsDown = [
-    { selector: '.light4', from: -1080, to: 1080 },
-    { selector: '.light5', from: -1080, to: 1080 },
-    { selector: '.light6', from: -1080, to: 1080 },
-    { selector: '.light7', from: -1080, to: 1080 },
-    { selector: '.light8', from: -1080, to: 1080 },
-    { selector: '.light11', from: -1080, to: 1080 },
-    { selector: '.light12', from: -1080, to: 1080 },
-    { selector: '.light13', from: -1080, to: 1080 },
-    { selector: '.light14', from: -1080, to: 1080 },
-    { selector: '.light15', from: -1080, to: 1080 },
-    { selector: '.light16', from: -1080, to: 1080 },
-  ];
-
-  const lightsUp = [
-    { selector: '.light1', from: 1080, to: -1080 },
-    { selector: '.light2', from: 1080, to: -1080 },
-    { selector: '.light3', from: 1080, to: -1080 },
-    { selector: '.light9', from: 1080, to: -1080 },
-    { selector: '.light10', from: 1080, to: -1080 },
-    { selector: '.light17', from: 1080, to: -1080 },
-  ];
-
-  const allLights = [...lightsDown, ...lightsUp];
-  const animations = allLights.map(light => {
-    const element = container.querySelector(light.selector);
-    const duration = ((Math.floor(Math.random() * 59) + 2) * 0.5 + 0.5);
-    return {
-      element,
-      from: light.from,
-      to: light.to,
-      duration,
-      startTime: performance.now() - Math.random() * 5000,
-    };
-  });
-
-  let isVisible = true;
-  let frameId = null;
-
-  const animate = (time) => {
-    if (!isVisible) {
-      frameId = requestAnimationFrame(animate);
-      return;
-    }
-
-    for (let i = 0; i < animations.length; i++) {
-      const ref = animations[i];
-      if (!ref.element) continue;
-
-      const elapsed = (time - ref.startTime) / 1000;
-      const progress = (elapsed % ref.duration) / ref.duration;
-      const currentY = ref.from + (ref.to - ref.from) * progress;
-
-      ref.element.style.transform = `translateY(${currentY}px)`;
-    }
-
-    frameId = requestAnimationFrame(animate);
-  };
-
-  if ('IntersectionObserver' in window) {
-    const observer = new IntersectionObserver(([entry]) => {
-      isVisible = entry.isIntersecting;
-    }, { threshold: 0 });
-    observer.observe(container);
-  }
-
-  playgroundLightLinesRunning = true;
-  frameId = requestAnimationFrame(animate);
+  // Background effect removed per design preference & performance
 }
 
 function initPlayground() {
-  initPlaygroundLightLines();
   const sendBtn = document.getElementById('btn-send-chat');
   const input = document.getElementById('chat-input');
   const tempRange = document.getElementById('temp-range');
