@@ -118,50 +118,6 @@ def cmd_limits(args):
 
     print_header("📊 LIVE FEATURE LIMITS & QUOTAS ACROSS PROVIDERS")
 
-    # 1. ChatGPT
-    cg = data.get("chatgpt", {})
-    accounts = cg.get("accounts", [])
-    print(f"\n[1] {cg.get('title', 'ChatGPT Accounts')} ({len(accounts)} accounts)")
-    if accounts:
-        headers = ["Account / Email", "Plan", "Status", "Images/Day", "Reasoning", "Deep Res", "Uploads"]
-        rows = []
-        for a in accounts:
-            rows.append([
-                a.get("email", "—"),
-                a.get("type", "FREE"),
-                a.get("status", "Active"),
-                str(a.get("image_quota", "—")),
-                str(a.get("reason_remaining", "—")),
-                str(a.get("deep_research", "—")),
-                str(a.get("file_upload", "—")),
-            ])
-        print_table(headers, rows)
-    else:
-        print("    No ChatGPT accounts in vault. Use './singular import' or Cookie Stacker.")
-
-    # 2. Grok
-    gr = data.get("grok", {}).get("data", {})
-    print(f"\n[2] Grok / xAI Quotas")
-    if gr:
-        print(f"    Account UID : {gr.get('account_uid', '—')}")
-        im = gr.get("imagine_quota", {})
-        print(f"    Pro Images  : {im.get('imagePro', {}).get('remainingQueries', '—')} queries remaining")
-        print(f"    Video 720p  : {im.get('video720p', {}).get('remainingQueries', '—')} queries remaining")
-        rl = gr.get("rate_limits", {})
-        if isinstance(rl, dict) and rl and any(isinstance(v, dict) for v in rl.values()):
-            rl_headers = ["Model / Mode", "Remaining", "Window", "Status"]
-            rl_rows = []
-            for mod, item in rl.items():
-                if isinstance(item, dict):
-                    rl_rows.append([
-                        mod,
-                        f"{item.get('remainingQueries', 0)} / {item.get('totalQueries', 0)}",
-                        f"{round((item.get('windowSizeSeconds', 0)) / 3600)}h",
-                        "Active",
-                    ])
-            if rl_rows:
-                print_table(rl_headers, rl_rows)
-
     # 3. Kimi / Moonshot AI
     km = data.get("kimi", {})
     km_accounts = km.get("accounts", [])
@@ -587,7 +543,7 @@ def cmd_chat(args):
     """Execute a quick test completion through the local gateway."""
     import httpx
 
-    model = args.model or "gpt-5-6-mini"
+    model = args.model or "gemini-3.8-flash"
     prompt = args.prompt
     url = f"http://127.0.0.1:{args.port}/v1/chat/completions"
 
@@ -875,6 +831,57 @@ def cmd_tunnel(args):
             print(f"[!] Failed to configure token: {res.get('message')}")
 
 
+def cmd_claudecode(args):
+    """Manage Claude Code bridge for third-party inference."""
+    try:
+        from singularity import claudecode_bridge
+    except ImportError:
+        import claudecode_bridge
+
+    action = getattr(args, "action", "status") or "status"
+    port = getattr(args, "port", claudecode_bridge.DEFAULT_PORT) or claudecode_bridge.DEFAULT_PORT
+
+    if action == "status":
+        stat = claudecode_bridge.get_bridge_status(port)
+        if getattr(args, "json", False):
+            print(json.dumps(stat, indent=2))
+            return
+        is_running = stat.get("running", False)
+        dot = "●" if is_running else "○"
+        status_label = "ONLINE" if is_running else "STOPPED"
+        print("======================================================================")
+        print("  ⚡ CLAUDE CODE BRIDGE STATUS")
+        print("======================================================================")
+        print(f"  State      : {dot} {status_label}")
+        print(f"  Port       : {stat.get('port')}")
+        print(f"  Endpoint   : {stat.get('endpoint')}")
+        print(f"  Target GW  : {stat.get('gateway')}")
+        if is_running:
+            print(f"  PID        : {stat.get('pid')}")
+        print("\n  Config Commands for Claude Code (Linux):")
+        print(f'    export ANTHROPIC_BASE_URL="{stat.get("endpoint")}"')
+        print('    export ANTHROPIC_API_KEY="sk-singularity-local"')
+        print("    claude --model claude-opus-4-7\n")
+
+    elif action == "start":
+        print(f"[*] Starting Claude Code bridge on port {port}...")
+        res = claudecode_bridge.start_bridge(port)
+        if res.get("running"):
+            print(f"[✓] {res.get('message')}")
+        else:
+            print(f"[!] Failed to start bridge: {res.get('message')}")
+
+    elif action == "stop":
+        print("[*] Stopping Claude Code bridge...")
+        res = claudecode_bridge.stop_bridge(port)
+        print(f"[✓] {res.get('message')}")
+
+    elif action == "restart":
+        print(f"[*] Restarting Claude Code bridge on port {port}...")
+        res = claudecode_bridge.restart_bridge(port)
+        print(f"[✓] {res.get('message')}")
+
+
 def cmd_update(args):
     """Check for and pull latest updates from git repository."""
     import subprocess
@@ -969,13 +976,13 @@ def cmd_login(args):
 
 
 def cmd_restart(args):
-    """Restart Singularity gateway and Tavern Studio by clearing ports and launching server."""
+    """Restart Singularity gateway by clearing ports and launching server."""
     from server import free_listening_ports
-    print_header("RESTARTING SINGULARITY GATEWAY & TAVERN")
-    print("  [*] Clearing ports 9000, 5173, 3001...", flush=True)
-    free_listening_ports([9000, 5173, 3001])
+    print_header("RESTARTING SINGULARITY GATEWAY")
+    print("  [*] Clearing port 9000...", flush=True)
+    free_listening_ports([9000])
     time.sleep(0.4)
-    print("  [✓] Ports successfully cleared. Launching gateway...\n", flush=True)
+    print("  [✓] Port successfully cleared. Launching gateway...\n", flush=True)
     # Clean exec replacement
     os.execv(sys.executable, [sys.executable, str(SCRIPT_DIR / "server.py")])
 
@@ -1017,6 +1024,26 @@ def cmd_autofetch(args):
             print(f"  [✓] Token: {res.get('token')[:16]}...")
         else:
             print(f"  [-] {res.get('detail', 'No token found.')}")
+
+    elif target in ("gemini", "google"):
+        try:
+            from engines.gemini import auto_fetch_gemini_token
+        except ImportError:
+            from singularity.engines.gemini import auto_fetch_gemini_token
+        print("  [*] Scanning local browser cookie vaults for Gemini sessions (Chrome, Brave, Edge, Firefox, Chromium)...")
+        res = auto_fetch_gemini_token(save_to_db=True)
+        if res.get("ok"):
+            print(f"  [✓] Successfully detected Gemini session from {res.get('browser')} ({res.get('profile', 'Default')})!")
+            print(f"  [✓] __Secure-1PSID   : {res.get('masked_token')}")
+            print(f"  [✓] __Secure-1PSIDTS : Loaded & Valid")
+            print(f"  [✓] SAPISID          : {'Present' if res.get('has_sapisid') else 'Missing'}")
+            print(f"  [✓] Saved into SQLite vault successfully under 'gemini' provider!")
+            print(f"\n  Test chat inference:")
+            print(f"    ./singular chat \"Hello Gemini\" -m gemini-4-argon")
+        else:
+            print(f"  [-] {res.get('detail', 'No active session found.')}")
+            print(f"  [TIP] Sign in to https://gemini.google.com in Chrome, Brave, Edge, or Firefox, then re-run:")
+            print(f"    ./singular autofetch gemini")
 
     elif target in ("antigravity", "agy"):
         try:
@@ -1063,7 +1090,7 @@ def main():
 
     # accounts
     p_accounts = subparsers.add_parser("accounts", help="List stacked accounts in SQLite vault")
-    p_accounts.add_argument("provider", nargs="?", default=None, help="Filter by provider (chatgpt, claude, etc.)")
+    p_accounts.add_argument("provider", nargs="?", default=None, help="Filter by provider (gemini, claude, etc.)")
     p_accounts.add_argument("--json", action="store_true", help="Output JSON with masked tokens")
 
     # import
@@ -1085,7 +1112,7 @@ def main():
     # chat
     p_chat = subparsers.add_parser("chat", help="Send a test chat completion to Singularity")
     p_chat.add_argument("prompt", help="Prompt text to test")
-    p_chat.add_argument("-m", "--model", default="gpt-5-6-mini", help="Model name (default: gpt-5-6-mini)")
+    p_chat.add_argument("-m", "--model", default="gemini-2.5-flash", help="Model name (default: gemini-2.5-flash)")
     p_chat.add_argument("--stream", action="store_true", default=True, help="Stream response via SSE")
     p_chat.add_argument("--no-stream", dest="stream", action="store_false")
     p_chat.add_argument("--thinking", type=int, default=None, help="Thinking budget token cap override (e.g. 8192, 0 to disable)")
@@ -1110,13 +1137,19 @@ def main():
     # service
     p_svc = subparsers.add_parser("service", help="Control provider daemons")
     p_svc.add_argument("action", choices=["start", "stop", "restart", "status"])
-    p_svc.add_argument("provider", nargs="?", default=None, help="Provider ID (chatgpt, claude, etc.)")
+    p_svc.add_argument("provider", nargs="?", default=None, help="Provider ID (gemini, claude, etc.)")
 
     # tunnel
     p_tun = subparsers.add_parser("tunnel", help="Manage ngrok cloud tunnel and native installation")
     p_tun.add_argument("action", nargs="?", choices=["status", "start", "stop", "install", "token"], default="status")
     p_tun.add_argument("token_val", nargs="?", default=None, help="Authtoken value when using 'token'")
     p_tun.add_argument("--json", action="store_true", help="Output compact JSON")
+
+    # claudecode
+    p_cc = subparsers.add_parser("claudecode", help="Manage Claude Code bridge for third-party inference")
+    p_cc.add_argument("action", nargs="?", choices=["status", "start", "stop", "restart"], default="status")
+    p_cc.add_argument("--port", type=int, default=6045, help="Bridge port (default: 6045)")
+    p_cc.add_argument("--json", action="store_true", help="Output compact JSON")
 
     # key
     p_key = subparsers.add_parser("key", help="Show, set or rotate the gateway key for LAN/phone/tunnel access")
@@ -1128,15 +1161,15 @@ def main():
     p_login.add_argument("provider", nargs="?", default="antigravity", help="Provider to login (default: antigravity)")
 
     # autofetch
-    p_autofetch = subparsers.add_parser("autofetch", help="Auto-discover tokens from local browsers (mimo, janitor, antigravity)")
-    p_autofetch.add_argument("target", nargs="?", default="mimo", help="Target: mimo, janitor, or antigravity (default: mimo)")
+    p_autofetch = subparsers.add_parser("autofetch", help="Auto-discover tokens from local browsers (gemini, mimo, janitor, antigravity)")
+    p_autofetch.add_argument("target", nargs="?", default="gemini", help="Target: gemini, mimo, janitor, or antigravity (default: gemini)")
 
     # update / upgrade
     subparsers.add_parser("update", help="Check and pull latest updates from repository")
     subparsers.add_parser("upgrade", help="Alias for update")
 
     # restart
-    subparsers.add_parser("restart", help="Restart Singularity gateway and Tavern Studio (clears ports 9000, 5173, 3001)")
+    subparsers.add_parser("restart", help="Restart Singularity gateway (clears port 9000)")
 
     args = parser.parse_args()
 
@@ -1168,6 +1201,8 @@ def main():
         cmd_service(args)
     elif args.subcommand == "tunnel":
         cmd_tunnel(args)
+    elif args.subcommand == "claudecode":
+        cmd_claudecode(args)
     elif args.subcommand == "key":
         cmd_key(args)
     elif args.subcommand in ("update", "upgrade"):

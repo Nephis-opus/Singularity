@@ -5,8 +5,7 @@
  * - User Profiles & Settings (Theme, Avatar, Display Name, Allowed Origins)
  * - S-Connect Personas & Active Persona
  * - S-Connect Chat Sessions & Message History
- * - Playground Chats & Message Trees
- * - Connected AI Accounts & Cookies Vault
+ * - User Preferences, S-Connect Data, and Chats
  *
  * Replaces manual push/pull with seamless automatic real-time cloud persistence.
  */
@@ -848,28 +847,7 @@
       }
     }
 
-    // 3. Sync Down Connected Accounts (Restore into Singularity SQLite Vault)
-    const cloudAccounts = cloudPayload.connected_accounts || [];
-    if (cloudAccounts.length > 0) {
-      const providersPayload = {};
-      cloudAccounts.forEach(ca => {
-        let cred = {};
-        try { cred = typeof ca.credential_json === 'string' ? JSON.parse(ca.credential_json) : (ca.credential_json || {}); } catch (e) { cred = { token: ca.credential_json }; }
-        if (!providersPayload[ca.provider]) providersPayload[ca.provider] = [];
-        providersPayload[ca.provider].push({
-          name: cred.name || ca.provider,
-          token: cred.token || cred.raw || (typeof cred === 'string' ? cred : JSON.stringify(cred)),
-          plan: cred.plan || 'free',
-          status: ca.status || 'active'
-        });
-      });
-
-      fetch('/api/cookies/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ providers: providersPayload })
-      }).catch(e => console.warn('[SingularityCloud] Failed to import cloud accounts locally:', e));
-    }
+    // 3. Connected Accounts Sync: Disabled (cookies are kept strictly on local machine)
 
     // 4. Sync Down S-Connect Chat Sessions & Messages
     const cloudSessions = cloudPayload.connect_chat_sessions || [];
@@ -1033,7 +1011,7 @@
       const genuiEnabled = localStorage.getItem('singularity_genui_enabled') !== 'false';
       const customInstructions = localStorage.getItem('singularity_custom_instructions') || '';
       const identityAwareness = localStorage.getItem('singularity_identity_awareness') !== 'false';
-      const selectedModel = (window.state && window.state.selectedModel) || localStorage.getItem('singularity_selected_model') || localStorage.getItem('c2a_selected_model') || 'gpt-5-6-mini';
+      const selectedModel = (window.state && window.state.selectedModel) || localStorage.getItem('singularity_selected_model') || localStorage.getItem('c2a_selected_model') || 'gemini-3.8-flash';
       const portalTheme = localStorage.getItem('singularity_portal_theme') || currentTheme;
       const activePersonaId = localStorage.getItem('s_connect_active_persona_id') || localStorage.getItem('s_connect_active_persona') || 'persona_default';
 
@@ -1150,7 +1128,7 @@
         const playItem = {
           id: activePlaygroundId,
           title: window.state.chatTitle || (window.state.chatMessages[0]?.content?.slice(0, 36) || 'Chat Session'),
-          model: window.state.selectedModel || 'gpt-5-6-mini',
+          model: window.state.selectedModel || 'gemini-3.8-flash',
           messages: window.state.chatMessages,
           updated_at: now
         };
@@ -1417,9 +1395,33 @@
     }
   }
 
+  function drawLoginGlobeDots(ctx, list, base, gain, grow, dmin, getInk) {
+    for (let lvl = 0; lvl < 6; lvl++) {
+      const z = (lvl + 0.5) / 6, dsz = dmin * grow * (0.55 + 0.75 * z);
+      ctx.fillStyle = getInk(base + gain * z);
+      ctx.beginPath();
+      for (let q = 0; q < list.length; q += 3) {
+        const lv = list[q + 2] >= 1 ? 5 : (list[q + 2] * 6) | 0;
+        if (lv !== lvl) continue;
+        ctx.rect(list[q] - dsz / 2, list[q + 1] - dsz / 2, dsz, dsz);
+      }
+      ctx.fill();
+    }
+  }
+
   function startGlobeAnimation() {
+    const portal = document.getElementById('singularity-cloud-login-portal');
+    if (!portal || portal.classList.contains('portal-hidden') || portal.style.display === 'none' || document.hidden) {
+      return;
+    }
     const canvas = document.getElementById('login-globe-canvas');
     if (!canvas) return;
+
+    if (globeRafId) {
+      cancelAnimationFrame(globeRafId);
+      globeRafId = null;
+    }
+
     initGlobeNodes();
     globeAnimationRunning = true;
 
@@ -1454,10 +1456,17 @@
     }
 
     resizeGlobe();
-    window.addEventListener('resize', resizeGlobe);
+    if (!canvas._resizeBound) {
+      window.addEventListener('resize', resizeGlobe);
+      canvas._resizeBound = true;
+    }
 
     function stepGlobe(now) {
-      if (!globeAnimationRunning) return;
+      const p = document.getElementById('singularity-cloud-login-portal');
+      if (!globeAnimationRunning || document.hidden || !p || p.classList.contains('portal-hidden') || p.style.display === 'none') {
+        stopGlobeAnimation();
+        return;
+      }
       globeRafId = requestAnimationFrame(stepGlobe);
       if (globeWidth <= 0 || globeHeight <= 0) return;
 
@@ -1507,21 +1516,8 @@
       }
 
       const dmin = Math.max(0.7, R * 0.007);
-      function dots(list, base, gain, grow) {
-        for (let lvl = 0; lvl < 6; lvl++) {
-          const z = (lvl + 0.5) / 6, dsz = dmin * grow * (0.55 + 0.75 * z);
-          ctx.fillStyle = getInk(base + gain * z);
-          ctx.beginPath();
-          for (let q = 0; q < list.length; q += 3) {
-            const lv = list[q + 2] >= 1 ? 5 : (list[q + 2] * 6) | 0;
-            if (lv !== lvl) continue;
-            ctx.rect(list[q] - dsz / 2, list[q + 1] - dsz / 2, dsz, dsz);
-          }
-          ctx.fill();
-        }
-      }
-      dots(globeSea, 0.12, 0.25, 1.0);
-      dots(globeSoil, 0.38, 0.48, 1.7);
+      drawLoginGlobeDots(ctx, globeSea, 0.12, 0.25, 1.0, dmin, getInk);
+      drawLoginGlobeDots(ctx, globeSoil, 0.38, 0.48, 1.7, dmin, getInk);
 
       const FACE = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       for (let bi = 0; bi < 8; bi++) {
@@ -1550,7 +1546,26 @@
       cancelAnimationFrame(globeRafId);
       globeRafId = null;
     }
+    const canvas = document.getElementById('login-globe-canvas');
+    if (canvas) {
+      try {
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      } catch (_) {}
+    }
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopGlobeAnimation();
+    } else {
+      const portal = document.getElementById('singularity-cloud-login-portal');
+      if (portal && !portal.classList.contains('portal-hidden') && portal.style.display !== 'none') {
+        startGlobeAnimation();
+      }
+    }
+  });
+
 
   // =========================================================================
   // UI Bindings & Initialization

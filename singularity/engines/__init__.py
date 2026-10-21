@@ -14,9 +14,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 from .kimi import stream_kimi_chat
 from .gemini import stream_gemini_chat
-from .grok import stream_grok_chat
 from .glm import stream_glm_chat
-from .chatgpt import stream_chatgpt_chat
 from .claude import stream_claude_chat
 from .deepseek import stream_deepseek_chat, generate_deepseek_chat
 from .qwen import stream_qwen_chat, generate_qwen_chat
@@ -47,12 +45,6 @@ async def stream_chat(
             yield chunk
         return
 
-    # 1. ChatGPT / OpenAI
-    if pid in ("chatgpt", "openai"):
-        async for chunk in stream_chatgpt_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
-            yield chunk
-        return
-
     # 2. Claude / Anthropic
     if pid in ("claude", "anthropic"):
         async for chunk in stream_claude_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
@@ -67,13 +59,25 @@ async def stream_chat(
 
     # 4. Alibaba Qwen
     if pid in ("qwen", "qwen-ai", "tongyi"):
-        async for chunk in stream_qwen_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
+        import importlib, sys
+        for mod_name in list(sys.modules.keys()):
+            if mod_name in ("singularity.engines.qwen", "engines.qwen") or mod_name.endswith(".engines.qwen"):
+                try: importlib.reload(sys.modules[mod_name])
+                except Exception: pass
+        from . import qwen as _qwen_mod
+        async for chunk in _qwen_mod.stream_qwen_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
             yield chunk
         return
 
     # 5. Kimi / Moonshot AI
     if pid in ("kimi", "moonshot"):
-        async for chunk in stream_kimi_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
+        import importlib, sys
+        for mod_name in list(sys.modules.keys()):
+            if mod_name in ("singularity.engines.kimi", "engines.kimi") or mod_name.endswith(".engines.kimi"):
+                try: importlib.reload(sys.modules[mod_name])
+                except Exception: pass
+        from . import kimi as _kimi_mod
+        async for chunk in _kimi_mod.stream_kimi_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
             yield chunk
         return
 
@@ -86,24 +90,6 @@ async def stream_chat(
                 except Exception: pass
         from . import gemini as _gemini_mod
         async for chunk in _gemini_mod.stream_gemini_chat(model, messages, accounts=accounts, stream=stream, **kwargs):
-            yield chunk
-        return
-
-    # 3. xAI Grok
-    if pid in ("grok", "xai"):
-        cookie_str = ""
-        if accounts:
-            cookie_str = accounts[0].get("token", "")
-        if not cookie_str:
-            try:
-                from singularity import db
-                accs = db.get_accounts("grok")
-                if accs:
-                    cookie_str = accs[0].get("token", "")
-            except Exception:
-                pass
-
-        async for chunk in stream_grok_chat(model, messages, cookie_str=cookie_str, stream=stream, **kwargs):
             yield chunk
         return
 

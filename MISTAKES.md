@@ -13,7 +13,7 @@ This document is a persistent record of past failures, UI/UX missteps, technical
 - **Rule**: `git push` is **strictly forbidden** unless the user explicitly commands it in their prompt. All commits stay local until commanded.
 
 ### 1.2 Leave the `TAVERN/` Directory Untouched
-- **Mistake**: Modifying files inside `/home/insomniac/Desktop/UNI/Apps/Gemini Web2Api/Singularity/TAVERN` while implementing integration.
+- **Mistake**: Modifying files inside `TAVERN/` while implementing integration.
 - **Rule**: The existing `TAVERN/` folder is sacred and must remain untouched. Any code, assets, or concepts ported to Singularity must live entirely within `singularity/`.
 
 ### 1.3 Zero Legacy Dependencies
@@ -343,6 +343,26 @@ Whenever an issue is identified or a user corrects a behavior, log the entry bel
     1. **Mute Uvicorn HTTP Access Logs**: Set `access_log=False` and `log_level="warning"` by default, disabling the `uvicorn.access` logger so background health checks and sync polls remain completely silent. Provide a `SINGULARITY_DEBUG=1` escape hatch for troubleshooting.
     2. **Frame-Free Responsive Terminal UI**: Never draw rigid fixed-width boxes (`"=" * 66` or `╭────╮`) that wrap and shatter on narrow 35–45 column Termux screens. Use clean left-aligned indentation (`  `), soft indicators (`● online`, `➜ Local:`, `• Vault:`), and short lines that wrap naturally on any display.
     3. **Multi-Tier Port Auto-Kill**: Before launching the server, inspect and reclaim port `9000`, `5173`, `3001`, and `3000` via `ss -lptn`, `fuser`, `lsof`, and process table matching to prevent `Address already in use` crashes.
+- **2026-10-21 (Google Gemini Session Probing & False Expired Flags)**:
+  - *Mistake*: Probing Gemini session validity via raw, parameterless `batchexecute` requests returned Google HTTP 400 (`[["er",null,null,null,null,400,...]]`), causing the account validator to mark active Gemini cookies as "✗ Expired" and displaying false expiration warnings.
+  - *Rule*: Never probe Gemini via empty parameterless RPC calls. Validate authentic sessions by making an authenticated `GET https://gemini.google.com/app` request and verifying extraction of the `SNlM0e` XSRF token and `bl` build label.
+- **2026-10-21 (Multi-Line cURL & Header Dump Paste Stacking Defense)**:
+  - *Mistake*: When users pasted full multi-line `curl ...` commands or multi-line header dumps into the Cookie Stacker, `parse_credential()` blindly processed each line or split on spaces. Every header argument (`-H "accept: */*"`, `-H "sec-fetch-dest: empty"`) was ingested as an individual account record, polluting the database vault with 30+ phantom expired accounts.
+  - *Rule*: In `parse_credential()`:
+    1. Specifically detect cURL command strings (`curl ...`, `-H 'Cookie: ...'`).
+    2. Extract only the value inside the `Cookie:` header, ignoring all other command arguments.
+    3. For Gemini, strictly validate that `__Secure-1PSID` exists; if missing, return `None` rather than saving junk headers as accounts.
+- **2026-10-21 (Local Antigravity Language Server RPC 180s ReadTimeout & SSE Keepalive Window)**:
+  - *Mistake*: Long roleplays and complex reasoning prompts with >60k tokens or heavy system contexts take 3–5 minutes to synthesize tokens on Gemini 4 Argon or Claude Opus. The httpx client had a default `read=180.0` second timeout and no SSE keepalives, terminating connections with `RuntimeError: Language server connection failed: timed out` at minute 3 while the language server was still computing.
+  - *Rule*:
+    1. Extend `httpx.Timeout` for the local language server RPC to `read=600.0` seconds (10 minutes) with `connect=10.0`.
+    2. In the streaming generator, emit periodic `: keepalive\n\n` SSE comments every 3.0 seconds during initial inference pauses to prevent upstream client disconnects.
+    3. Cache and prioritize the active listening port to eliminate multi-port scanning jitter.
+    4. Distinguish genuine server shutdowns from timeouts with clear, actionable error categorization.
+- **2026-10-21 (Starlette Dynamic Route Table Immutability vs Process Restart Invariant)**:
+  - *Mistake*: When modifying route decorators (`@app.get(...)` / `@app.post(...)`) in `server.py` while a daemon process is running, reloading modules via `importlib.reload()` reloads engine logic but does NOT bind new routes into Starlette's existing route table, returning 404 on new endpoints.
+  - *Rule*: Starlette compiles its route table into internal data structures at application instantiation. When adding or altering HTTP/SSE routes on `app`, always trigger a clean process restart via `./singular restart` or PID reload.
+
 
 
 

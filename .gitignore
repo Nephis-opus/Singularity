@@ -40,6 +40,7 @@ singularity/static/generated/*
 singularity/bin/*
 !singularity/bin/.gitkeep
 # Local workspace projects
+Sunless/
 Laya/
 laya/
 niste-sing/
@@ -47,6 +48,8 @@ Janitor-Bio-Stuff*/
 Domcord-Cards/
 Tempest-Engine*/
 threejs-playground/
+.agents/
+skills-lock.json
 # Media & test files
 *.mp3
 *.wav

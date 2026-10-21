@@ -9,9 +9,9 @@ const state = {
   services: [],
   limits: {},
   models: [],
-  activeCookieProvider: 'chatgpt',
+  activeCookieProvider: 'gemini',
   cookiesData: {},
-  selectedModel: localStorage.getItem('singularity_selected_model') || 'gpt-5.6-sol',
+  selectedModel: localStorage.getItem('singularity_selected_model') || 'gemini-2.5-flash',
   chatMessages: [],
   isStreaming: false,
   playgroundModality: 'all',
@@ -251,6 +251,8 @@ function initUserProfile() {
 }
 
 async function copyTextToClipboard(text) {
+  if (!text) return false;
+  // 1. Try native Async Clipboard API if available in secure context
   if (navigator.clipboard && window.isSecureContext) {
     try {
       await navigator.clipboard.writeText(text);
@@ -259,21 +261,52 @@ async function copyTextToClipboard(text) {
       console.warn('navigator.clipboard write failed, using fallback:', err);
     }
   }
+
+  // 2. Cross-platform fallback for mobile (iOS Safari & Android Chrome over insecure LAN)
   try {
     const textArea = document.createElement('textarea');
     textArea.value = text;
     textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    textArea.style.top = '-999999px';
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.width = '2em';
+    textArea.style.height = '2em';
+    textArea.style.padding = '0';
+    textArea.style.border = 'none';
+    textArea.style.outline = 'none';
+    textArea.style.boxShadow = 'none';
+    textArea.style.background = 'transparent';
+    textArea.style.opacity = '0.01';
+    textArea.style.zIndex = '-9999';
+    textArea.style.fontSize = '16px'; // Prevents auto-zoom on iOS Safari
     textArea.setAttribute('readonly', '');
     document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
+
+    if (navigator.userAgent.match(/ipad|ipod|iphone/i)) {
+      textArea.contentEditable = 'true';
+      textArea.readOnly = false;
+      const range = document.createRange();
+      range.selectNodeContents(textArea);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      textArea.setSelectionRange(0, 999999);
+    } else {
+      textArea.focus();
+      textArea.select();
+    }
     const successful = document.execCommand('copy');
     document.body.removeChild(textArea);
-    return successful;
+    if (successful) return true;
   } catch (err) {
-    console.error('Fallback clipboard copy failed:', err);
+    console.warn('execCommand clipboard copy failed:', err);
+  }
+
+  // 3. Prompt fallback if programmatic clipboard write is blocked by phone OS
+  try {
+    window.prompt('Copy endpoint URL to clipboard: Ctrl+C / tap copy', text);
+    return true;
+  } catch (_) {
     return false;
   }
 }
@@ -938,12 +971,18 @@ function initClaudeSettings() {
   loadAllowedOrigins();
 
   // Gateway Custom API Key Management
-  let currentGatewayKey = 'sk-singularity-local';
+  let currentGatewayKey = localStorage.getItem('singularity_gateway_key') || 'Insom-Singularity';
 
   const updateGatewayKeyDisplays = (key) => {
     currentGatewayKey = key;
+    try {
+      localStorage.setItem('singularity_gateway_key', key);
+    } catch (e) {}
     if (inputGatewayKey) inputGatewayKey.value = key;
     if (profileApikeyText) profileApikeyText.textContent = key;
+    if (typeof updateClaudeCodeKeySnippet === 'function') {
+      updateClaudeCodeKeySnippet(key);
+    }
   };
 
   const loadGatewayKey = async () => {
@@ -1211,10 +1250,8 @@ function initClaudeSettings() {
   const connectorsGrid = document.getElementById('settings-connectors-grid');
   if (connectorsGrid && connectorsGrid.children.length === 0) {
     const providers = [
-      { id: 'chatgpt', name: 'OpenAI ChatGPT', meta: 'GPT-5.4, GPT-5.3 Thinking, GPT-4o, Canvas', icon: '/static/icons/chatgpt.svg' },
       { id: 'claude', name: 'Anthropic Claude', meta: 'Claude 3.7 Sonnet, Thinking, Opus, Haiku', icon: '/static/icons/claude.svg' },
       { id: 'gemini', name: 'Google Gemini', meta: 'Gemini 3.8 Flash & Thinking, 3.7, 3.1 Pro', icon: '/static/icons/gemini.svg' },
-      { id: 'grok', name: 'xAI Grok', meta: 'Grok 3, Grok 3 Mini, Thinking Mode', icon: '/static/icons/grok.svg' },
       { id: 'deepseek', name: 'DeepSeek AI', meta: 'DeepSeek V4, V3, R1 Reasoner', icon: '/static/icons/deepseek.svg' },
       { id: 'kimi', name: 'Moonshot Kimi', meta: 'Kimi K2.5, K1.5 Long Context & Research', icon: '/static/icons/kimi.svg' },
       { id: 'glm', name: 'Zhipu GLM', meta: 'GLM-5, GLM-4 Plus & Flash', icon: '/static/icons/glm.svg' },
@@ -1288,17 +1325,6 @@ function initNavigation() {
   });
 
   tabs.forEach(tab => {
-    if (tab.id === 'tavern-nav-btn') {
-      tab.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openTavernStudio();
-        if (window.innerWidth <= 1024) {
-          closeSidebar();
-        }
-      });
-      return;
-    }
     tab.addEventListener('click', () => {
       const target = tab.dataset.tab;
       if (target) switchTab(target);
@@ -1311,6 +1337,159 @@ function initNavigation() {
   document.body.dataset.activeTab = state.currentTab || 'playground';
   document.documentElement.dataset.activeTab = state.currentTab || 'playground';
 }
+
+// ===================================================================
+// On-Demand Lazy Module Loader (Bio Studio & S-Connect)
+// Prevents startup memory bloat, thread blocking, and background network traffic
+// ===================================================================
+const LazyModules = {
+  bio: {
+    loaded: false,
+    promise: null,
+    css: [
+      '/static/bio-studio/janitor-bio.css?v=8',
+      '/static/bio-studio/janitor-canvas.css?v=10'
+    ],
+    html: '/static/bio-studio/bio-studio.html?v=8',
+    scripts: [
+      '/static/bio-studio/janitor-bio.js?v=7',
+      '/static/bio-studio/janitor-canvas.js?v=10'
+    ],
+    containerId: 'pane-bio',
+    onInit() {
+      if (window.JanitorBioStudio && typeof window.JanitorBioStudio.init === 'function') {
+        window.JanitorBioStudio.init();
+      }
+      if (window.JanitorBioCanvas && typeof window.JanitorBioCanvas.init === 'function') {
+        window.JanitorBioCanvas.init();
+      }
+      if (window.JanitorBioCanvas && typeof window.JanitorBioCanvas.fit === 'function') {
+        setTimeout(() => window.JanitorBioCanvas.fit(), 60);
+      }
+    }
+  },
+  connect: {
+    loaded: false,
+    promise: null,
+    css: [
+      '/static/s-connect/connect.css?v=39'
+    ],
+    html: '/static/s-connect/s-connect.html?v=39',
+    scripts: [
+      '/static/s-connect/connect-panel.js?v=40'
+    ],
+    containerId: 'pane-connect',
+    onInit() {
+      if (window.SConnect && typeof window.SConnect.init === 'function') {
+        window.SConnect.init();
+      }
+      if (window.SConnect && typeof window.SConnect.show === 'function') {
+        window.SConnect.show();
+      }
+    }
+  }
+};
+
+function loadLazyStylesheet(href) {
+  return new Promise((resolve) => {
+    const rawHref = href.split('?')[0];
+    if (document.querySelector(`link[href^="${rawHref}"]`)) {
+      return resolve();
+    }
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.onload = () => resolve();
+    link.onerror = (err) => {
+      console.warn('[LazyLoader] Stylesheet failed to load:', href, err);
+      resolve();
+    };
+    document.head.appendChild(link);
+  });
+}
+
+function loadLazyScript(src) {
+  return new Promise((resolve, reject) => {
+    const rawSrc = src.split('?')[0];
+    if (document.querySelector(`script[src^="${rawSrc}"]`)) {
+      return resolve();
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = false;
+    script.onload = () => resolve();
+    script.onerror = (err) => reject(new Error(`Failed to load script: ${src}`));
+    document.body.appendChild(script);
+  });
+}
+
+async function loadLazyModule(moduleId) {
+  const mod = LazyModules[moduleId];
+  if (!mod) return Promise.resolve();
+  if (mod.loaded) return Promise.resolve();
+  if (mod.promise) return mod.promise;
+
+  mod.promise = (async () => {
+    const container = document.getElementById(mod.containerId);
+    try {
+      // 1. Fetch HTML and load all CSS stylesheets concurrently
+      const [htmlText] = await Promise.all([
+        fetch(mod.html).then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${mod.html}`);
+          return r.text();
+        }),
+        Promise.all(mod.css.map(loadLazyStylesheet))
+      ]);
+
+      // 2. Inject HTML fragment into target tab pane
+      if (container) {
+        container.innerHTML = htmlText;
+      }
+
+      // 3. Sequentially load and execute module scripts
+      for (const scriptSrc of mod.scripts) {
+        await loadLazyScript(scriptSrc);
+      }
+
+      // 4. Initialize module
+      if (typeof mod.onInit === 'function') {
+        mod.onInit();
+      }
+
+      mod.loaded = true;
+      if (container) {
+        container.dataset.loaded = 'true';
+      }
+    } catch (err) {
+      console.error(`[LazyLoader] Error loading module ${moduleId}:`, err);
+      if (container) {
+        container.innerHTML = `
+          <div class="module-lazy-placeholder" style="color: var(--color-danger, #ef4444);">
+            <div style="font-size: 24px;">⚠</div>
+            <div class="module-lazy-label">Failed to load ${moduleId} module: ${err.message || 'Unknown error'}</div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="retryLazyModule('${moduleId}')">Retry</button>
+          </div>
+        `;
+      }
+      mod.promise = null;
+      throw err;
+    }
+  })();
+
+  return mod.promise;
+}
+
+function retryLazyModule(moduleId) {
+  const mod = LazyModules[moduleId];
+  if (mod) {
+    mod.promise = null;
+    mod.loaded = false;
+    loadLazyModule(moduleId);
+  }
+}
+
+window.loadLazyModule = loadLazyModule;
+window.retryLazyModule = retryLazyModule;
 
 function switchTab(tabId, updateHash = true) {
   state.currentTab = tabId;
@@ -1375,6 +1554,10 @@ function switchTab(tabId, updateHash = true) {
       h: 'Singularity-Access',
       sub: '',
     },
+    claudecode: {
+      h: 'ClaudeCode Bridge',
+      sub: '',
+    },
     bio: {
       h: 'Tempest',
       sub: '',
@@ -1396,7 +1579,6 @@ function switchTab(tabId, updateHash = true) {
   }
 
   try {
-    if (tabId === 'limits') renderLimits();
     if (tabId === 'models') renderModels();
     if (tabId === 'cookies') {
       loadCookiesTab();
@@ -1406,10 +1588,18 @@ function switchTab(tabId, updateHash = true) {
       if (window.SingularityPresets?.show) window.SingularityPresets.show();
     }
     if (tabId === 'bio') {
-      if (window.JanitorBioStudio?.init) window.JanitorBioStudio.init();
+      loadLazyModule('bio').then(() => {
+        if (window.JanitorBioCanvas && typeof window.JanitorBioCanvas.fit === 'function') {
+          setTimeout(() => window.JanitorBioCanvas.fit(), 60);
+        }
+      }).catch(err => console.error('[switchTab] Failed loading bio:', err));
     }
     if (tabId === 'connect') {
-      if (window.SConnect?.show) window.SConnect.show();
+      loadLazyModule('connect').then(() => {
+        if (window.SConnect && typeof window.SConnect.show === 'function') {
+          window.SConnect.show();
+        }
+      }).catch(err => console.error('[switchTab] Failed loading connect:', err));
     }
     if (tabId === 'updates') {
       if (window.SingularityUpdates?.init) window.SingularityUpdates.init();
@@ -1419,6 +1609,9 @@ function switchTab(tabId, updateHash = true) {
     } else {
       stopGlobeAnimation();
       stopUptimeTracker();
+    }
+    if (tabId === 'claudecode') {
+      loadClaudeCodeTab();
     }
   } catch (err) {
     console.error('Error rendering tab content:', err);
@@ -1455,31 +1648,58 @@ function renderServices() {
   const activeBadge = document.getElementById('nav-active-count');
   if (activeBadge) activeBadge.textContent = `${onlineCount}/${totalCount} Active`;
 
-  // Fingerprint check to avoid re-generating provider DOM when state has not changed
-  const servicesFingerprint = state.services.map(s => `${s.id}:${s.running}:${s.port}:${s.latency}`).join('|');
-  if (container._lastFingerprint === servicesFingerprint && container.children.length > 0) {
+  const providerIcons = {
+    gemini: '/static/icons/gemini.svg',
+    claude: '/static/icons/claude.svg',
+    kimi: '/static/icons/kimi.svg',
+    glm: '/static/icons/glm.svg',
+    deepseek: '/static/icons/deepseek.svg',
+    qwen: '/static/icons/qwen.svg',
+    antigravity: '/static/icons/antigravity.svg',
+    aistudio: '/static/icons/aistudio.svg',
+    mimo: '/static/icons/mimo.svg',
+  };
+
+  const existingCards = container.querySelectorAll('.provider-card');
+  const serviceIds = state.services.map(s => s.id).join(',');
+
+  // Fast-path: in-place mutations if DOM cards match existing fleet (0 allocations, 0 reflow thrashing)
+  if (existingCards.length === state.services.length && container._renderedIds === serviceIds) {
+    state.services.forEach(srv => {
+      const card = container.querySelector(`.provider-card[data-provider="${srv.id}"]`);
+      if (!card) return;
+      const isOnline = srv.running;
+      const badge = card.querySelector('.provider-status-badge');
+      if (badge) {
+        const badgeClass = isOnline ? 'online' : 'offline';
+        const badgeText = isOnline ? 'RUNNING' : 'STOPPED';
+        if (badge.textContent !== badgeText) {
+          badge.className = `provider-status-badge ${badgeClass}`;
+          badge.textContent = badgeText;
+        }
+      }
+      const statBoxes = card.querySelectorAll('.stat-box .stat-value');
+      if (statBoxes[0]) statBoxes[0].textContent = `:${srv.port}`;
+      if (statBoxes[1]) statBoxes[1].textContent = srv.pid || '—';
+      if (statBoxes[2]) statBoxes[2].textContent = srv.latency_ms !== null ? srv.latency_ms + 'ms' : 'Offline';
+
+      const actions = card.querySelector('.provider-card-actions');
+      if (actions && card._lastRunning !== isOnline) {
+        card._lastRunning = isOnline;
+        actions.innerHTML = isOnline
+          ? `<button class="btn btn-secondary btn-sm" onclick="restartService('${srv.id}')">Restart</button>
+             <button class="btn btn-danger btn-sm" onclick="stopService('${srv.id}')">Stop</button>`
+          : `<button class="btn btn-primary btn-sm" onclick="startService('${srv.id}')">Start</button>`;
+      }
+    });
     return;
   }
-  container._lastFingerprint = servicesFingerprint;
 
+  container._renderedIds = serviceIds;
   container.innerHTML = state.services.map(srv => {
     const isOnline = srv.running;
     const badgeClass = isOnline ? 'online' : 'offline';
     const badgeText = isOnline ? 'RUNNING' : 'STOPPED';
-
-    const providerIcons = {
-      gemini: '/static/icons/gemini.svg',
-      chatgpt: '/static/icons/chatgpt.svg',
-      claude: '/static/icons/claude.svg',
-      kimi: '/static/icons/kimi.svg',
-      glm: '/static/icons/glm.svg',
-      grok: '/static/icons/grok.svg',
-      deepseek: '/static/icons/deepseek.svg',
-      qwen: '/static/icons/qwen.svg',
-      antigravity: '/static/icons/antigravity.svg',
-      aistudio: '/static/icons/aistudio.svg',
-      mimo: '/static/icons/mimo.svg',
-    };
     const iconUrl = providerIcons[srv.id] || '/logo.svg';
 
     return `
@@ -1617,446 +1837,9 @@ async function stopAllServices() {
   }
 }
 
-// ===================================================================
-// Limits & Quotas Section
-// ===================================================================
-async function fetchLimits() {
-  try {
-    const res = await fetch('/api/limits');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    state.limits = await res.json();
-    if (state.currentTab === 'limits') {
-      renderLimits();
-    }
-  } catch (err) {
-    console.error('Error fetching limits:', err);
-  }
-}
 
-function renderLimits() {
-  const container = document.getElementById('limits-container');
-  if (!container) return;
 
-  const limitsFingerprint = JSON.stringify(state.limits || {});
-  if (container._lastLimitsFingerprint === limitsFingerprint && container.children.length > 0) {
-    return;
-  }
-  container._lastLimitsFingerprint = limitsFingerprint;
-
-  const chatgpt = state.limits.chatgpt || {};
-  const grok = state.limits.grok || {};
-  const kimi = state.limits.kimi || {};
-  const claude = state.limits.claude || {};
-  const gemini = state.limits.gemini || {};
-  const glm = state.limits.glm || {};
-  const deepseek = state.limits.deepseek || {};
-  const qwen = state.limits.qwen || {};
-
-  // ChatGPT Accounts Table
-  const chatgptRows = (chatgpt.accounts || []).map(acc => {
-    return `
-      <tr>
-        <td style="font-weight: 600; font-family: var(--font-mono);">${escapeHtml(acc.email || 'Account')}</td>
-        <td><span class="brand-badge">${escapeHtml(acc.type || 'FREE')}</span></td>
-        <td><strong>${acc.image_quota !== undefined ? acc.image_quota : '—'}</strong></td>
-        <td>${acc.reason_remaining !== undefined ? acc.reason_remaining : '—'}</td>
-        <td>${acc.deep_research !== undefined ? acc.deep_research : '—'}</td>
-        <td>${acc.file_upload !== undefined ? acc.file_upload : '—'}</td>
-        <td style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">${escapeHtml(acc.restore_at || 'Active')}</td>
-      </tr>
-    `;
-  }).join('');
-
-  // Grok Rate limits and imagine quotas
-  const grokData = grok.data || {};
-  const grokLimits = grokData.rate_limits || {};
-  const grokImagine = grokData.imagine_quota || {};
-  const grokRows = Object.entries(grokLimits).map(([mod, item]) => {
-    return `
-      <tr>
-        <td style="font-weight: 600; font-family: var(--font-mono);">${escapeHtml(mod)}</td>
-        <td><strong>${item.remainingQueries || 0} / ${item.totalQueries || 0}</strong></td>
-        <td>${Math.round((item.windowSizeSeconds || 0) / 3600)} Hours</td>
-        <td><span class="lock-badge unlocked">Operational</span></td>
-      </tr>
-    `;
-  }).join('');
-
-  // Kimi Accounts Table and Quotas
-  const kimiSummary = kimi.summary || {};
-  const kimiRows = (kimi.accounts || []).map(acc => {
-    return `
-      <tr>
-        <td style="font-weight: 600; font-family: var(--font-mono);">${escapeHtml(acc.name || acc.id || 'Kimi Account')}</td>
-        <td><span class="brand-badge">${escapeHtml(acc.plan || 'Free')}</span></td>
-        <td><strong>${escapeHtml(acc.research_today || '50 / 50')}</strong></td>
-        <td>${escapeHtml(acc.deep_research || '1 / 1 left')}</td>
-        <td>${escapeHtml(acc.ok_computer || '3 / 3 left')}</td>
-        <td>${escapeHtml(acc.slides || '3 / 3 left')}</td>
-        <td style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">${escapeHtml(acc.reset_date || 'Active')}</td>
-        <td><span class="lock-badge ${acc.status === 'Active' ? 'unlocked' : 'locked'}">${escapeHtml(acc.status || 'Active')}</span></td>
-      </tr>
-    `;
-  }).join('');
-
-  // Claude Accounts & Quotas
-  const claudeAccounts = claude.accounts || [];
-  const claudeRows = claudeAccounts.map(acc => {
-    return `
-      <tr>
-        <td style="font-weight: 600; font-family: var(--font-mono);">${escapeHtml(acc.email || acc.identifier || 'Claude Session')}</td>
-        <td><span class="brand-badge">${escapeHtml(acc.type || acc.plan || 'PRO')}</span></td>
-        <td><strong>${escapeHtml(acc.messages || '45 / 5 hrs')}</strong></td>
-        <td>${escapeHtml(acc.reasoning || 'Included (5 hrs)')}</td>
-        <td>${escapeHtml(acc.file_upload || '30MB / file')}</td>
-        <td>${escapeHtml(acc.web_search || 'Extended')}</td>
-        <td style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">${escapeHtml(acc.restore_at || 'Rolling (5 hrs)')}</td>
-      </tr>
-    `;
-  }).join('');
-
-  // Gemini Accounts & Quotas
-  const geminiAccounts = gemini.accounts || [];
-  const geminiRows = geminiAccounts.map(acc => {
-    return `
-      <tr>
-        <td style="font-weight: 600; font-family: var(--font-mono);">${escapeHtml(acc.email || acc.identifier || 'Gemini Account')}</td>
-        <td><span class="brand-badge">${escapeHtml(acc.type || acc.plan || 'FREE')}</span></td>
-        <td><strong>${acc.image_quota !== undefined ? acc.image_quota : '30'}</strong></td>
-        <td>${escapeHtml(acc.reason_remaining || 'Standard (60/hr)')}</td>
-        <td>${escapeHtml(acc.deep_research || '0 / day')}</td>
-        <td>${escapeHtml(acc.file_upload || '10 / prompt')}</td>
-        <td style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">${escapeHtml(acc.restore_at || 'Daily (Midnight PST)')}</td>
-      </tr>
-    `;
-  }).join('');
-
-  // GLM Accounts & Quotas
-  const glmAccounts = glm.accounts || [];
-  const glmRows = glmAccounts.map(acc => {
-    return `
-      <tr>
-        <td style="font-weight: 600; font-family: var(--font-mono);">${escapeHtml(acc.email || acc.identifier || 'GLM Account')}</td>
-        <td><span class="brand-badge">${escapeHtml(acc.type || acc.plan || 'FREE')}</span></td>
-        <td><strong>${acc.image_quota !== undefined ? acc.image_quota : '10'}</strong></td>
-        <td>${escapeHtml(acc.video_quota || '2 / day')}</td>
-        <td>${escapeHtml(acc.reason_remaining || '200 / day')}</td>
-        <td>${escapeHtml(acc.deep_research || '100 / day')}</td>
-        <td>${escapeHtml(acc.file_upload || '5 docs / day')}</td>
-        <td>${escapeHtml(acc.concurrency || '2 requests')}</td>
-        <td style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">${escapeHtml(acc.restore_at || 'Daily (Midnight CST)')}</td>
-      </tr>
-    `;
-  }).join('');
-
-  // DeepSeek Accounts & Quotas
-  const deepseekAccounts = deepseek.accounts || [];
-  const deepseekRows = deepseekAccounts.map(acc => {
-    return `
-      <tr>
-        <td style="font-weight: 600; font-family: var(--font-mono);">${escapeHtml(acc.email || acc.identifier || 'DeepSeek Account')}</td>
-        <td><span class="brand-badge">${escapeHtml(acc.type || acc.plan || 'FREE')}</span></td>
-        <td><strong>${escapeHtml(acc.image_quota !== undefined ? String(acc.image_quota) : '—')}</strong></td>
-        <td>${escapeHtml(acc.reason_remaining || '50 / day')}</td>
-        <td>${escapeHtml(acc.deep_research || '50 / day')}</td>
-        <td>${escapeHtml(acc.web_search || '200 / day')}</td>
-        <td>${escapeHtml(acc.file_upload || '5 files (100MB)')}</td>
-        <td>${escapeHtml(acc.concurrency || '1 request (5/min)')}</td>
-        <td style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">${escapeHtml(acc.restore_at || 'Daily (Midnight CST)')}</td>
-      </tr>
-    `;
-  }).join('');
-
-  // Qwen Accounts & Quotas
-  const qwenAccounts = qwen.accounts || [];
-  const qwenRows = qwenAccounts.map(acc => {
-    let accountName = acc.email || acc.identifier || 'user_766931c8';
-    if (accountName.startsWith('qwen_ey')) {
-      accountName = 'user_766931c8';
-    }
-    return `
-      <tr>
-        <td style="font-weight: 600; font-family: var(--font-mono);">${escapeHtml(accountName)}</td>
-        <td><span class="brand-badge">${escapeHtml(acc.type || acc.plan || 'FREE')}</span></td>
-        <td><strong>${escapeHtml(acc.image_quota !== undefined ? String(acc.image_quota) : '30 / day')}</strong></td>
-        <td>${escapeHtml(acc.reason_remaining || '100 / day')}</td>
-        <td>${escapeHtml(acc.deep_research || '10 / day')}</td>
-        <td>${escapeHtml(acc.web_search || '500 / day')}</td>
-        <td>${escapeHtml(acc.file_upload || '50 files (100MB)')}</td>
-        <td>${escapeHtml(acc.concurrency || '2 requests (10/min)')}</td>
-        <td style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">${escapeHtml(acc.restore_at || 'Daily (Midnight CST)')}</td>
-      </tr>
-    `;
-  }).join('');
-
-  container.innerHTML = `
-    <!-- ChatGPT Section -->
-    <div class="limits-group">
-      <div class="limits-group-header">
-        <div>
-          <h3 style="font-size: 16px; font-weight: 700;">ChatGPT Account Quotas</h3>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table class="editorial-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Plan</th>
-              <th>Image Quota</th>
-              <th>Reasoning</th>
-              <th>Deep Res</th>
-              <th>Uploads</th>
-              <th>Quota Reset</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${chatgptRows || '<tr><td colspan="7">No accounts loaded</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Grok Section -->
-    <div class="limits-group">
-      <div class="limits-group-header">
-        <div>
-          <h3 style="font-size: 16px; font-weight: 700;">Grok / xAI Limits & Quotas</h3>
-        </div>
-      </div>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
-        <div class="card" style="padding: 14px;">
-          <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">IMAGINE PRO 1.5</div>
-          <div style="font-size: 20px; font-weight: 700; color: var(--brand-primary); margin-top: 4px;">
-            ${grokImagine.imagePro?.remainingQueries ?? 0} Queries
-          </div>
-          <div style="font-size: 11px; color: var(--text-muted);">Reset: ${grokImagine.imagePro?.nextAvailableAt ? new Date(grokImagine.imagePro.nextAvailableAt).toLocaleTimeString() : '—'}</div>
-        </div>
-        <div class="card" style="padding: 14px;">
-          <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">VIDEO 720P GENERATION</div>
-          <div style="font-size: 20px; font-weight: 700; color: var(--color-success); margin-top: 4px;">
-            ${grokImagine.video720p?.remainingQueries ?? 0} Slots
-          </div>
-          <div style="font-size: 11px; color: var(--text-muted);">${(grokData.account_uid && grokData.account_uid !== 'default') ? '24-hour window' : 'No account integrated'}</div>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table class="editorial-table">
-          <thead>
-            <tr>
-              <th>Mode / Model</th>
-              <th>Remaining Queries</th>
-              <th>Rolling Window</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${grokRows || '<tr><td colspan="4">No quota data</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Kimi Section -->
-    <div class="limits-group">
-      <div class="limits-group-header">
-        <div>
-          <h3 style="font-size: 16px; font-weight: 700;">Kimi / Moonshot AI Live Limits & Features</h3>
-        </div>
-      </div>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px;">
-        <div class="card" style="padding: 14px;">
-          <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">DAILY RESEARCH QUOTA</div>
-          <div style="font-size: 20px; font-weight: 700; color: var(--brand-primary); margin-top: 4px;">
-            ${kimiSummary.research_queries || '—'}
-          </div>
-          <div style="font-size: 11px; color: var(--text-muted);">Reset: Midnight CST</div>
-        </div>
-        <div class="card" style="padding: 14px;">
-          <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">DEEP RESEARCH</div>
-          <div style="font-size: 20px; font-weight: 700; color: var(--color-success); margin-top: 4px;">
-            ${kimiSummary.deep_research ?? 0} Queries
-          </div>
-          <div style="font-size: 11px; color: var(--text-muted);">Multi-Step Synthesis</div>
-        </div>
-        <div class="card" style="padding: 14px;">
-          <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">OK COMPUTER AGENT</div>
-          <div style="font-size: 20px; font-weight: 700; color: #38bdf8; margin-top: 4px;">
-            ${kimiSummary.ok_computer ?? 0} Tasks
-          </div>
-          <div style="font-size: 11px; color: var(--text-muted);">Autonomous Execution</div>
-        </div>
-        <div class="card" style="padding: 14px;">
-          <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">SLIDES GENERATOR</div>
-          <div style="font-size: 20px; font-weight: 700; color: #a78bfa; margin-top: 4px;">
-            ${kimiSummary.slides ?? 0} Decks
-          </div>
-          <div style="font-size: 11px; color: var(--text-muted);">Presentation Maker</div>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table class="editorial-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Plan & Tier</th>
-              <th>Daily Research</th>
-              <th>Deep Research</th>
-              <th>Ok Computer</th>
-              <th>Slides Gen</th>
-              <th>Cycle Reset</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${kimiRows || '<tr><td colspan="8">No Kimi accounts active in vault</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Claude Section -->
-    <div class="limits-group">
-      <div class="limits-group-header">
-        <div>
-          <h3 style="font-size: 16px; font-weight: 700;">Claude / Anthropic Account Quotas</h3>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table class="editorial-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Plan</th>
-              <th>Messages</th>
-              <th>Reasoning / CoT</th>
-              <th>Uploads</th>
-              <th>Web Search</th>
-              <th>Quota Reset</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${claudeRows || '<tr><td colspan="7">No Claude session keys configured in vault. Stack a sessionKey in the Control Center.</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Gemini Section -->
-    <div class="limits-group">
-      <div class="limits-group-header">
-        <div>
-          <h3 style="font-size: 16px; font-weight: 700;">Google Gemini Account Quotas</h3>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table class="editorial-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Plan</th>
-              <th>Image Quota</th>
-              <th>Hourly Rate</th>
-              <th>Deep Research</th>
-              <th>Uploads</th>
-              <th>Quota Reset</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${geminiRows || '<tr><td colspan="7">No Gemini accounts active</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- GLM Section -->
-    <div class="limits-group">
-      <div class="limits-group-header">
-        <div>
-          <h3 style="font-size: 16px; font-weight: 700;">GLM / Zhipu AI Account Quotas</h3>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table class="editorial-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Plan</th>
-              <th>Image Quota</th>
-              <th>Video Quota</th>
-              <th>Messages</th>
-              <th>Web Search</th>
-              <th>Uploads</th>
-              <th>Concurrency</th>
-              <th>Quota Reset</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${glmRows || '<tr><td colspan="9">No GLM accounts active in vault</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- DeepSeek Section -->
-    <div class="limits-group">
-      <div class="limits-group-header">
-        <div>
-          <h3 style="font-size: 16px; font-weight: 700;">DeepSeek AI Account Quotas</h3>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table class="editorial-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Plan</th>
-              <th>Image Quota</th>
-              <th>Reasoning / CoT</th>
-              <th>Deep Research</th>
-              <th>Web Search</th>
-              <th>Uploads</th>
-              <th>Concurrency</th>
-              <th>Quota Reset</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${deepseekRows || '<tr><td colspan="9">No DeepSeek accounts active in vault</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Qwen Section -->
-    <div class="limits-group">
-      <div class="limits-group-header">
-        <div>
-          <h3 style="font-size: 16px; font-weight: 700;">Qwen / Alibaba Cloud Account Quotas</h3>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table class="editorial-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Plan</th>
-              <th>Image Quota</th>
-              <th>Reasoning / CoT</th>
-              <th>Deep Research</th>
-              <th>Web Search</th>
-              <th>Uploads</th>
-              <th>Concurrency</th>
-              <th>Quota Reset</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${qwenRows || '<tr><td colspan="9">No Qwen accounts active in vault</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
+function renderLimits() {}
 
 // ===================================================================
 // Available Models Catalog
@@ -2082,61 +1865,125 @@ async function fetchModels() {
 }
 
 const PROVIDER_METAS = {
-  chatgpt: { name: 'ChatGPT', icon: '/static/icons/chatgpt.svg' },
   claude: { name: 'Claude', icon: '/static/icons/claude.svg' },
   gemini: { name: 'Gemini', icon: '/static/icons/gemini.svg' },
   kimi: { name: 'Kimi', icon: '/static/icons/kimi.svg' },
   glm: { name: 'GLM', icon: '/static/icons/glm.svg' },
-  grok: { name: 'Grok', icon: '/static/icons/grok.svg' },
   deepseek: { name: 'DeepSeek', icon: '/static/icons/deepseek.svg' },
   qwen: { name: 'Qwen', icon: '/static/icons/qwen.svg' },
   antigravity: { name: 'Antigravity', icon: '/static/icons/antigravity.svg' },
   aistudio: { name: 'AI Studio', icon: '/static/icons/aistudio.svg' },
   mimo: { name: 'Xiaomi MiMo', icon: '/static/icons/mimo.svg' },
-  external: { name: 'API Connections', icon: '/static/icons/chatgpt.svg' },
+  external: { name: 'API Connections', icon: '/static/icons/claude.svg' },
 };
 
 let isScrollSpyLocked = false;
 let scrollSpyUnlockTimer = null;
 
+const PROVIDER_DISPLAY_NAMES = {
+  all: 'All Models',
+  antigravity: 'Antigravity',
+  aistudio: 'AI Studio',
+  mimo: 'Xiaomi MiMo',
+  claude: 'Claude',
+  gemini: 'Gemini',
+  kimi: 'Kimi',
+  glm: 'GLM',
+  deepseek: 'DeepSeek',
+  qwen: 'Qwen',
+  external: 'API Connections'
+};
+
+function updateModelFilterUI(filter) {
+  // Desktop pills
+  const pills = document.querySelectorAll('#model-filter-pills .filter-btn');
+  pills.forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === filter);
+  });
+
+  // Mobile dropdown label & option
+  const dropdownLabel = document.getElementById('models-provider-dropdown-label');
+  if (dropdownLabel) {
+    dropdownLabel.textContent = PROVIDER_DISPLAY_NAMES[filter] || 'All Models';
+  }
+  const dropdownOptions = document.querySelectorAll('#models-provider-dropdown-menu .claude-select-option');
+  dropdownOptions.forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.filter === filter);
+  });
+}
+
+function applyModelFilter(filter) {
+  updateModelFilterUI(filter);
+
+  if (['claude', 'gemini', 'kimi', 'glm', 'deepseek', 'qwen', 'antigravity', 'aistudio', 'mimo', 'external'].includes(filter)) {
+    const sec = document.getElementById(`models-section-${filter}`);
+    const viewport = document.querySelector('.panel-viewport');
+    if (sec && viewport) {
+      isScrollSpyLocked = true;
+      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      clearTimeout(scrollSpyUnlockTimer);
+      scrollSpyUnlockTimer = setTimeout(() => {
+        isScrollSpyLocked = false;
+      }, 700);
+      return;
+    }
+  }
+
+  if (filter === 'all') {
+    const viewport = document.querySelector('.panel-viewport');
+    if (viewport) {
+      isScrollSpyLocked = true;
+      viewport.scrollTo({ top: 0, behavior: 'smooth' });
+      clearTimeout(scrollSpyUnlockTimer);
+      scrollSpyUnlockTimer = setTimeout(() => {
+        isScrollSpyLocked = false;
+      }, 700);
+    }
+  }
+
+  renderModels();
+}
+
 function initModelFilters() {
   const pills = document.querySelectorAll('#model-filter-pills .filter-btn');
   pills.forEach(btn => {
     btn.addEventListener('click', () => {
-      const filter = btn.dataset.filter;
-
-      pills.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      if (['chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'antigravity', 'aistudio', 'mimo', 'external'].includes(filter)) {
-        const sec = document.getElementById(`models-section-${filter}`);
-        const viewport = document.querySelector('.panel-viewport');
-        if (sec && viewport) {
-          isScrollSpyLocked = true;
-          sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          clearTimeout(scrollSpyUnlockTimer);
-          scrollSpyUnlockTimer = setTimeout(() => {
-            isScrollSpyLocked = false;
-          }, 700);
-          return;
-        }
-      }
-
-      if (filter === 'all') {
-        const viewport = document.querySelector('.panel-viewport');
-        if (viewport) {
-          isScrollSpyLocked = true;
-          viewport.scrollTo({ top: 0, behavior: 'smooth' });
-          clearTimeout(scrollSpyUnlockTimer);
-          scrollSpyUnlockTimer = setTimeout(() => {
-            isScrollSpyLocked = false;
-          }, 700);
-        }
-      }
-
-      renderModels();
+      applyModelFilter(btn.dataset.filter);
     });
   });
+
+  // Mobile custom provider dropdown options
+  const dropdownOptions = document.querySelectorAll('#models-provider-dropdown-menu .claude-select-option');
+  dropdownOptions.forEach(opt => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const filter = opt.dataset.filter;
+      applyModelFilter(filter);
+      const wrap = document.getElementById('models-provider-dropdown-wrap');
+      if (wrap) wrap.classList.remove('open');
+      const menu = document.getElementById('models-provider-dropdown-menu');
+      if (menu) menu.classList.remove('open');
+    });
+  });
+
+  // Mobile sidebar drawer trigger
+  const mobileSidebarBtn = document.getElementById('btn-models-mobile-sidebar');
+  if (mobileSidebarBtn) {
+    mobileSidebarBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.triggerHaptic?.(8);
+      const dockToggle = document.getElementById('singularity-sidebar-toggle');
+      if (dockToggle) {
+        dockToggle.click();
+      } else {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (sidebar) sidebar.classList.toggle('open');
+        if (overlay) overlay.classList.toggle('active');
+      }
+    });
+  }
 
   const searchInput = document.getElementById('model-search');
   if (searchInput) {
@@ -2147,6 +1994,29 @@ function initModelFilters() {
 
   initModelsScrollSpy();
 }
+
+window.toggleModelsProviderDropdown = function(event) {
+  if (event) event.stopPropagation();
+  window.triggerHaptic?.(8);
+  const wrap = document.getElementById('models-provider-dropdown-wrap');
+  if (!wrap) return;
+  const menu = document.getElementById('models-provider-dropdown-menu');
+  const isOpen = wrap.classList.contains('open');
+  document.querySelectorAll('.claude-custom-select-wrap.open').forEach(w => {
+    if (w !== wrap) w.classList.remove('open');
+  });
+  wrap.classList.toggle('open', !isOpen);
+  if (menu) menu.classList.toggle('open', !isOpen);
+};
+
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('models-provider-dropdown-wrap');
+  if (wrap && wrap.classList.contains('open') && !wrap.contains(e.target)) {
+    wrap.classList.remove('open');
+    const menu = document.getElementById('models-provider-dropdown-menu');
+    if (menu) menu.classList.remove('open');
+  }
+});
 
 function initModelsScrollSpy() {
   const viewport = document.querySelector('.panel-viewport');
@@ -2159,16 +2029,11 @@ function initModelsScrollSpy() {
     const activePane = document.querySelector('.tab-pane.active');
     if (!activePane || activePane.id !== 'pane-models') return;
 
-    const activeFilterBtn = document.querySelector('#model-filter-pills .filter-btn.active');
-    const currentFilter = activeFilterBtn ? activeFilterBtn.dataset.filter : 'all';
-    if (currentFilter === 'unlocked' || currentFilter === 'locked') return;
-
     // Near top -> highlight 'all'
     if (viewport.scrollTop < 60) {
       const allBtn = document.querySelector('#model-filter-pills .filter-btn[data-filter="all"]');
       if (allBtn && !allBtn.classList.contains('active')) {
-        document.querySelectorAll('#model-filter-pills .filter-btn').forEach(b => b.classList.remove('active'));
-        allBtn.classList.add('active');
+        updateModelFilterUI('all');
       }
       return;
     }
@@ -2196,89 +2061,251 @@ function initModelsScrollSpy() {
     if (currentSectionProvider) {
       const targetBtn = document.querySelector(`#model-filter-pills .filter-btn[data-filter="${currentSectionProvider}"]`);
       if (targetBtn && !targetBtn.classList.contains('active')) {
-        document.querySelectorAll('#model-filter-pills .filter-btn').forEach(b => b.classList.remove('active'));
-        targetBtn.classList.add('active');
+        updateModelFilterUI(currentSectionProvider);
       }
     }
   }, { passive: true });
 }
 
-function renderSingleModelCard(m) {
-  const isLocked = m.locked;
-  const lockBadge = isLocked
-    ? `<span class="lock-badge locked">LOCKED</span>`
-    : `<span class="lock-badge unlocked">UNLOCKED</span>`;
+function getModelVariantInfo(model) {
+  const id = (model.id || '').toLowerCase();
 
-  const capsHtml = (m.capabilities || []).map(c => `<span class="cap-tag">${escapeHtml(c)}</span>`).join('');
+  const patterns = [
+    { regex: /-(?:thinking-search|think-search)$/i, label: 'Thinking + Search', order: 4 },
+    { regex: /-(?:thinking|think)$/i, label: 'Thinking', order: 2 },
+    { regex: /-search$/i, label: 'Search', order: 3 },
+    { regex: /-extra-low$/i, label: 'Extra-Low', order: 4 },
+    { regex: /-high$/i, label: 'High', order: 1 },
+    { regex: /-medium$/i, label: 'Medium', order: 2 },
+    { regex: /-low$/i, label: 'Low', order: 3 },
+  ];
+
+  for (const p of patterns) {
+    const match = p.regex.exec(id);
+    if (match) {
+      const baseId = id.slice(0, match.index);
+      return { baseId, label: p.label, order: p.order, isVariant: true };
+    }
+  }
+
+  if (id === 'kimi-2.6-fast') {
+    return { baseId: 'kimi-2.6', label: 'Fast', order: 1, isVariant: true };
+  }
+
+  return { baseId: id, label: 'Base', order: 1, isVariant: false };
+}
+
+function getCleanModelTitle(model, baseId) {
+  let name = model.name || baseId;
+  name = name.replace(/\s*\((?:High|Medium|Low|Extra-Low|Thinking|Search|Default)\)/ig, '');
+  name = name.replace(/\b(?:High|Medium|Low|Extra-Low)\b/g, '');
+  name = name.replace(/\s+(?:Thinking|Search|Thinking Search)$/ig, '');
+  name = name.replace(/\s{2,}/g, ' ');
+  return name.trim();
+}
+
+function groupModelsList(modelsList) {
+  const groupsMap = new Map();
+
+  modelsList.forEach(m => {
+    const p = (m.provider || '').toLowerCase();
+    const { baseId, label, order } = getModelVariantInfo(m);
+    const key = `${p}::${baseId}`;
+
+    if (!groupsMap.has(key)) {
+      groupsMap.set(key, {
+        provider: p,
+        baseId: baseId,
+        title: getCleanModelTitle(m, baseId),
+        variants: []
+      });
+    }
+
+    groupsMap.get(key).variants.push({
+      label,
+      order,
+      model: m
+    });
+  });
+
+  groupsMap.forEach(group => {
+    group.variants.sort((a, b) => a.order - b.order);
+  });
+
+  return Array.from(groupsMap.values());
+}
+
+function renderGroupedModelCard(group, query = '') {
+  const variants = group.variants;
+  let activeVariant = variants[0];
+
+  const matchSelected = variants.find(v => v.model.id.toLowerCase() === (state.selectedModel || '').toLowerCase());
+  if (matchSelected) {
+    activeVariant = matchSelected;
+  } else if (query) {
+    const qLower = query.toLowerCase();
+    const matchQuery = variants.find(v =>
+      v.label.toLowerCase().includes(qLower) ||
+      v.model.id.toLowerCase().includes(qLower)
+    );
+    if (matchQuery) activeVariant = matchQuery;
+  }
+
+  const activeModel = activeVariant.model;
+  const cardId = `mc-${group.provider}-${group.baseId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  const hasVariants = variants.length > 1;
+
+  let variantSelectorHtml = '';
+  if (hasVariants) {
+    variantSelectorHtml = `
+      <div class="claude-custom-select-wrap model-variant-select-wrap" id="variant-wrap-${cardId}">
+        <button type="button" class="claude-custom-select-btn model-variant-select-btn" onclick="toggleModelVariantSelect('${cardId}', event)">
+          <span class="claude-custom-select-text" id="variant-label-${cardId}">${escapeHtml(activeVariant.label)}</span>
+          <svg class="claude-select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="claude-custom-select-menu model-variant-select-menu" role="listbox">
+          ${variants.map(v => `
+            <button type="button" class="claude-select-option ${v.model.id === activeModel.id ? 'selected' : ''}" onclick="selectModelCardVariant('${cardId}', '${escapeHtml(v.model.id)}', '${escapeHtml(v.label)}', event)">
+              <span>${escapeHtml(v.label)}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
 
   return `
-    <div class="model-card ${isLocked ? 'locked-model' : ''}">
+    <div class="model-card" id="${cardId}" data-active-id="${escapeHtml(activeModel.id)}">
       <div class="model-header">
-        <div>
-          <div class="model-title">${escapeHtml(m.name)}</div>
-          <div class="model-id-badge">${escapeHtml(m.id)}</div>
+        <div class="model-header-main">
+          <div class="model-title"><span>${escapeHtml(group.title)}</span></div>
+          <div class="model-id-badge" id="model-id-disp-${cardId}">${escapeHtml(activeModel.id)}</div>
         </div>
-        ${lockBadge}
+        ${variantSelectorHtml}
       </div>
 
-      <p class="model-desc">${escapeHtml(m.description || '')}</p>
-
-      ${isLocked && m.reason ? `<div style="font-size: 11px; color: var(--color-warning); font-family: var(--font-mono);">${escapeHtml(m.reason)}</div>` : ''}
-
-      <div class="model-capabilities">
-        <span class="cap-tag" style="color: var(--brand-primary); font-weight: 600;">${escapeHtml((m.provider || '').toUpperCase())}</span>
-        <span class="cap-tag">${escapeHtml(m.context || '')}</span>
-        ${capsHtml}
-      </div>
+      <p class="model-desc" id="model-desc-${cardId}">${escapeHtml(activeModel.description || '')}</p>
 
       <div class="model-card-footer">
-        <span style="color: var(--text-muted); font-size: 11px;">Base: /v1/chat/completions</span>
-        <button class="btn btn-secondary btn-sm" onclick="selectAndTestModel('${escapeHtml(m.id)}')">
-          Test in Playground
+        <button class="btn btn-secondary btn-sm btn-test-model" id="btn-test-${cardId}" onclick="selectAndTestModel('${escapeHtml(activeModel.id)}')">
+          <span>Test in Playground</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
         </button>
       </div>
     </div>
   `;
 }
 
+window.toggleModelVariantSelect = function(cardId, event) {
+  if (event) event.stopPropagation();
+  window.triggerHaptic?.(8);
+  const wrap = document.getElementById(`variant-wrap-${cardId}`);
+  if (!wrap) return;
+
+  const menu = wrap.querySelector('.claude-custom-select-menu');
+  const isOpen = wrap.classList.contains('open');
+
+  document.querySelectorAll('.model-variant-select-wrap.open').forEach(w => {
+    if (w !== wrap) {
+      w.classList.remove('open');
+      w.querySelector('.claude-custom-select-menu')?.classList.remove('open');
+    }
+  });
+
+  if (isOpen) {
+    wrap.classList.remove('open');
+    if (menu) menu.classList.remove('open');
+  } else {
+    wrap.classList.add('open');
+    if (menu) menu.classList.add('open');
+  }
+};
+
+window.selectModelCardVariant = function(cardId, modelId, variantLabel, event) {
+  if (event) event.stopPropagation();
+  window.triggerHaptic?.(8);
+
+  const wrap = document.getElementById(`variant-wrap-${cardId}`);
+  if (wrap) {
+    wrap.classList.remove('open');
+    const menu = wrap.querySelector('.claude-custom-select-menu');
+    if (menu) menu.classList.remove('open');
+    wrap.querySelectorAll('.claude-select-option').forEach(opt => {
+      opt.classList.toggle('selected', opt.textContent.trim() === variantLabel);
+    });
+  }
+
+  const labelEl = document.getElementById(`variant-label-${cardId}`);
+  if (labelEl) labelEl.textContent = variantLabel;
+
+  const idEl = document.getElementById(`model-id-disp-${cardId}`);
+  if (idEl) idEl.textContent = modelId;
+
+  const card = document.getElementById(cardId);
+  if (card) card.dataset.activeId = modelId;
+
+  const mData = state.models?.find(m => m.id === modelId);
+  if (mData && mData.description) {
+    const descEl = document.getElementById(`model-desc-${cardId}`);
+    if (descEl) descEl.textContent = mData.description;
+  }
+
+  const btnTest = document.getElementById(`btn-test-${cardId}`);
+  if (btnTest) {
+    btnTest.setAttribute('onclick', `selectAndTestModel('${escapeHtml(modelId)}')`);
+  }
+};
+
+if (!window._modelVariantSelectCloseAttached) {
+  window._modelVariantSelectCloseAttached = true;
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.model-variant-select-wrap')) {
+      document.querySelectorAll('.model-variant-select-wrap.open').forEach(w => {
+        w.classList.remove('open');
+        w.querySelector('.claude-custom-select-menu')?.classList.remove('open');
+      });
+    }
+  });
+}
+
 function renderModels() {
   const container = document.getElementById('models-container');
   if (!container) return;
 
-  const activeFilterBtn = document.querySelector('#model-filter-pills .filter-btn.active');
-  const filter = activeFilterBtn ? activeFilterBtn.dataset.filter : 'all';
   const query = (document.getElementById('model-search')?.value || '').toLowerCase().trim();
 
   const filtered = state.models.filter(m => {
-    if (filter === 'unlocked' && m.locked) return false;
-    if (filter === 'locked' && !m.locked) return false;
-    if (filter === 'external' && (m.provider || '').toLowerCase() !== 'external') return false;
-
     if (query) {
-      const matchName = m.name.toLowerCase().includes(query);
-      const matchId = m.id.toLowerCase().includes(query);
+      const matchName = (m.name || '').toLowerCase().includes(query);
+      const matchId = (m.id || '').toLowerCase().includes(query);
       const matchDesc = (m.description || '').toLowerCase().includes(query);
       const matchCaps = (m.capabilities || []).some(c => c.toLowerCase().includes(query));
       if (!matchName && !matchId && !matchDesc && !matchCaps) return false;
     }
-
     return true;
   });
 
-  const providerOrder = ['antigravity', 'aistudio', 'mimo', 'chatgpt', 'claude', 'gemini', 'kimi', 'glm', 'grok', 'deepseek', 'qwen', 'external'];
-  const grouped = {};
-  providerOrder.forEach(p => grouped[p] = []);
+  const providerOrder = ['antigravity', 'aistudio', 'mimo', 'claude', 'gemini', 'kimi', 'glm', 'deepseek', 'qwen', 'external'];
+  const groupedByProvider = {};
+  providerOrder.forEach(p => groupedByProvider[p] = []);
 
   filtered.forEach(m => {
     const p = (m.provider || '').toLowerCase();
-    if (!grouped[p]) grouped[p] = [];
-    grouped[p].push(m);
+    if (!groupedByProvider[p]) groupedByProvider[p] = [];
+    groupedByProvider[p].push(m);
   });
 
   let html = '';
   providerOrder.forEach(provider => {
-    const list = grouped[provider] || [];
+    const list = groupedByProvider[provider] || [];
     if (list.length === 0) return;
+
+    const cards = groupModelsList(list);
+    if (cards.length === 0) return;
 
     const meta = PROVIDER_METAS[provider] || { name: provider.toUpperCase(), icon: '' };
 
@@ -2289,10 +2316,10 @@ function renderModels() {
             <img src="${meta.icon}" class="provider-section-icon" alt="${meta.name}" onerror="this.style.display='none'" />
             <h3 class="provider-section-name">${escapeHtml(meta.name)}</h3>
           </div>
-          <span class="provider-section-count">${list.length} Models</span>
+          <span class="provider-section-count">${cards.length} ${cards.length === 1 ? 'Model' : 'Models'}</span>
         </div>
         <div class="models-grid">
-          ${list.map(m => renderSingleModelCard(m)).join('')}
+          ${cards.map(g => renderGroupedModelCard(g, query)).join('')}
         </div>
       </section>
     `;
@@ -2365,56 +2392,33 @@ function initCookieTabs() {
   }
 }
 
-function getRuleIconSvg(icon) {
-  if (icon === 'users') {
-    return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`;
-  }
-  if (icon === 'lock') {
-    return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`;
-  }
-  if (icon === 'shield') {
-    return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`;
-  }
-  return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
-}
-
 const TOKEN_GUIDES = {
-  chatgpt: {
-    title: 'How to Extract ChatGPT Session Tokens',
+  gemini: {
+    title: 'How to Connect Gemini Google Cookies',
+    script: "(() => { const c = document.cookie; const p1 = (c.match(/(?:^|;\\s*)__Secure-1PSID=([^;]+)/) || [])[1]; const pt = (c.match(/(?:^|;\\s*)__Secure-1PSIDTS=([^;]+)/) || [])[1]; const sa = (c.match(/(?:^|;\\s*)(?:SAPISID|__Secure-1PAPISID)=([^;]+)/) || [])[1]; if (p1 && pt) { const r = '__Secure-1PSID=' + p1 + '; __Secure-1PSIDTS=' + pt + (sa ? '; SAPISID=' + sa : ''); if (typeof copy === 'function') copy(r); else if (navigator.clipboard) navigator.clipboard.writeText(r); console.log('%c[Singularity] Gemini cookies copied!', 'color:#10b981;font-weight:bold;font-size:13px;'); alert('✓ Gemini cookies copied! Paste into Singularity.'); } else { console.clear(); console.log('%c[Singularity] ⚡ EASIEST WAY:', 'color:#10b981;font-weight:bold;font-size:14px;', 'Use \"Auto-Fetch Local Session\" button in Singularity Control Center — 0 manual steps!'); console.log('%c[Singularity] 📋 FAST MANUAL WAY:', 'color:#f59e0b;font-weight:bold;font-size:13px;', 'Go to Network tab -> Right-click any \"StreamGenerate\" or \"batchexecute\" request -> Copy -> Copy as cURL (or Copy request headers) -> Paste into Singularity.'); alert('⚡ Pro-Tip: Use the \"Auto-Fetch Live Gemini Session\" button in Singularity Control Center to import your cookies with 1 click without manual copying!\\n\\nOr in DevTools: Switch to Network tab -> right click any request -> Copy as cURL -> paste into Singularity.'); } })()",
     steps: [
       {
+        num: '⚡',
+        text: '<strong>One-Click Auto-Discovery (Zero Manual Copying):</strong><br>' +
+              '<button type="button" class="btn btn-secondary btn-sm" id="btn-autofetch-gemini" style="margin-top: 8px; border: none; background: rgba(66,133,244,0.15); color: #4285F4; border-radius: 8px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;">' +
+              '  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>' +
+              '  <span>⚡ Auto-Fetch Live Gemini Session from Browser</span>' +
+              '</button>' +
+              '<div style="font-size: 11.5px; color: var(--text-muted); margin-top: 6px;">Automatically scans Chrome, Brave, Edge, & Firefox, extracts your live encrypted session cookies (__Secure-1PSID & __Secure-1PSIDTS), and stacks directly into the vault!</div>'
+      },
+      {
         num: '1',
-        text: 'Sign in to your ChatGPT account at <a href="https://chatgpt.com" target="_blank" rel="noopener" class="token-guide-link">chatgpt.com</a> in a dedicated browser profile.'
-      },
-      {
-        num: '2',
-        text: 'In the exact same browser profile, open <a href="https://chatgpt.com/api/auth/session" target="_blank" rel="noopener" class="token-guide-link">chatgpt.com/api/auth/session</a>.'
-      },
-      {
-        num: '3',
-        text: 'Copy the full JSON response dump (or the <code>accessToken</code> string) and paste it into the box below.'
-      }
-    ],
-    rules: [
-      {
-        icon: 'users',
-        title: 'Create Separate Chrome Profiles',
-        desc: 'Always create a separate, isolated Chrome profile for each ChatGPT account you stack to prevent session cookie collisions.'
-      },
-      {
-        icon: 'lock',
-        title: 'Never Click "Log Out"',
-        desc: 'Do not log out of the account in your browser! Logging out immediately revokes your session token on OpenAI servers. Simply close the tab/window.'
-      },
-      {
-        icon: 'shield',
-        title: 'Do Not Use Your Main Account',
-        desc: 'Never use your primary daily personal ChatGPT account. Use dedicated secondary or throwaway accounts for API pooling.'
+        text: '<strong>Fast Manual Copy (Network Tab - 1 Click):</strong><br>' +
+              '1. On <a href="https://gemini.google.com" target="_blank" rel="noopener" class="token-guide-link">gemini.google.com</a>, press <kbd>F12</kbd> &rarr; switch to the <strong>Network</strong> tab.<br>' +
+              '2. Type any message in Gemini (or refresh).<br>' +
+              '3. Right-click any <code>StreamGenerate</code> or <code>batchexecute</code> request &rarr; <strong>Copy</strong> &rarr; <strong>Copy as cURL</strong> (or <em>Copy request headers</em>).<br>' +
+              '4. Paste directly into the box below and click <strong>Save & Stack</strong> &mdash; Singularity auto-parses your session!'
       }
     ]
   },
   claude: {
     title: 'How to Extract Claude SessionKey',
+    script: "(() => { let k = ''; const m = document.cookie.match(/(?:^|;\\s*)sessionKey=([^;]+)/); if (m) k = m[1]; if (!k) { for (let i = 0; i < localStorage.length; i++) { const v = localStorage.getItem(localStorage.key(i)); if (v && v.includes('sk-ant-sid02')) { const sm = v.match(/sk-ant-sid02-[a-zA-Z0-9_-]+/); if (sm) { k = sm[0]; break; } } } } const r = k || document.cookie; if (r) { if (typeof copy === 'function') copy(r); else if (navigator.clipboard) navigator.clipboard.writeText(r); console.log('%c[Singularity] Claude credential copied!', 'color:#10b981;font-weight:bold;font-size:13px;'); alert(k ? '✓ Claude sessionKey copied to clipboard! Paste into Singularity.' : '✓ Available cookies copied to clipboard! (If sessionKey is HttpOnly, copy sessionKey from Application > Cookies)'); } else { alert('No credentials found. Ensure you are logged into claude.ai'); } })()",
     steps: [
       {
         num: '1',
@@ -2422,67 +2426,21 @@ const TOKEN_GUIDES = {
       },
       {
         num: '2',
-        text: 'Open Chrome Developer Tools (press <code>F12</code> or right-click &rarr; Inspect) &rarr; navigate to <strong>Application</strong> &rarr; <strong>Cookies</strong> &rarr; <code>https://claude.ai</code>.'
+        text: 'Press <kbd>F12</kbd> (or right-click &rarr; Inspect) and switch to the <strong>Console</strong> tab.'
       },
       {
         num: '3',
-        text: 'Locate the cookie named <code>sessionKey</code> (starts with <code>sk-ant-sid02-...</code>), copy its entire string value, and paste it below.'
-      }
-    ],
-    rules: [
-      {
-        icon: 'users',
-        title: 'Separate Browser Profiles',
-        desc: 'Use distinct browser profiles when managing multiple Claude accounts to keep session credentials fully independent.'
+        text: 'Click <strong>Copy Extraction Script</strong>, paste into Console, and hit <kbd>Enter</kbd>.'
       },
       {
-        icon: 'lock',
-        title: 'Do Not Log Out',
-        desc: 'Logging out terminates the sessionKey immediately on Anthropic authentication servers. Just close the browser tab.'
-      },
-      {
-        icon: 'shield',
-        title: 'Avoid Personal Main Accounts',
-        desc: 'Use secondary/dedicated accounts so automated API calls do not burn through your personal conversation rate limits.'
-      }
-    ]
-  },
-  grok: {
-    title: 'How to Extract Grok SSO Cookies',
-    steps: [
-      {
-        num: '1',
-        text: 'Log into <a href="https://grok.com" target="_blank" rel="noopener" class="token-guide-link">grok.com</a> or <a href="https://x.com" target="_blank" rel="noopener" class="token-guide-link">x.com</a> in your browser.'
-      },
-      {
-        num: '2',
-        text: 'Open DevTools (<code>F12</code>) &rarr; go to <strong>Application</strong> &rarr; <strong>Cookies</strong> &rarr; <code>https://grok.com</code>.'
-      },
-      {
-        num: '3',
-        text: 'Copy the values for <code>sso</code> and <code>sso-rw</code>, or paste your raw Cookie header string into the box below.'
-      }
-    ],
-    rules: [
-      {
-        icon: 'users',
-        title: 'Separate Browser Profiles',
-        desc: 'Keep separate browser profiles for each X/Grok account to prevent cookie collisions and cross-account logouts.'
-      },
-      {
-        icon: 'lock',
-        title: 'Never Click Sign Out',
-        desc: 'Signing out revokes the Twitter/X SSO session. Leave the session active and just close the window.'
-      },
-      {
-        icon: 'shield',
-        title: 'Dedicated Grok Accounts',
-        desc: 'Avoid using your primary personal Twitter profile for heavy API querying.'
+        num: '4',
+        text: 'Paste the copied <code>sessionKey</code> below and click <strong>Save & Stack</strong>.'
       }
     ]
   },
   kimi: {
     title: 'How to Extract Kimi JWT Refresh Tokens',
+    script: "(() => { let t = localStorage.getItem('refresh_token') || localStorage.getItem('access_token'); if (!t) { for (let i = 0; i < localStorage.length; i++) { const v = localStorage.getItem(localStorage.key(i)); if (v && v.includes('ey') && v.length > 50) { try { const j = JSON.parse(v); t = j.refresh_token || j.access_token || j.token || v; } catch(_) { t = v; } break; } } } const tok = (t || '').replace(/^[\"']|[\"']$/g, '').trim(); if (tok) { if (typeof copy === 'function') copy(tok); else if (navigator.clipboard) navigator.clipboard.writeText(tok); console.log('%c[Singularity] Kimi refresh_token copied to clipboard!', 'color:#10b981;font-weight:bold;font-size:13px;'); alert('✓ Kimi token copied to clipboard! Paste it into Singularity.'); } else { alert('Kimi token not found. Please log in on kimi.ai first.'); } })()",
     steps: [
       {
         num: '1',
@@ -2490,67 +2448,43 @@ const TOKEN_GUIDES = {
       },
       {
         num: '2',
-        text: 'Press <code>F12</code> &rarr; select <strong>Application</strong> &rarr; <strong>Local Storage</strong> &rarr; <code>https://kimi.ai</code>.'
+        text: 'Press <kbd>F12</kbd> &rarr; switch to the <strong>Console</strong> tab.'
       },
       {
         num: '3',
-        text: 'Copy the <code>refresh_token</code> string (recommended for long-term access) or <code>access_token</code> and paste it below. (JSON dumps and quotes are auto-unwrapped).'
-      }
-    ],
-    rules: [
-      {
-        icon: 'users',
-        title: 'Separate Browser Profiles',
-        desc: 'Use distinct browser profiles if stacking multiple Moonshot / Kimi accounts.'
+        text: 'Click <strong>Copy Extraction Script</strong>, paste into Console, and hit <kbd>Enter</kbd>.'
       },
       {
-        icon: 'lock',
-        title: 'Keep Sessions Active',
-        desc: 'Do not click sign out in the web interface; simply close the browser window.'
-      },
-      {
-        icon: 'shield',
-        title: 'Dedicated Phone Accounts',
-        desc: 'Use dedicated numbers for high-throughput automated workloads.'
+        num: '4',
+        text: 'Paste the copied token below and click <strong>Save & Stack</strong>.'
       }
     ]
   },
-  gemini: {
-    title: 'How to Extract Gemini Google Cookies',
+  glm: {
+    title: 'How to Extract GLM (ChatGLM) Token',
+    script: "(() => { let t = localStorage.getItem('chatglm_token') || localStorage.getItem('token'); if (!t) { for (let i = 0; i < localStorage.length; i++) { const v = localStorage.getItem(localStorage.key(i)); if (v && (v.includes('eyJ') || v.includes('Bearer'))) { try { const j = JSON.parse(v); t = j.token || j.access_token || v; } catch(_) { t = v; } break; } } } const tok = (t || '').replace(/^[\"']|[\"']$/g, '').replace(/^Bearer\\s+/i, '').trim(); if (tok) { if (typeof copy === 'function') copy(tok); else if (navigator.clipboard) navigator.clipboard.writeText(tok); console.log('%c[Singularity] GLM token copied to clipboard!', 'color:#10b981;font-weight:bold;font-size:13px;'); alert('✓ GLM token copied to clipboard! Paste it into Singularity.'); } else { alert('GLM token not found. Please log in on chatglm.cn first.'); } })()",
     steps: [
       {
         num: '1',
-        text: 'Sign in to <a href="https://gemini.google.com" target="_blank" rel="noopener" class="token-guide-link">gemini.google.com</a> in an isolated Google Chrome profile.'
+        text: 'Log into <a href="https://chatglm.cn" target="_blank" rel="noopener" class="token-guide-link">chatglm.cn</a> in your browser.'
       },
       {
         num: '2',
-        text: 'Press <code>F12</code> (DevTools) &rarr; go to <strong>Application</strong> tab &rarr; <strong>Cookies</strong> &rarr; <code>https://gemini.google.com</code>.'
+        text: 'Press <kbd>F12</kbd> &rarr; switch to the <strong>Console</strong> tab.'
       },
       {
         num: '3',
-        text: 'Copy the values for <code>__Secure-1PSID</code> and <code>__Secure-1PSIDTS</code> (and optionally <code>SAPISID</code>), or in <strong>Network</strong> tab copy the entire <strong>Cookie</strong> header from any Gemini request.'
-      }
-    ],
-    rules: [
-      {
-        icon: 'users',
-        title: 'Dedicated Chrome Profiles',
-        desc: 'CRITICAL: Always create a separate Chrome profile for each Google account to keep Google credentials isolated.'
+        text: 'Click <strong>Copy Extraction Script</strong>, paste into Console, and hit <kbd>Enter</kbd>.'
       },
       {
-        icon: 'lock',
-        title: 'Never Click Sign Out',
-        desc: 'Signing out immediately destroys Google security tickets across all apps. Just close the Chrome window.'
-      },
-      {
-        icon: 'shield',
-        title: 'Never Use Primary Google Account',
-        desc: 'Do NOT use your personal Google account with private Gmail, Drive, Photos, or payment methods. Use dedicated burner/secondary Google accounts.'
+        num: '4',
+        text: 'Paste the copied token below and click <strong>Save & Stack</strong>.'
       }
     ]
   },
   deepseek: {
     title: 'How to Extract DeepSeek userToken',
+    script: "(() => { let t = localStorage.getItem('userToken') || localStorage.getItem('token'); if (!t) { for (let i = 0; i < localStorage.length; i++) { const v = localStorage.getItem(localStorage.key(i)); if (v && v.includes('ey') && v.length > 50) { try { const j = JSON.parse(v); t = j.userToken || j.token || j.value || v; } catch(_) { t = v; } break; } } } const tok = (t || '').replace(/^[\"']|[\"']$/g, '').trim(); if (tok) { if (typeof copy === 'function') copy(tok); else if (navigator.clipboard) navigator.clipboard.writeText(tok); console.log('%c[Singularity] DeepSeek userToken copied to clipboard!', 'color:#10b981;font-weight:bold;font-size:13px;'); alert('✓ DeepSeek userToken copied to clipboard! Paste into Singularity.'); } else { alert('DeepSeek token not found. Please log in on chat.deepseek.com first.'); } })()",
     steps: [
       {
         num: '1',
@@ -2558,33 +2492,21 @@ const TOKEN_GUIDES = {
       },
       {
         num: '2',
-        text: 'Press <code>F12</code> (DevTools) &rarr; go to <strong>Application</strong> &rarr; <strong>Local Storage</strong> &rarr; <code>https://chat.deepseek.com</code>.'
+        text: 'Press <kbd>F12</kbd> &rarr; switch to the <strong>Console</strong> tab.'
       },
       {
         num: '3',
-        text: 'Copy the value of <code>userToken</code> (starts with <code>ey...</code>) or your session Bearer token from the Network tab, and paste it below.'
-      }
-    ],
-    rules: [
-      {
-        icon: 'users',
-        title: '100% Free Frontier Models',
-        desc: 'DeepSeek web accounts provide full access to DeepSeek-V3 and DeepSeek-R1 with zero subscription fees.'
+        text: 'Click <strong>Copy Extraction Script</strong>, paste into Console, and hit <kbd>Enter</kbd>.'
       },
       {
-        icon: 'lock',
-        title: 'Do Not Click Log Out',
-        desc: 'Logging out invalidates the token on DeepSeek authentication servers. Simply close the browser window.'
-      },
-      {
-        icon: 'shield',
-        title: 'Multi-Account Pooling',
-        desc: 'Stack multiple DeepSeek userTokens into the Singularity vault to balance capacity during peak traffic periods.'
+        num: '4',
+        text: 'Paste the copied <code>userToken</code> below and click <strong>Save & Stack</strong>.'
       }
     ]
   },
   qwen: {
     title: 'How to Extract Qwen Bearer Token',
+    script: "(() => { let t = localStorage.getItem('token') || localStorage.getItem('access_token'); if (!t) { for (let i = 0; i < localStorage.length; i++) { const v = localStorage.getItem(localStorage.key(i)); if (v && v.includes('eyJ')) { try { const j = JSON.parse(v); t = j.token || j.access_token || j.value || v; } catch(_) { t = v; } break; } } } const tok = (t || '').replace(/^[\"']|[\"']$/g, '').trim(); if (tok) { if (typeof copy === 'function') copy(tok); else if (navigator.clipboard) navigator.clipboard.writeText(tok); console.log('%c[Singularity] Qwen token copied to clipboard!', 'color:#10b981;font-weight:bold;font-size:13px;'); alert('✓ Qwen token copied to clipboard! Paste into Singularity.'); } else { alert('Qwen token not found. Please log in on chat.qwen.ai first.'); } })()",
     steps: [
       {
         num: '1',
@@ -2592,28 +2514,15 @@ const TOKEN_GUIDES = {
       },
       {
         num: '2',
-        text: 'Press <code>F12</code> (DevTools) &rarr; go to <strong>Application</strong> &rarr; <strong>Local Storage</strong> &rarr; <code>https://chat.qwen.ai</code>.'
+        text: 'Press <kbd>F12</kbd> &rarr; switch to the <strong>Console</strong> tab.'
       },
       {
         num: '3',
-        text: 'Copy the value of <code>token</code> (or authorization header from Network tab) and paste it below.'
-      }
-    ],
-    rules: [
-      {
-        icon: 'users',
-        title: 'Native 1M Context Frontier Models',
-        desc: 'Qwen web sessions support Qwen 3.8 Max, Omni-Flash, and Plus with up to 1M token contexts.'
+        text: 'Click <strong>Copy Extraction Script</strong>, paste into Console, and hit <kbd>Enter</kbd>.'
       },
       {
-        icon: 'lock',
-        title: 'Session Persistence',
-        desc: 'Avoid clicking Log Out in chat.qwen.ai to keep your Bearer session alive in the Singularity pool.'
-      },
-      {
-        icon: 'shield',
-        title: 'Quark Search & Multimodal',
-        desc: 'Web sessions seamlessly execute real-time grounding, Quark search, and multimodal visual comprehension.'
+        num: '4',
+        text: 'Paste the copied token below and click <strong>Save & Stack</strong>.'
       }
     ]
   },
@@ -2624,11 +2533,11 @@ const TOKEN_GUIDES = {
         num: '1',
         text: '<strong>1-Click Google OAuth Sign-In (Recommended for 1 or Multiple Accounts):</strong><br>' +
               '<div style="margin-top:9px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">' +
-              '  <button type="button" class="btn btn-primary btn-sm" id="btn-oauth-login-antigravity" style="padding: 7px 15px; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; background: linear-gradient(135deg, #ea4335 0%, #d97757 100%); border: 1px solid rgba(234,67,53,0.3); border-radius: 6px; box-shadow: 0 2px 8px rgba(234,67,53,0.25); cursor: pointer; color: #fff;">' +
+              '  <button type="button" class="btn btn-primary btn-sm" id="btn-oauth-login-antigravity" style="padding: 7px 15px; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; background: linear-gradient(135deg, #ea4335 0%, #d97757 100%); border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(234,67,53,0.25); cursor: pointer; color: #fff;">' +
               '    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>' +
               '    <span>Connect Google Account</span>' +
               '  </button>' +
-              '  <button type="button" class="btn btn-secondary btn-sm" id="btn-autofetch-antigravity" style="padding: 6px 12px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: var(--text-secondary); border-radius: 6px;">' +
+              '  <button type="button" class="btn btn-secondary btn-sm" id="btn-autofetch-antigravity" style="padding: 6px 12px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; background: rgba(255,255,255,0.08); border: none; color: var(--text-secondary); border-radius: 8px;">' +
               '    ⚡ Auto-Detect Local IDE' +
               '  </button>' +
               '</div>' +
@@ -2642,60 +2551,36 @@ const TOKEN_GUIDES = {
         num: '3',
         text: '<strong>Manual Entry (Optional):</strong> If you already have a <code>refresh_token</code> (starts with <code>1//</code>) or full JSON credentials dump, you can still paste it into the box below and click <strong>Save & Stack</strong>.'
       }
-    ],
-    rules: [
-      {
-        icon: 'users',
-        title: 'Pro & Free Tiers Supported',
-        desc: 'Free accounts grant access to Claude Sonnet 4.6 and Gemini 3.8 Flash; Google AI Pro tiers unlock Claude Opus 5.5, Sonnet 5.5, and Gemini 3.1 Pro.'
-      },
-      {
-        icon: 'lock',
-        title: 'Zero Manual Expiration',
-        desc: 'When a refresh_token (1//...) is stacked, Singularity automatically refreshes the access token every hour in the background.'
-      },
-      {
-        icon: 'shield',
-        title: 'Multi-Account Quota Rotation',
-        desc: 'Stack multiple Google accounts into the vault for automatic quota failover when hourly rate limits or reset delays occur.'
-      }
     ]
   },
   aistudio: {
-    title: 'How to Connect Google AI Studio (MakerSuite)',
+    title: 'How to Connect Google AI Studio (API Key)',
     steps: [
       {
         num: '1',
-        text: 'Sign in to <a href="https://aistudio.google.com" target="_blank" rel="noopener" class="token-guide-link">aistudio.google.com</a> in your browser with your Google Account.'
+        text: 'Sign in to <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="token-guide-link">aistudio.google.com/app/apikey</a> with your Google Account.<br>' +
+              '<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; text-decoration:none; border:none; background:rgba(255,255,255,0.08); border-radius:8px;">' +
+              '  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>' +
+              '  <span>Open AI Studio API Key Page</span>' +
+              '</a>'
       },
       {
         num: '2',
-        text: 'Open DevTools (<kbd>F12</kbd>) &rarr; <strong>Network</strong> tab &rarr; Click any request &rarr; Under <strong>Request Headers</strong> copy the full <code>Cookie:</code> string (containing <code>__Secure-1PSID</code> and <code>SAPISID</code>).'
+        text: 'Click <strong>Create API key</strong> (or copy your existing key). AI Studio API keys start with <code>AIzaSy...</code>.'
       },
       {
         num: '3',
-        text: 'Alternatively, paste your AI Studio API Key (starts with <code>AIzaSy...</code>) or let Singularity share existing stacked Gemini session cookies.'
-      }
-    ],
-    rules: [
-      {
-        icon: 'volume-2',
-        title: 'Studio Neural Speech & Voice',
-        desc: 'Unlocks Gemini 3.8 Flash TTS, Gemini 3.8 Live Voice, and low-latency audio conversations with natural emotional cadence.'
-      },
-      {
-        icon: 'cpu',
-        title: 'Dual-Channel Failover',
-        desc: 'Singularity balances between MakerSuite Build and Playground RPC pipelines for maximum rate limit resilience.'
+        text: 'Paste your API key into the box below and click <strong>Save & Stack</strong> &mdash; zero cookies or session tokens required!'
       }
     ]
   },
   mimo: {
     title: 'How to Connect Xiaomi MiMo AI Studio',
+    script: "(() => { const c = document.cookie; if (c) { if (typeof copy === 'function') copy(c); else if (navigator.clipboard) navigator.clipboard.writeText(c); console.log('%c[Singularity] Xiaomi cookies copied!', 'color:#10b981;font-weight:bold;font-size:13px;'); alert('✓ Xiaomi cookies copied to clipboard! Paste into Singularity.'); } else { alert('No cookies found. Please log in on aistudio.xiaomimimo.com first.'); } })()",
     steps: [
       {
         num: '⚡',
-        text: '<strong>One-Click Auto-Discovery:</strong> Click the button below to auto-fetch your live Xiaomi MiMo session directly from your local browser cookies (Chrome, Brave, Edge, Firefox):<br><button class="btn btn-secondary btn-sm" id="btn-autofetch-mimo" style="margin-top: 8px; border-color: #FF6900; color: #FF6900;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg> <span>Auto-Fetch Local Browser Token</span></button>'
+        text: '<strong>One-Click Auto-Discovery:</strong> Click the button below to auto-fetch your live Xiaomi MiMo session directly from local browser cookies:<br><button class="btn btn-secondary btn-sm" id="btn-autofetch-mimo" style="margin-top: 8px; border: none; background: rgba(255,105,0,0.15); color: #FF6900; border-radius: 8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg> <span>Auto-Fetch Local Browser Token</span></button>'
       },
       {
         num: '1',
@@ -2703,28 +2588,15 @@ const TOKEN_GUIDES = {
       },
       {
         num: '2',
-        text: 'Open DevTools (<kbd>F12</kbd>) &rarr; <strong>Application</strong> &rarr; <strong>Cookies</strong> &rarr; Copy <code>serviceToken</code>, <code>userId</code>, and <code>xiaomichatbot_ph</code>.'
+        text: 'Press <kbd>F12</kbd> &rarr; switch to the <strong>Console</strong> tab.'
       },
       {
         num: '3',
-        text: '<strong>Permanent 24h Auto-Renewal:</strong> Also copy <code>passToken</code> from <a href="https://passport.xiaomi.com" target="_blank" rel="noopener" class="token-guide-link">passport.xiaomi.com</a>. Singularity will then auto-renew your 24h serviceToken seamlessly forever!'
-      }
-    ],
-    rules: [
-      {
-        icon: 'zap',
-        title: '1M Context Window & Deep Thinking',
-        desc: 'Unlocks flagship MiMo-V2.6-Pro with native reasoning traces, 1M context, and MiMo-V2.6-Flash ultra-fast inference.'
+        text: 'Click <strong>Copy Extraction Script</strong>, paste into Console, and hit <kbd>Enter</kbd>.'
       },
       {
-        icon: 'volume-2',
-        title: 'High-Fidelity Neural Speech & ASR',
-        desc: 'Supports MiMo-V2.5-TTS expressive voice synthesis and MiMo-V2.5-ASR voice transcription.'
-      },
-      {
-        icon: 'shield',
-        title: 'Automatic Background Renewal',
-        desc: 'When passToken is provided or auto-detected, Singularity automatically exchanges it for fresh 24h serviceTokens.'
+        num: '4',
+        text: 'Paste the copied cookies into the box below and click <strong>Save & Stack</strong>.'
       }
     ]
   }
@@ -2762,20 +2634,10 @@ async function loadCookiesTab() {
   const textarea = document.getElementById('cookie-textarea');
 
   const meta = {
-    chatgpt: {
-      title: 'ChatGPT Account Stacker',
-      desc: 'Paste Next-Auth session JSON dumps or access tokens. Paste multiple accounts line-by-line to stack your pool.',
-      placeholder: '{"accessToken": "eyJhbGci...", "user": {"email": "account@gmail.com"}}',
-    },
     claude: {
       title: 'Claude SessionKey Stacker',
       desc: 'Paste sessionKey strings (sk-ant-sid02-...). Stacks multiple sessions into the Singularity Unified Vault (SQLite).',
       placeholder: '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',
-    },
-    grok: {
-      title: 'Grok SSO Stacker',
-      desc: 'Paste Grok cookie strings containing sso=... and x-userid=... (one per line).',
-      placeholder: 'sso=...; sso-rw=...; x-userid=b9e803ff-94ed-46c1-88bd-4baf02c5ccfe',
     },
     kimi: {
       title: 'Kimi JWT Stacker',
@@ -2789,8 +2651,8 @@ async function loadCookiesTab() {
     },
     glm: {
       title: 'GLM Token Stacker',
-      desc: 'Paste Zhipu AI refresh tokens (one per line). Stored securely in Singularity Unified Vault (SQLite).',
-      placeholder: 'Paste GLM refresh token line-by-line...',
+      desc: 'Paste Zhipu AI refresh tokens or localStorage dump (one per line). Stored securely in Singularity Unified Vault (SQLite).',
+      placeholder: 'Paste GLM token or localStorage dump...',
     },
     deepseek: {
       title: 'DeepSeek Token Stacker',
@@ -2808,9 +2670,9 @@ async function loadCookiesTab() {
       placeholder: 'Paste Google OAuth JSON dump or refresh token...',
     },
     aistudio: {
-      title: 'Google AI Studio Stacker',
-      desc: 'Paste Google AI Studio cookie header (__Secure-1PSID=...; SAPISID=...), Playwright storageState JSON, or AI Studio API key.',
-      placeholder: 'Paste Google AI Studio cookies, API key, or storageState dump...',
+      title: 'Google AI Studio API Key Stacker',
+      desc: 'Paste your Google AI Studio API key (starts with AIzaSy...). No cookies or session tokens required.',
+      placeholder: 'AIzaSy...',
     },
     mimo: {
       title: 'Xiaomi MiMo Account Stacker',
@@ -2824,15 +2686,25 @@ async function loadCookiesTab() {
   textarea.placeholder = meta.placeholder;
   textarea.value = '';
 
-  // Render dynamic Token Extraction & Safety Guide (GLM has no guide)
+  // Render dynamic Token Extraction & Safety Guide
   const guideCard = document.getElementById('token-guide-card');
   const guide = TOKEN_GUIDES[p];
 
-  if (!guide || p === 'glm') {
+  if (!guide) {
     if (guideCard) guideCard.style.display = 'none';
   } else {
     if (guideCard) {
       guideCard.style.display = 'flex';
+      const scriptBtnHtml = guide.script ? `
+        <button type="button" class="btn-copy-script" id="btn-copy-console-script" title="Copy automatic extraction script for browser Console">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span>Copy Extraction Script</span>
+        </button>
+      ` : '';
+
       guideCard.innerHTML = `
         <div class="token-guide-header">
           <div class="token-guide-title">
@@ -2843,6 +2715,7 @@ async function loadCookiesTab() {
             </svg>
             <span>${escapeHtml(guide.title)}</span>
           </div>
+          ${scriptBtnHtml}
         </div>
 
         <div class="token-guide-steps">
@@ -2854,26 +2727,41 @@ async function loadCookiesTab() {
           `).join('')}
         </div>
 
-        <div class="token-guide-rules">
-          <div class="token-rules-title">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
-            <span>Session Stability & Account Safeguards</span>
-          </div>
-          <div class="token-rules-list">
-            ${guide.rules.map(r => `
-              <div class="token-rule-item">
-                <span class="token-rule-icon-wrap">${getRuleIconSvg(r.icon)}</span>
-                <div class="token-rule-text">
-                  <strong>${escapeHtml(r.title)}:</strong>
-                  <span>${escapeHtml(r.desc)}</span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
       `;
+
+      // Copy script button handler
+      const btnCopyScript = document.getElementById('btn-copy-console-script');
+      if (btnCopyScript && guide.script) {
+        btnCopyScript.addEventListener('click', async (e) => {
+          e.preventDefault();
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(guide.script);
+            } else {
+              const ta = document.createElement('textarea');
+              ta.value = guide.script;
+              ta.style.position = 'fixed';
+              ta.style.opacity = '0';
+              document.body.appendChild(ta);
+              ta.focus();
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+            }
+            btnCopyScript.classList.add('copied');
+            const span = btnCopyScript.querySelector('span');
+            const prevText = span ? span.textContent : 'Copy Extraction Script';
+            if (span) span.textContent = '✓ Script Copied!';
+            showToast('Extraction script copied! Paste it into browser Console (F12) and hit Enter.', 'success');
+            setTimeout(() => {
+              btnCopyScript.classList.remove('copied');
+              if (span) span.textContent = prevText;
+            }, 2500);
+          } catch (err) {
+            showToast('Failed to copy script: ' + err.message, 'error');
+          }
+        });
+      }
 
       const btnOAuthAgy = document.getElementById('btn-oauth-login-antigravity');
       if (btnOAuthAgy) {
@@ -2974,6 +2862,37 @@ async function loadCookiesTab() {
         });
       }
 
+      const btnAutoGemini = document.getElementById('btn-autofetch-gemini');
+      if (btnAutoGemini) {
+        btnAutoGemini.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const origText = btnAutoGemini.innerHTML;
+          btnAutoGemini.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            Scanning Browsers...
+          `;
+          btnAutoGemini.disabled = true;
+          try {
+            const resp = await fetch('/api/gemini/autofetch', { method: 'POST' });
+            const data = await resp.json();
+            if (data.ok) {
+              showToast(data.message || 'Gemini session auto-fetched & stacked!', 'success');
+              if (data.cookie_string || data.token) {
+                textarea.value = data.cookie_string || data.token;
+              }
+              await loadCookiesTab();
+            } else {
+              showToast(data.detail || data.message || 'No Gemini session found in local browser cookies.', 'warning');
+            }
+          } catch (err) {
+            showToast('Auto-fetch error: ' + err.message, 'error');
+          } finally {
+            btnAutoGemini.innerHTML = origText;
+            btnAutoGemini.disabled = false;
+          }
+        });
+      }
+
       const btnAutoMimo = document.getElementById('btn-autofetch-mimo');
       if (btnAutoMimo) {
         btnAutoMimo.addEventListener('click', async (e) => {
@@ -3056,7 +2975,7 @@ async function loadCookiesTab() {
   }).join('');
 
   // Fire real-time token validation for providers that support it
-  if (p === 'chatgpt' || p === 'gemini') {
+  if (p === 'gemini') {
     _validateAccountsLive(p, accounts);
   } else {
     // For other providers just show DB status
@@ -3136,14 +3055,12 @@ async function removeStackedAccount(provider, index, identifier) {
     if (data.status === 'ok') {
       showToast(data.message, 'success');
       await loadCookiesTab();
-      // Also refresh limits tab in background
-      try {
-        const limRes = await fetch('/api/limits');
-        if (limRes.ok) {
-          state.limits = await limRes.json();
-          renderLimits();
-        }
-      } catch (_) { }
+
+
+      // Notify cloud sync to immediately reconcile with Supabase
+      if (window.SingularityCloud && typeof window.SingularityCloud.scheduleSyncUp === 'function') {
+        window.SingularityCloud.scheduleSyncUp(500);
+      }
 
       // Restart daemon to apply removal if currently running
       const srv = state.services?.find(s => s.id === provider);
@@ -3188,14 +3105,7 @@ async function saveCookies() {
       }
       textarea.value = '';
       await loadCookiesTab();
-      // Refresh limits tab so new accounts appear immediately
-      try {
-        const limRes = await fetch('/api/limits');
-        if (limRes.ok) {
-          state.limits = await limRes.json();
-          renderLimits();
-        }
-      } catch (_) { }
+
 
       // Restart daemon to apply new credentials only if it is already running
       const srv = state.services?.find(s => s.id === p);
@@ -3274,7 +3184,7 @@ async function handleImportCookiesFile(event) {
 // Model Display Formatter & Custom Select Component
 // ===================================================================
 function formatModelDisplayName(modelId) {
-  if (!modelId) return 'Gpt 5.6 Sol';
+  if (!modelId) return 'Gemini 3.8 Flash';
   const found = state.models?.find(m => m.id.toLowerCase() === modelId.toLowerCase());
   if (found && found.name) {
     return found.name.replace(/^GPT[- ]/i, 'Gpt ').replace(/-/g, ' ');
@@ -3462,9 +3372,9 @@ function renderParamModelSelectOptions(query = '') {
   const list = document.getElementById('param-model-options-list');
   if (!list) return;
 
-  const currentModel = state.selectedModel || 'gpt-5.6-sol';
+  const currentModel = state.selectedModel || 'gemini-3.8-flash';
   const models = (state.models && state.models.length > 0) ? state.models : [
-    { id: currentModel, name: formatModelDisplayName(currentModel), provider: 'openai' }
+    { id: currentModel, name: formatModelDisplayName(currentModel), provider: 'gemini' }
   ];
 
   const q = (query || '').toLowerCase().trim();
@@ -3518,7 +3428,7 @@ function initParamModelSelect() {
 
   const paramLabel = document.getElementById('param-model-selected-label');
   if (paramLabel) {
-    paramLabel.textContent = formatModelDisplayName(state.selectedModel || 'gpt-5.6-sol');
+    paramLabel.textContent = formatModelDisplayName(state.selectedModel || 'gemini-3.8-flash');
   }
 
   if (!btn || !wrap || !menu) return;
@@ -4474,7 +4384,7 @@ function parseAndRenderMediaContent(assistantMsgEl, bubbleEl, rawContent, reason
     }
   }
 
-  // Render Interactive ChatGPT-Style Image Cards
+  // Render Interactive Image Cards
   extractedImages.forEach((img, idx) => {
     const aspect = detectImageAspectRatio(promptText);
     const card = document.createElement('div');
@@ -4555,7 +4465,7 @@ function parseAndRenderMediaContent(assistantMsgEl, bubbleEl, rawContent, reason
     bubbleEl.appendChild(card);
   });
 
-  // Render Interactive ChatGPT-Style Video Cards
+  // Render Interactive Video Cards
   extractedVideos.forEach((vid, idx) => {
     const card = document.createElement('div');
     card.className = 'gpt-rendered-video-card';
@@ -4652,7 +4562,7 @@ function updateThinkingBudgetDisplay(tokens) {
 }
 
 function applyModelSettingsToUI(cfg, model) {
-  const targetModel = model || state.selectedModel || 'gpt-5.6-sol';
+  const targetModel = model || state.selectedModel || 'gemini-3.8-flash';
   const activeModelLabel = document.getElementById('param-active-model-name');
   if (activeModelLabel) activeModelLabel.textContent = targetModel;
   const paramLabel = document.getElementById('param-model-selected-label');
@@ -4690,7 +4600,7 @@ function applyModelSettingsToUI(cfg, model) {
 }
 
 async function loadModelSettings(model) {
-  const targetModel = model || state.selectedModel || 'gpt-5.6-sol';
+  const targetModel = model || state.selectedModel || 'gemini-3.8-flash';
   const activeModelLabel = document.getElementById('param-active-model-name');
   if (activeModelLabel) activeModelLabel.textContent = targetModel;
   const paramLabel = document.getElementById('param-model-selected-label');
@@ -4712,7 +4622,7 @@ async function loadModelSettings(model) {
 
 let _saveSettingsDebounceTimer = null;
 async function saveCurrentModelSettings(showNotice = true, applyGlobally = false) {
-  const model = state.selectedModel || 'gpt-5.6-sol';
+  const model = state.selectedModel || 'gemini-3.8-flash';
   const thinkingRange = document.getElementById('thinking-budget-range');
   const maxTokensRange = document.getElementById('max-tokens-range');
   const tempRange = document.getElementById('temp-range');
@@ -4752,7 +4662,7 @@ async function saveCurrentModelSettings(showNotice = true, applyGlobally = false
 }
 
 async function resetCurrentModelSettings() {
-  const model = state.selectedModel || 'gpt-5.6-sol';
+  const model = state.selectedModel || 'gemini-3.8-flash';
   try {
     await fetch(`/api/model-settings?model=${encodeURIComponent(model)}`, { method: 'DELETE' });
     applyModelSettingsToUI({ thinking_budget: 0, max_tokens: 4096, temperature: 0.7, system_prompt: '' }, model);
@@ -6090,7 +6000,7 @@ function initPlayground() {
   const tempVal = document.getElementById('temp-val');
   const clearBtn = document.getElementById('btn-clear-chat');
   const inputModelName = document.getElementById('input-model-name');
-  if (inputModelName) inputModelName.textContent = formatModelDisplayName(state.selectedModel || 'gpt-5.6-sol');
+  if (inputModelName) inputModelName.textContent = formatModelDisplayName(state.selectedModel || 'gemini-3.8-flash');
 
   // Initialize dynamic time-aware greeting
   updateHeroGreeting(false);
@@ -6109,7 +6019,7 @@ function initPlayground() {
       e.stopPropagation();
       settingsDropdown.classList.toggle('open');
       if (settingsDropdown.classList.contains('open')) {
-        loadModelSettings(state.selectedModel || 'gpt-5.6-sol');
+        loadModelSettings(state.selectedModel || 'gemini-3.8-flash');
         renderParamModelSelectOptions();
       }
     });
@@ -6207,7 +6117,7 @@ function initPlayground() {
   }
 
   // Initial load of model settings
-  loadModelSettings(state.selectedModel || 'gpt-5.6-sol');
+  loadModelSettings(state.selectedModel || 'gemini-3.8-flash');
 
   // Lightbox close & download
   const btnCloseLightbox = document.getElementById('btn-lightbox-close');
@@ -6348,10 +6258,6 @@ function initPlayground() {
     });
   }
 
-  // Voice buttons
-  document.getElementById('btn-voice-input')?.addEventListener('click', () => {
-    showToast('Voice dictation ready (Microphone active)', 'info');
-  });
   // Clear Chat Button Handler
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
@@ -8118,18 +8024,60 @@ async function sendChatMessage() {
 // ===================================================================
 function initCopyAction() {
   const btn = document.getElementById('btn-copy-url');
-  btn.addEventListener('click', () => {
-    const text = document.getElementById('gateway-url-text').textContent;
-    navigator.clipboard.writeText(text).then(() => {
-      showToast('Copied endpoint to clipboard: ' + text, 'success');
-    });
-  });
-
+  const urlSpan = document.getElementById('gateway-url-text');
   const stChip = document.getElementById('chip-sillytavern');
+
+  function getGatewayBaseUrl() {
+    const host = window.location.host;
+    const proto = window.location.protocol;
+    // Auto-detect reachable host on phone / LAN / ngrok tunnel
+    if (host && !host.includes('localhost') && !host.startsWith('127.0.0.1')) {
+      return `${proto}//${host}/v1`;
+    }
+    return 'http://localhost:9000/v1';
+  }
+
+  // Initialize displayed URL if currently default localhost but user is on LAN/Tunnel
+  if (urlSpan) {
+    const base = getGatewayBaseUrl();
+    if (stChip && stChip.classList.contains('active')) {
+      urlSpan.textContent = base + '/chat/completions';
+    } else {
+      urlSpan.textContent = base;
+    }
+  }
+
+  if (btn) {
+    btn.addEventListener('click', async () => {
+      const text = urlSpan ? urlSpan.textContent.trim() : getGatewayBaseUrl();
+      const success = await copyTextToClipboard(text);
+      if (success) {
+        window.triggerHaptic?.(12);
+        showToast('Copied endpoint to clipboard: ' + text, 'success');
+
+        // Tactile button visual feedback
+        const origContent = btn.innerHTML;
+        btn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #4ade80;">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span style="color: #4ade80; font-weight: 600;">Copied!</span>
+        `;
+        btn.classList.add('btn-copied-success');
+        setTimeout(() => {
+          btn.innerHTML = origContent;
+          btn.classList.remove('btn-copied-success');
+        }, 2200);
+      } else {
+        showToast('Failed to copy. Please long-press the text to copy.', 'error');
+      }
+    });
+  }
+
   if (stChip) {
     stChip.addEventListener('click', () => {
-      const urlSpan = document.getElementById('gateway-url-text');
-      const base = 'http://localhost:9000/v1';
+      if (!urlSpan) return;
+      const base = getGatewayBaseUrl();
       if (urlSpan.textContent.endsWith('/chat/completions')) {
         urlSpan.textContent = base;
         stChip.classList.remove('active');
@@ -8139,13 +8087,6 @@ function initCopyAction() {
         stChip.classList.add('active');
         showToast('Appended /chat/completions for SillyTavern', 'success');
       }
-    });
-  }
-
-  const tavChip = document.getElementById('chip-tavern-studio');
-  if (tavChip) {
-    tavChip.addEventListener('click', () => {
-      openTavernStudio();
     });
   }
 }
@@ -8227,8 +8168,10 @@ function updateTunnelUI() {
   }
 
   // Sync ThreeUI rotating typographic globe sphere theme
-  syncGlobeTheme(isOnline);
-  updateUptimeDisplay();
+  if (state.currentTab === 'tunnel') {
+    syncGlobeTheme(isOnline);
+    updateUptimeDisplay();
+  }
 }
 
 // ===================================================================
@@ -8331,8 +8274,26 @@ function resizeGlobeCanvas() {
   }
 }
 
+function dots(ctx, list, base, gain, grow, dmin) {
+  for (var lvl = 0; lvl < 6; lvl++) {
+    var z = (lvl + 0.5) / 6, dsz = dmin * grow * (0.55 + 0.75 * z);
+    ctx.fillStyle = getGlobeInk(base + gain * z);
+    ctx.beginPath();
+    for (var q = 0; q < list.length; q += 3) {
+      var lv = list[q + 2] >= 1 ? 5 : (list[q + 2] * 6) | 0;
+      if (lv !== lvl) continue;
+      ctx.rect(list[q] - dsz / 2, list[q + 1] - dsz / 2, dsz, dsz);
+    }
+    ctx.fill();
+  }
+}
+
 function drawGlobeFrame(now) {
-  if (!globeRunning) return;
+  // Strict execution guard: only animate if actively running, tab is visible, and on tunnel tab
+  if (!globeRunning || state.currentTab !== 'tunnel' || document.hidden) {
+    stopGlobeAnimation();
+    return;
+  }
 
   if (!globeCanvas || !globeCtx) {
     globeCanvas = document.getElementById('tunnel-globe-canvas');
@@ -8340,17 +8301,13 @@ function drawGlobeFrame(now) {
   }
 
   if (!globeCtx) {
-    globeAnimationId = requestAnimationFrame(drawGlobeFrame);
+    stopGlobeAnimation();
     return;
   }
 
   if (globeWidth <= 0 || globeHeight <= 0) {
     resizeGlobeCanvas();
   }
-
-  // Keep RAF loop constantly running when globeRunning is true
-  globeAnimationId = requestAnimationFrame(drawGlobeFrame);
-
   if (globeWidth <= 0 || globeHeight <= 0) return;
 
   var dt = Math.min(64, now - globePrevTime);
@@ -8361,7 +8318,6 @@ function drawGlobeFrame(now) {
 
   globeSpin += (globeVel * dt) / 1000;
 
-  // Whole, majestic 3D sphere centered vertically and horizontally with NO cut-off lines
   var availableHalfHeight = Math.max(80, (globeHeight / 2) - 4);
   var availableHalfWidth = Math.max(80, (globeWidth / 2) - 4);
   var R = Math.min(availableHalfWidth, availableHalfHeight);
@@ -8404,21 +8360,8 @@ function drawGlobeFrame(now) {
   }
 
   var dmin = Math.max(0.7, R * 0.0065);
-  function dots(list, base, gain, grow) {
-    for (var lvl = 0; lvl < 6; lvl++) {
-      var z = (lvl + 0.5) / 6, dsz = dmin * grow * (0.55 + 0.75 * z);
-      globeCtx.fillStyle = getGlobeInk(base + gain * z);
-      globeCtx.beginPath();
-      for (var q = 0; q < list.length; q += 3) {
-        var lv = list[q + 2] >= 1 ? 5 : (list[q + 2] * 6) | 0;
-        if (lv !== lvl) continue;
-        globeCtx.rect(list[q] - dsz / 2, list[q + 1] - dsz / 2, dsz, dsz);
-      }
-      globeCtx.fill();
-    }
-  }
-  dots(globeSea, 0.10, 0.22, 1.0);
-  dots(globeSoil, 0.34, 0.46, 1.7);
+  dots(globeCtx, globeSea, 0.10, 0.22, 1.0, dmin);
+  dots(globeCtx, globeSoil, 0.34, 0.46, 1.7, dmin);
 
   var FACE = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif';
   for (var bi = 0; bi < 8; bi++) {
@@ -8436,26 +8379,46 @@ function drawGlobeFrame(now) {
     }
     arr.length = 0;
   }
-}
 
-function startGlobeAnimation() {
-  globeRunning = true;
-  globePrevTime = performance.now();
-  resizeGlobeCanvas();
-  if (!globeAnimationId) {
+  if (globeRunning && state.currentTab === 'tunnel' && !document.hidden) {
     globeAnimationId = requestAnimationFrame(drawGlobeFrame);
-  }
-}
-
-function stopGlobeAnimation() {
-  globeRunning = false;
-  if (typeof globeAnimationId !== 'undefined' && globeAnimationId) {
-    cancelAnimationFrame(globeAnimationId);
+  } else {
     globeAnimationId = null;
   }
 }
 
+function startGlobeAnimation() {
+  if (state.currentTab !== 'tunnel' || document.hidden) return;
+  globeRunning = true;
+  globePrevTime = performance.now();
+  resizeGlobeCanvas();
+  if (globeAnimationId) {
+    cancelAnimationFrame(globeAnimationId);
+    globeAnimationId = null;
+  }
+  globeAnimationId = requestAnimationFrame(drawGlobeFrame);
+}
+
+function stopGlobeAnimation() {
+  globeRunning = false;
+  if (globeAnimationId) {
+    cancelAnimationFrame(globeAnimationId);
+    globeAnimationId = null;
+  }
+  if (globeCtx && globeCanvas) {
+    try {
+      globeCtx.clearRect(0, 0, globeCanvas.width, globeCanvas.height);
+    } catch (_) {}
+  }
+  globeSea.length = 0;
+  globeSoil.length = 0;
+  for (var bi = 0; bi < 8; bi++) {
+    if (globeLand8[bi]) globeLand8[bi].length = 0;
+  }
+}
+
 function initTunnelGlobe() {
+  if (state.currentTab !== 'tunnel') return;
   globeCanvas = document.getElementById('tunnel-globe-canvas');
   if (!globeCanvas) return;
   globeCtx = globeCanvas.getContext('2d');
@@ -8465,11 +8428,10 @@ function initTunnelGlobe() {
 
   resizeGlobeCanvas();
   setTimeout(resizeGlobeCanvas, 60);
-  setTimeout(resizeGlobeCanvas, 200);
 
   if (window.ResizeObserver && globeCanvas.parentElement && !globeCanvas._ro) {
     var ro = new ResizeObserver(function() {
-      if (globeRunning) {
+      if (globeRunning && state.currentTab === 'tunnel') {
         resizeGlobeCanvas();
       }
     });
@@ -8610,16 +8572,19 @@ function initTunnelControls() {
 
   const btnCopy = document.getElementById('btn-copy-tunnel-url');
   if (btnCopy) {
-    btnCopy.addEventListener('click', () => {
+    btnCopy.addEventListener('click', async () => {
       const urlText = document.getElementById('tunnel-url-text');
       const text = urlText ? urlText.textContent : '';
       if (!text || text.startsWith('Offline')) {
         showToast('Start ngrok tunnel first to get an endpoint', 'info');
         return;
       }
-      navigator.clipboard.writeText(text).then(() => {
+      const ok = await copyTextToClipboard(text);
+      if (ok) {
         showToast('Copied endpoint to clipboard: ' + text, 'success');
-      });
+      } else {
+        showToast('Failed to copy endpoint to clipboard', 'error');
+      }
     });
   }
 
@@ -8628,8 +8593,485 @@ function initTunnelControls() {
     btnSaveToken.addEventListener('click', saveNgrokAuthtoken);
   }
 
-  initTunnelGlobe();
-  startUptimeTracker();
+}
+
+// ===================================================================
+// ClaudeCode Bridge Management
+// ===================================================================
+let claudecodeState = {
+  running: false,
+  port: 6045,
+  pid: null,
+  gateway: 'http://127.0.0.1:9000',
+  status: 'stopped'
+};
+
+async function fetchClaudeCodeStatus() {
+  try {
+    const res = await fetch('/api/claudecode/status');
+    if (!res.ok) return;
+    const data = await res.json();
+    claudecodeState = data;
+    updateClaudeCodeUI();
+  } catch (err) {
+    console.error('Failed to fetch ClaudeCode bridge status:', err);
+  }
+}
+
+function updateClaudeCodeUI() {
+  const isOnline = !!claudecodeState.running;
+
+  // Status Indicator Dot and Text
+  const dot = document.getElementById('claudecode-dot');
+  const statusText = document.getElementById('claudecode-status-text');
+  const statusIndicator = document.querySelector('.claudecode-status-indicator');
+  if (dot) {
+    dot.className = `tunnel-dot ${isOnline ? 'online' : ''}`;
+  }
+  if (statusText) {
+    statusText.textContent = isOnline ? `Active (:6045)` : 'Stopped';
+  }
+  if (statusIndicator) {
+    statusIndicator.className = `claudecode-status-indicator ${isOnline ? 'online' : ''}`;
+  }
+
+  // Toggle button text & styles
+  const toggleBtn = document.getElementById('btn-toggle-claudecode');
+  const toggleBtnText = document.getElementById('btn-toggle-claudecode-text');
+  if (toggleBtn && toggleBtnText) {
+    if (isOnline) {
+      toggleBtn.className = 'btn btn-secondary btn-sm';
+      toggleBtnText.textContent = 'Stop Bridge';
+    } else {
+      toggleBtn.className = 'btn btn-primary btn-sm';
+      toggleBtnText.textContent = 'Start Bridge';
+    }
+  }
+
+  // Telemetry items
+  const metaPort = document.getElementById('claudecode-meta-port');
+  if (metaPort) metaPort.textContent = `${claudecodeState.port || 6045} (TCP)`;
+
+  const metaGateway = document.getElementById('claudecode-meta-gateway');
+  if (metaGateway) metaGateway.textContent = claudecodeState.gateway || 'http://127.0.0.1:9000';
+
+  const metaPid = document.getElementById('claudecode-meta-pid');
+  if (metaPid) {
+    metaPid.textContent = isOnline ? `Running (PID: ${claudecodeState.pid || '—'})` : 'Stopped';
+    metaPid.style.color = isOnline ? 'var(--color-success, #10b981)' : 'var(--text-muted)';
+  }
+}
+
+async function toggleClaudeCodeBridge() {
+  const toggleBtn = document.getElementById('btn-toggle-claudecode');
+  if (toggleBtn) toggleBtn.disabled = true;
+
+  try {
+    const isOnline = !!claudecodeState.running;
+    const endpoint = isOnline ? '/api/claudecode/stop' : '/api/claudecode/start';
+    showToast(isOnline ? 'Stopping ClaudeCode Bridge...' : 'Starting ClaudeCode Bridge on :6045...', 'info', 2000);
+
+    const res = await fetch(endpoint, { method: 'POST' });
+    const data = await res.json();
+    claudecodeState = data;
+    updateClaudeCodeUI();
+
+    if (data.running) {
+      showToast(data.message || 'ClaudeCode Bridge is running on port 6045!', 'success', 3000);
+    } else {
+      showToast(data.message || 'ClaudeCode Bridge stopped', 'info', 2500);
+    }
+  } catch (err) {
+    console.error('Failed to toggle ClaudeCode bridge:', err);
+    showToast(`Error: ${err.message}`, 'error', 3000);
+  } finally {
+    if (toggleBtn) toggleBtn.disabled = false;
+  }
+}
+
+async function restartClaudeCodeBridge() {
+  const restartBtn = document.getElementById('btn-restart-claudecode');
+  if (restartBtn) restartBtn.disabled = true;
+
+  try {
+    showToast('Restarting ClaudeCode Bridge...', 'info', 2000);
+    const res = await fetch('/api/claudecode/restart', { method: 'POST' });
+    const data = await res.json();
+    claudecodeState = data;
+    updateClaudeCodeUI();
+    showToast(data.message || 'ClaudeCode Bridge restarted successfully', 'success', 2500);
+  } catch (err) {
+    console.error('Failed to restart ClaudeCode bridge:', err);
+    showToast(`Error restarting bridge: ${err.message}`, 'error', 3000);
+  } finally {
+    if (restartBtn) restartBtn.disabled = false;
+  }
+}
+
+function getActiveGatewayKey() {
+  return localStorage.getItem('singularity_gateway_key') || 'Insom-Singularity';
+}
+
+function updateClaudeCodeKeySnippet(key) {
+  const snippetEl = document.getElementById('claudecode-url-text');
+  if (snippetEl) {
+    snippetEl.textContent = 'http://127.0.0.1:6045';
+  }
+}
+
+async function loadClaudeCodeTab() {
+  fetchClaudeCodeStatus();
+  updateClaudeCodeKeySnippet();
+  try {
+    const res = await fetch('/api/security/gateway-key');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.gateway_key) {
+        localStorage.setItem('singularity_gateway_key', data.gateway_key);
+        updateClaudeCodeKeySnippet(data.gateway_key);
+      }
+    }
+  } catch (e) {
+    // Gracefully keep cached key
+  }
+}
+
+function initClaudeCodePanel() {
+  const toggleBtn = document.getElementById('btn-toggle-claudecode');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', toggleClaudeCodeBridge);
+  }
+
+  const restartBtn = document.getElementById('btn-restart-claudecode');
+  if (restartBtn) {
+    restartBtn.addEventListener('click', restartClaudeCodeBridge);
+  }
+
+  const refreshBtn = document.getElementById('btn-refresh-claudecode');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      fetchClaudeCodeStatus();
+      loadClaudeCodeTab();
+      showToast('ClaudeCode Bridge status refreshed', 'info', 1500);
+    });
+  }
+
+  const copyEnvBtn = document.getElementById('btn-copy-claudecode-env');
+  if (copyEnvBtn) {
+    copyEnvBtn.addEventListener('click', async () => {
+      const ok = await copyTextToClipboard('http://127.0.0.1:6045');
+      if (ok) {
+        showToast('Copied Gateway URL (http://127.0.0.1:6045) to clipboard!', 'success', 2500);
+      } else {
+        showToast('Failed to copy to clipboard', 'error', 2000);
+      }
+    });
+  }
+
+  updateClaudeCodeKeySnippet();
+
+  // Universal 1-click code copying for all .btn-copy-code in the panel
+  document.querySelectorAll('#pane-claudecode .btn-copy-code').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const textToCopy = btn.getAttribute('data-copy') || btn.closest('.guide-code-box')?.querySelector('pre code')?.textContent || '';
+      if (!textToCopy) return;
+
+      const ok = await copyTextToClipboard(textToCopy);
+      if (ok) {
+        showToast('Command copied to clipboard!', 'success', 1800);
+        const originalSvg = btn.innerHTML;
+        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+        setTimeout(() => {
+          btn.innerHTML = originalSvg;
+        }, 1500);
+      } else {
+        showToast('Could not copy command to clipboard', 'error', 2000);
+      }
+    });
+  });
+
+  // Initialize Claude Desktop App Showcase
+  initClaudeDesktopShowcase();
+}
+
+function initClaudeDesktopShowcase() {
+  const root = document.getElementById('desktopApp');
+  if (!root) return;
+
+  const shellWindow = root.querySelector('.AppShell-module-scss-module__F71GCG__window');
+  if (!shellWindow) return;
+
+  // 1. Sidebar Toggle
+  const sidebarToggle = root.querySelector('[data-appshell-control="sidebar-toggle"]');
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      const isCollapsed = shellWindow.classList.toggle('sidebar-collapsed');
+      sidebarToggle.setAttribute('aria-pressed', isCollapsed ? 'true' : 'false');
+      sidebarToggle.setAttribute('aria-label', isCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+      if (typeof showToast === 'function') {
+        showToast(isCollapsed ? 'Sidebar collapsed' : 'Sidebar expanded', 'info', 1200);
+      }
+    });
+  }
+
+  // 2. Window Stoplights
+  const closeLight = root.querySelector('.AppShell-module-scss-module__F71GCG__stoplightClose');
+  const minLight = root.querySelector('.AppShell-module-scss-module__F71GCG__stoplightMin');
+  const maxLight = root.querySelector('.AppShell-module-scss-module__F71GCG__stoplightMax');
+
+  if (closeLight) {
+    closeLight.style.cursor = 'pointer';
+    closeLight.title = 'Reset Demo';
+    closeLight.addEventListener('click', () => {
+      shellWindow.classList.remove('sidebar-collapsed');
+      shellWindow.style.maxHeight = '';
+      shellWindow.style.height = '';
+      if (typeof showToast === 'function') showToast('Claude Code Showcase reset', 'info', 1500);
+    });
+  }
+
+  if (minLight) {
+    minLight.style.cursor = 'pointer';
+    minLight.title = 'Toggle Sidebar';
+    minLight.addEventListener('click', () => {
+      if (sidebarToggle) sidebarToggle.click();
+    });
+  }
+
+  if (maxLight) {
+    maxLight.style.cursor = 'pointer';
+    maxLight.title = 'Toggle Expanded View';
+    maxLight.addEventListener('click', () => {
+      if (shellWindow.style.maxHeight === '880px') {
+        shellWindow.style.maxHeight = '';
+        shellWindow.style.height = '';
+        if (typeof showToast === 'function') showToast('Restored standard window size', 'info', 1200);
+      } else {
+        shellWindow.style.maxHeight = '880px';
+        shellWindow.style.height = '820px';
+        if (typeof showToast === 'function') showToast('Expanded window showcase', 'info', 1200);
+      }
+    });
+  }
+
+  // 3. Sidebar Session Switching
+  const breadcrumbTitle = root.querySelector('.AppShell-module-scss-module__F71GCG__breadcrumbTitle');
+  root.querySelectorAll('.AppShell-module-scss-module__F71GCG__row').forEach(row => {
+    const btn = row.querySelector('.AppShell-module-scss-module__F71GCG__rowSelect');
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      root.querySelectorAll('.AppShell-module-scss-module__F71GCG__row').forEach(r => r.classList.remove('AppShell-module-scss-module__F71GCG__rowActive'));
+      row.classList.add('AppShell-module-scss-module__F71GCG__rowActive');
+      const label = row.querySelector('.AppShell-module-scss-module__F71GCG__rowLabel')?.textContent?.trim() || '';
+      if (breadcrumbTitle && label) {
+        breadcrumbTitle.textContent = label;
+      }
+      if (typeof showToast === 'function') {
+        showToast(`Loaded session: "${label}"`, 'info', 1400);
+      }
+    });
+  });
+
+  // 4. Tool Cards Expand/Collapse Accordion & Dynamic Content
+  const toolBodies = {
+    0: `<div class="AppShell-module-scss-module__F71GCG__toolCardBodyBare" style="padding: 10px 14px; font-family: var(--font-mono, monospace); font-size: 11.5px; color: #a1a1aa; line-height: 1.6; background: #111113;">
+          <div style="color: #71717a; margin-bottom: 5px;">Scanned files & parsed AST:</div>
+          <div style="color: #38bdf8;">✓ src/theme/ThemeProvider.tsx</div>
+          <div style="color: #38bdf8;">✓ src/pages/settings.tsx</div>
+          <div style="color: #38bdf8;">✓ src/styles/tokens.css</div>
+          <div style="color: #38bdf8;">✓ src/App.tsx</div>
+        </div>`,
+    2: `<div class="AppShell-module-scss-module__F71GCG__toolCardBodyBare">
+          <div class="CodeCard-module-scss-module__xiQRCG__card">
+            <div class="CodeCard-module-scss-module__xiQRCG__path">src/pages/settings.tsx</div>
+            <button type="button" class="CodeCard-module-scss-module__xiQRCG__copy" aria-label="Copy code">
+              <div style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor"><path d="M12.5 3C13.3284 3 14 3.67157 14 4.5V6H15.5C16.3284 6 17 6.67157 17 7.5V15.5C17 16.3284 16.3284 17 15.5 17H7.5C6.67157 17 6 16.3284 6 15.5V14H4.5C3.67157 14 3 13.3284 3 12.5V4.5C3 3.67157 3.67157 3 4.5 3H12.5ZM14 12.5C14 13.3284 13.3284 14 12.5 14H7V15.5C7 15.7761 7.22386 16 7.5 16H15.5C15.7761 16 16 15.7761 16 15.5V7.5C16 7.22386 15.7761 7 15.5 7H14V12.5ZM4.5 4C4.22386 4 4 4.22386 4 4.5V12.5C4 12.7761 4.22386 13 4.5 13H12.5C12.7761 13 13 12.7761 13 12.5V4.5C13 4.22386 12.7761 4 12.5 4H4.5Z"></path></svg></div>
+            </button>
+            <div class="CodeCard-module-scss-module__xiQRCG__body">
+              <div class="CodeCard-module-scss-module__xiQRCG__line CodeCard-module-scss-module__xiQRCG__lineAdd">
+                <span class="CodeCard-module-scss-module__xiQRCG__lineNumber">38</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign">+</span><code class="CodeCard-module-scss-module__xiQRCG__code"><span class="CodeCard-module-scss-module__xiQRCG__keyword">import</span> { ThemeToggle } <span class="CodeCard-module-scss-module__xiQRCG__keyword">from</span> <span class="CodeCard-module-scss-module__xiQRCG__string">'../theme/ThemeToggle'</span>;</code>
+              </div>
+              <div class="CodeCard-module-scss-module__xiQRCG__line CodeCard-module-scss-module__xiQRCG__lineAdd">
+                <span class="CodeCard-module-scss-module__xiQRCG__lineNumber">39</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign">+</span><code class="CodeCard-module-scss-module__xiQRCG__code"><span class="CodeCard-module-scss-module__xiQRCG__keyword">export</span> <span class="CodeCard-module-scss-module__xiQRCG__keyword">function</span> <span class="CodeCard-module-scss-module__xiQRCG__fn">AppearanceSection</span>() { <span class="CodeCard-module-scss-module__xiQRCG__keyword">return</span> &lt;<span class="CodeCard-module-scss-module__xiQRCG__fn">ThemeToggle</span> /&gt;; }</code>
+              </div>
+            </div>
+          </div>
+        </div>`,
+    3: `<div class="AppShell-module-scss-module__F71GCG__toolCardBodyBare">
+          <div class="CodeCard-module-scss-module__xiQRCG__card">
+            <div class="CodeCard-module-scss-module__xiQRCG__path">src/styles/tokens.css</div>
+            <button type="button" class="CodeCard-module-scss-module__xiQRCG__copy" aria-label="Copy code">
+              <div style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor"><path d="M12.5 3C13.3284 3 14 3.67157 14 4.5V6H15.5C16.3284 6 17 6.67157 17 7.5V15.5C17 16.3284 16.3284 17 15.5 17H7.5C6.67157 17 6 16.3284 6 15.5V14H4.5C3.67157 14 3 13.3284 3 12.5V4.5C3 3.67157 3.67157 3 4.5 3H12.5ZM14 12.5C14 13.3284 13.3284 14 12.5 14H7V15.5C7 15.7761 7.22386 16 7.5 16H15.5C15.7761 16 16 15.7761 16 15.5V7.5C16 7.22386 15.7761 7 15.5 7H14V12.5ZM4.5 4C4.22386 4 4 4.22386 4 4.5V12.5C4 12.7761 4.22386 13 4.5 13H12.5C12.7761 13 13 12.7761 13 12.5V4.5C13 4.22386 12.7761 4 12.5 4H4.5Z"></path></svg></div>
+            </button>
+            <div class="CodeCard-module-scss-module__xiQRCG__body">
+              <div class="CodeCard-module-scss-module__xiQRCG__line CodeCard-module-scss-module__xiQRCG__lineAdd">
+                <span class="CodeCard-module-scss-module__xiQRCG__lineNumber">64</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign">+</span><code class="CodeCard-module-scss-module__xiQRCG__code"><span class="CodeCard-module-scss-module__xiQRCG__keyword">[data-theme="dark"]</span> {</code>
+              </div>
+              <div class="CodeCard-module-scss-module__xiQRCG__line CodeCard-module-scss-module__xiQRCG__lineAdd">
+                <span class="CodeCard-module-scss-module__xiQRCG__lineNumber">65</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign">+</span><code class="CodeCard-module-scss-module__xiQRCG__code">  --bg-primary: <span class="CodeCard-module-scss-module__xiQRCG__string">#161618</span>; --text-primary: <span class="CodeCard-module-scss-module__xiQRCG__string">#f4f4f5</span>;</code>
+              </div>
+              <div class="CodeCard-module-scss-module__xiQRCG__line CodeCard-module-scss-module__xiQRCG__lineAdd">
+                <span class="CodeCard-module-scss-module__xiQRCG__lineNumber">66</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign">+</span><code class="CodeCard-module-scss-module__xiQRCG__code">}</code>
+              </div>
+            </div>
+          </div>
+        </div>`,
+    4: `<div class="AppShell-module-scss-module__F71GCG__toolCardBodyBare" style="padding: 10px 14px; font-family: var(--font-mono, monospace); font-size: 11.5px; color: #a1a1aa; line-height: 1.6; background: #111113;">
+          <div style="color: #71717a;">$ pnpm test src/theme/</div>
+          <div style="color: #10b981; margin-bottom: 5px;">✓ 14 passing (420ms)</div>
+          <div style="color: #71717a;">$ git diff --stat</div>
+          <div style="color: #d4d4d8;">3 files changed, 63 insertions(+), 2 deletions(-)</div>
+        </div>`
+  };
+
+  root.querySelectorAll('.AppShell-module-scss-module__F71GCG__toolCard').forEach((card, idx) => {
+    const header = card.querySelector('.AppShell-module-scss-module__F71GCG__toolCardHeader');
+    if (!header) return;
+
+    header.addEventListener('click', (e) => {
+      e.preventDefault();
+      const currentExpanded = header.getAttribute('aria-expanded') === 'true';
+      const nextExpanded = !currentExpanded;
+      header.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
+
+      let body = card.querySelector('.AppShell-module-scss-module__F71GCG__toolCardBodyBare');
+      if (!body && toolBodies[idx]) {
+        card.insertAdjacentHTML('beforeend', toolBodies[idx]);
+        body = card.querySelector('.AppShell-module-scss-module__F71GCG__toolCardBodyBare');
+        const copyBtn = body.querySelector('.CodeCard-module-scss-module__xiQRCG__copy');
+        if (copyBtn) {
+          copyBtn.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const codeText = body.querySelector('.CodeCard-module-scss-module__xiQRCG__body')?.textContent?.trim() || '';
+            const ok = await copyTextToClipboard(codeText);
+            if (ok && typeof showToast === 'function') {
+              showToast('Code diff copied!', 'success', 1500);
+            }
+          });
+        }
+      }
+
+      if (body) {
+        body.style.display = nextExpanded ? 'block' : 'none';
+      }
+    });
+  });
+
+  // 5. CodeCard Copy Buttons
+  root.querySelectorAll('.CodeCard-module-scss-module__xiQRCG__copy').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const codeBlock = btn.closest('.CodeCard-module-scss-module__xiQRCG__card')?.querySelector('.CodeCard-module-scss-module__xiQRCG__body');
+      const textToCopy = codeBlock?.textContent?.trim() || '';
+      if (!textToCopy) return;
+      const ok = await copyTextToClipboard(textToCopy);
+      if (ok && typeof showToast === 'function') {
+        showToast('Diff code copied to clipboard!', 'success', 1800);
+      }
+    });
+  });
+
+  // Message Copy Buttons
+  root.querySelectorAll('.AppShell-module-scss-module__F71GCG__messageActions button').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const replyBlock = btn.closest('.AppShell-module-scss-module__F71GCG__reply');
+      const textToCopy = replyBlock?.querySelector('p')?.textContent?.trim() || '';
+      if (!textToCopy) return;
+      const ok = await copyTextToClipboard(textToCopy);
+      if (ok && typeof showToast === 'function') {
+        showToast('Claude message copied!', 'success', 1800);
+      }
+    });
+  });
+
+  // 10. Interactive Chat Composer Simulation
+  const composerArea = root.querySelector('.AppShell-module-scss-module__F71GCG__composer textarea');
+  const sendBtn = root.querySelector('.AppShell-module-scss-module__F71GCG__sendButton');
+  const transcriptBlocks = root.querySelector('.AppShell-module-scss-module__F71GCG__transcriptBlocks');
+  const mainScroll = root.querySelector('.AppShell-module-scss-module__F71GCG__mainScroll');
+
+  if (composerArea && sendBtn && transcriptBlocks) {
+    composerArea.addEventListener('input', () => {
+      if (composerArea.value.trim().length > 0) {
+        sendBtn.removeAttribute('disabled');
+      } else {
+        sendBtn.setAttribute('disabled', '');
+      }
+    });
+
+    const submitPrompt = () => {
+      const prompt = composerArea.value.trim();
+      if (!prompt) return;
+
+      composerArea.value = '';
+      sendBtn.setAttribute('disabled', '');
+
+      // Append user bubble
+      const userMessageDiv = document.createElement('div');
+      userMessageDiv.className = 'AppShell-module-scss-module__F71GCG__userMessage';
+      userMessageDiv.innerHTML = `<div class="AppShell-module-scss-module__F71GCG__userBubble">${escapeHtml(prompt)}</div>`;
+      transcriptBlocks.appendChild(userMessageDiv);
+
+      if (mainScroll) mainScroll.scrollTop = mainScroll.scrollHeight;
+
+      // Simulate Claude thinking and response
+      setTimeout(() => {
+        const replyDiv = document.createElement('div');
+        replyDiv.className = 'AppShell-module-scss-module__F71GCG__reply AppShell-module-scss-module__F71GCG__message';
+        replyDiv.innerHTML = `
+          <p><span>I've applied your changes for </span><code>${escapeHtml(prompt.slice(0, 32))}</code><span>. Verified tokens, checked types, and updated live preview viewport.</span></p>
+          <span class="AppShell-module-scss-module__F71GCG__messageActions">
+            <button type="button" aria-label="Copy message"><div style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor"><path d="M12.5 3C13.3284 3 14 3.67157 14 4.5V6H15.5C16.3284 6 17 6.67157 17 7.5V15.5C17 16.3284 16.3284 17 15.5 17H7.5C6.67157 17 6 16.3284 6 15.5V14H4.5C3.67157 14 3 13.3284 3 12.5V4.5C3 3.67157 3.67157 3 4.5 3H12.5ZM14 12.5C14 13.3284 13.3284 14 12.5 14H7V15.5C7 15.7761 7.22386 16 7.5 16H15.5C15.7761 16 16 15.7761 16 15.5V7.5C16 7.22386 15.7761 7 15.5 7H14V12.5ZM4.5 4C4.22386 4 4 4.22386 4 4.5V12.5C4 12.7761 4.22386 13 4.5 13H12.5C12.7761 13 13 12.7761 13 12.5V4.5C13 4.22386 12.7761 4 12.5 4H4.5Z"></path></svg></div></button>
+            <span class="AppShell-module-scss-module__F71GCG__messageTimestamp">just now</span>
+          </span>
+        `;
+        transcriptBlocks.appendChild(replyDiv);
+        if (mainScroll) mainScroll.scrollTop = mainScroll.scrollHeight;
+
+        replyDiv.querySelector('button')?.addEventListener('click', async () => {
+          await copyTextToClipboard(replyDiv.querySelector('p')?.textContent || '');
+          if (typeof showToast === 'function') showToast('Copied message!', 'success', 1500);
+        });
+      }, 700);
+    };
+
+    composerArea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        submitPrompt();
+      }
+    });
+
+    sendBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      submitPrompt();
+    });
+  }
+
+  // 6. Video Showcase Player (Muted Loop)
+  const videoCard = document.getElementById('claudecode-video-card');
+  const heroVideo = document.getElementById('claudecode-hero-video');
+
+  if (heroVideo && videoCard) {
+    heroVideo.muted = true;
+    videoCard.addEventListener('click', () => {
+      if (heroVideo.paused) {
+        heroVideo.play().catch(() => {});
+        if (typeof showToast === 'function') showToast('Video playing', 'info', 1200);
+      } else {
+        heroVideo.pause();
+        if (typeof showToast === 'function') showToast('Video paused', 'info', 1200);
+      }
+    });
+  }
 }
 
 // Skiper37-Inspired Live Server Uptime Tracker
@@ -8776,6 +9218,16 @@ function stopUptimeTracker() {
     uptimeInterval = null;
   }
 }
+
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    stopGlobeAnimation();
+    stopUptimeTracker();
+  } else if (state.currentTab === 'tunnel') {
+    startGlobeAnimation();
+    startUptimeTracker();
+  }
+});
 
 // ===================================================================
 // VengeanceUI Testimonials Card Stack Controller (Ngrok Key Guide)
@@ -9537,12 +9989,19 @@ function initAppRouter() {
       const id = parts.slice(2).join('/') || '';
       if (window.SConnect && typeof window.SConnect.navigate === 'function') {
         window.SConnect.navigate(view, { id }, false);
+      } else {
+        loadLazyModule('connect').then(() => {
+          if (window.SConnect && typeof window.SConnect.navigate === 'function') {
+            window.SConnect.navigate(view, { id }, false);
+          }
+        }).catch(() => {});
       }
     } else {
-      const validTabs = ['playground', 'providers', 'accounts', 'limits', 'tunnel', 'updates', 'bio', 'presets', 'lorebooks'];
+      const validTabs = ['playground', 'control', 'providers', 'accounts', 'models', 'cookies', 'tunnel', 'updates', 'bio', 'presets', 'lorebooks'];
       if (validTabs.includes(tab)) {
-        if (state.currentTab !== tab) {
-          switchTab(tab, false);
+        const canonicalTab = tab === 'providers' ? 'control' : (tab === 'accounts' ? 'cookies' : tab);
+        if (state.currentTab !== canonicalTab) {
+          switchTab(canonicalTab, false);
         }
       }
     }
@@ -9652,17 +10111,33 @@ document.addEventListener('DOMContentLoaded', () => {
   initVoiceStudio();
   initCopyAction();
   initTunnelControls();
+  initClaudeCodePanel();
   initSmoothInputs();
-  initSearchToggle();
-  initToolsTray();
   initPwa();
-  window.SingularityToolSteps?.initCitationCards?.();
+
+  // Mobile sidebar drawer trigger for Control Center
+  const btnControlSidebar = document.getElementById('btn-control-mobile-sidebar');
+  if (btnControlSidebar) {
+    btnControlSidebar.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.triggerHaptic?.(8);
+      const dockToggle = document.getElementById('singularity-sidebar-toggle');
+      if (dockToggle) {
+        dockToggle.click();
+      } else {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (sidebar) sidebar.classList.toggle('open');
+        if (overlay) overlay.classList.toggle('active');
+      }
+    });
+  }
 
   // Fleet controls (Desktop & Mobile)
   const handleRefresh = () => {
     showToast('Refreshing telemetry...', 'info');
     fetchServices();
-    fetchLimits();
   };
 
   const btnRefresh = document.getElementById('btn-refresh-telemetry');
@@ -9685,216 +10160,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial Data Fetches
   fetchServices();
-  fetchLimits();
   fetchModels();
   fetchTunnelStatus();
-  updateTavernAndMobileChips();
+  fetchClaudeCodeStatus();
 
   // Background Telemetry Polling (every 5s, paused when tab is hidden)
   setInterval(() => {
     if (document.hidden) return;
     fetchServices();
-    if (state.currentTab === 'limits') {
-      fetchLimits();
-    }
     if (state.currentTab === 'tunnel') {
       fetchTunnelStatus();
+    }
+    if (state.currentTab === 'claudecode') {
+      fetchClaudeCodeStatus();
     }
   }, 5000);
 
   // Periodic status refresh (every 12s, paused when tab is hidden)
   setInterval(() => {
     if (document.hidden) return;
-    updateTavernAndMobileChips();
     if (state.currentTab !== 'tunnel') {
       fetchTunnelStatus();
+    }
+    if (state.currentTab !== 'claudecode') {
+      fetchClaudeCodeStatus();
     }
   }, 12000);
 });
 
-// ===================================================================
-// Tavern Studio & Phone LAN Integration
-// ===================================================================
-async function updateTavernAndMobileChips() {
-  try {
-    const res = await fetch('/api/tavern/status');
-    if (!res.ok) return;
-    const data = await res.json();
-    state.tavernStatus = data;
-    const tavCode = document.getElementById('tavern-chip-url');
-    if (tavCode) {
-      let host = window.location.hostname;
-      if (!host || host === '0.0.0.0' || host === '::') host = 'localhost';
-      const port = data.port || 5173;
-      tavCode.textContent = `:${port}`;
-      const chip = document.getElementById('chip-tavern-studio');
-      if (chip) {
-        if (data.running) {
-          chip.style.borderColor = 'rgba(168, 85, 247, 0.7)';
-          chip.style.boxShadow = '0 0 10px rgba(168, 85, 247, 0.25)';
-          chip.title = `Tavern Studio is LIVE on port ${port} — click to open`;
-        } else {
-          chip.style.borderColor = 'rgba(168, 85, 247, 0.3)';
-          chip.style.boxShadow = 'none';
-          chip.title = 'Tavern Studio is offline — click to start natively';
-        }
-      }
-    }
-  } catch (_) { }
-}
-
-async function openTavernStudio() {
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 800;
-  let currentHost = window.location.hostname;
-  if (!currentHost || currentHost === '0.0.0.0' || currentHost === '::') {
-    currentHost = 'localhost';
-  }
-  let targetUrl = `${window.location.protocol}//${currentHost}:5173`;
-
-  // 1. Fast path: If already verified running, open immediately with zero delay
-  if (state.tavernStatus && state.tavernStatus.running && state.tavernStatus.client_url) {
-    try {
-      const u = new URL(state.tavernStatus.client_url);
-      u.hostname = currentHost;
-      u.protocol = window.location.protocol;
-      targetUrl = u.toString();
-    } catch {
-      targetUrl = state.tavernStatus.client_url;
-    }
-
-    if (isMobile) {
-      window.location.href = targetUrl;
-    } else {
-      const win = window.open(targetUrl, '_blank', 'noopener,noreferrer');
-      if (!win || win.closed || typeof win.closed === 'undefined') {
-        if (typeof showToast === 'function') {
-          showToast(`Tavern ready: <a href="${targetUrl}" target="_blank" style="color:var(--accent);text-decoration:underline;">Click here to open ${targetUrl}</a>`, 'success');
-        }
-      }
-    }
-    return;
-  }
-
-  // 2. Synchronously open placeholder tab on desktop to bypass browser popup blockers
-  let tabWin = null;
-  if (!isMobile) {
-    try {
-      tabWin = window.open('about:blank', '_blank');
-      if (tabWin && tabWin.document) {
-        tabWin.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head><title>Launching Tavern Web Studio...</title></head>
-            <body style="margin:0;background:#0d0d12;color:#d8b4fe;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;">
-              <div style="text-align:center;padding:2.5rem;background:rgba(255,255,255,0.03);border:1px solid rgba(168,85,247,0.3);border-radius:18px;max-width:420px;box-shadow:0 12px 36px rgba(0,0,0,0.5);">
-                <div style="font-size:3rem;margin-bottom:12px;">🏰</div>
-                <h2 style="margin:0 0 8px 0;color:#f8fafc;font-size:1.3rem;">Starting Tavern Web Studio...</h2>
-                <p id="tav-status-msg" style="color:#94a3b8;font-size:0.9rem;margin:0 0 16px 0;line-height:1.4;">Connecting to Singularity gateway & spinning up dev server...</p>
-                <div style="display:inline-block;width:24px;height:24px;border:3px solid rgba(168,85,247,0.3);border-top-color:#d8b4fe;border-radius:50%;animation:spin 1s linear infinite;"></div>
-                <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
-              </div>
-            </body>
-          </html>
-        `);
-      }
-    } catch (_) { }
-  }
-
-  if (typeof showToast === 'function') {
-    showToast('Starting Tavern Studio natively in background...', 'info', 4000);
-  }
-
-  // 3. Trigger native backend boot
-  try {
-    const startRes = await fetch('/api/tavern/start', { method: 'POST' });
-    if (startRes.ok) {
-      const startData = await startRes.json();
-      if (startData.error) {
-        if (tabWin && !tabWin.closed) tabWin.close();
-        if (typeof showToast === 'function') showToast(startData.error, 'error', 6000);
-        return;
-      }
-      if (startData.client_url) targetUrl = startData.client_url;
-    }
-  } catch (err) {
-    console.warn('Tavern auto-start call failed:', err);
-  }
-
-  // 4. Poll for port readiness (poll up to 45 seconds to allow first-time npm install to finish)
-  let ready = false;
-  for (let i = 0; i < 45; i++) {
-    await new Promise(r => setTimeout(r, 1000));
-    try {
-      const res = await fetch('/api/tavern/status');
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.running) {
-          state.tavernStatus = data;
-          if (data.client_url) targetUrl = data.client_url;
-          ready = true;
-          break;
-        }
-      }
-    } catch (_) { }
-
-    // Update placeholder window progress
-    if (tabWin && !tabWin.closed && tabWin.document) {
-      const msgEl = tabWin.document.getElementById('tav-status-msg');
-      if (msgEl) {
-        msgEl.textContent = `Compiling and waiting for port 5173... (${i + 1}s / 45s)`;
-      }
-    }
-  }
-
-  try {
-    const u = new URL(targetUrl);
-    u.hostname = currentHost;
-    u.protocol = window.location.protocol;
-    targetUrl = u.toString();
-  } catch { }
-
-  if (ready) {
-    if (typeof showToast === 'function') {
-      showToast(`Tavern Web Studio ready! Launching ${targetUrl}...`, 'success', 2500);
-    }
-
-    if (isMobile) {
-      window.location.href = targetUrl;
-    } else if (tabWin && !tabWin.closed) {
-      tabWin.location.replace(targetUrl);
-    } else {
-      const win = window.open(targetUrl, '_blank', 'noopener,noreferrer');
-      if (!win || win.closed || typeof win.closed === 'undefined') {
-        if (typeof showToast === 'function') {
-          showToast(`Tavern ready: <a href="${targetUrl}" target="_blank" style="color:var(--accent);text-decoration:underline;">Click here to open ${targetUrl}</a>`, 'success');
-        }
-      }
-    }
-  } else {
-    // Port NOT ready yet — DO NOT redirect to dead port to avoid ERR_CONNECTION_REFUSED
-    if (typeof showToast === 'function') {
-      showToast('Tavern Studio is taking a moment to start (installing packages or compiling). Please wait or click Check Again in the new tab.', 'warning', 8000);
-    }
-    if (tabWin && !tabWin.closed && tabWin.document && tabWin.document.body) {
-      tabWin.document.body.innerHTML = `
-        <div style="text-align:center;padding:2.5rem;background:rgba(255,255,255,0.03);border:1px solid rgba(168,85,247,0.4);border-radius:18px;max-width:450px;box-shadow:0 12px 36px rgba(0,0,0,0.5);font-family:system-ui,sans-serif;color:#f8fafc;">
-          <div style="font-size:3rem;margin-bottom:12px;">⏳</div>
-          <h2 style="margin:0 0 8px 0;color:#d8b4fe;font-size:1.3rem;">Tavern Studio Still Starting</h2>
-          <p style="color:#94a3b8;font-size:0.9rem;margin:0 0 20px 0;line-height:1.5;">
-            The dev server is still downloading packages or compiling Vite. Keep this tab open — click below to check if port 5173 is live!
-          </p>
-          <button onclick="window.location.reload()" style="background:#a855f7;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-weight:600;cursor:pointer;font-size:0.95rem;box-shadow:0 4px 14px rgba(168,85,247,0.4);">
-            Check Port 5173
-          </button>
-        </div>
-      `;
-    }
-  }
-}
-
 // Global exports for modular UI integrations (e.g. Glass Dock, Artifacts)
 window.switchTab = switchTab;
-window.openTavernStudio = openTavernStudio;
 window.showToast = showToast;
 window.openArtifact = openArtifact;
 window.closeArtifactWorkbench = closeArtifactWorkbench;
@@ -9906,6 +10201,7 @@ window.toggleArtifactFullscreen = toggleArtifactFullscreen;
 window.initTunnelGlobe = initTunnelGlobe;
 window.startGlobeAnimation = startGlobeAnimation;
 window.stopGlobeAnimation = stopGlobeAnimation;
+window.fetchClaudeCodeStatus = fetchClaudeCodeStatus;
 
 // ===================================================================
 // Skiper106 Smooth Caret Input Component (@skiper-ui/skiper106)
@@ -10097,211 +10393,6 @@ function initSmoothInputs() {
       new SkiperSmoothCaret(el);
     }
   });
-}
-
-// ===================================================================
-// Chat tools: the Search toggle and web search settings
-// ===================================================================
-function setToolsEnabled(on) {
-  state.toolsEnabled = !!on && !!state.toolsInfo;
-  const btn = document.getElementById('btn-search-toggle');
-  if (btn) btn.setAttribute('aria-pressed', state.toolsEnabled ? 'true' : 'false');
-  syncToolsMenuButton();
-}
-
-function syncToolsMenuButton() {
-  const circle = document.getElementById('btn-tools-menu');
-  const tray = document.getElementById('composer-tools-tray');
-  if (!circle || !tray) return;
-  circle.classList.toggle('has-active', !!tray.querySelector('.claude-tool-pill[aria-pressed="true"]'));
-}
-
-function setToolsTrayOpen(open) {
-  const circle = document.getElementById('btn-tools-menu');
-  const tray = document.getElementById('composer-tools-tray');
-  if (!circle || !tray) return;
-  tray.classList.toggle('open', open);
-  tray.inert = !open;
-  tray.setAttribute('aria-hidden', open ? 'false' : 'true');
-  circle.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-
-function initToolsTray() {
-  const circle = document.getElementById('btn-tools-menu');
-  const tray = document.getElementById('composer-tools-tray');
-  if (!circle) return;
-  circle.addEventListener('click', (e) => {
-    e.stopPropagation();
-    window.triggerHaptic?.(6);
-    setToolsTrayOpen(circle.getAttribute('aria-expanded') !== 'true');
-  });
-  document.addEventListener('click', (e) => {
-    if (tray && circle && !tray.contains(e.target) && !circle.contains(e.target)) {
-      setToolsTrayOpen(false);
-    }
-  });
-  syncToolsMenuButton();
-}
-
-function saveChatTools(chatId) {
-  if (!chatId) return;
-  const tools = state.toolsEnabled && window.SingularityToolSteps ? window.SingularityToolSteps.TOOL_NAMES : [];
-  fetch(`/api/chats/${chatId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tools }) }).catch((err) => {
-    console.error('Could not save the Search setting for this chat:', err);
-  });
-}
-
-function updateSearchToggleHint() {
-  const btn = document.getElementById('btn-search-toggle');
-  if (!btn || !state.toolsInfo) return;
-  const via = state.toolsInfo.search && state.toolsInfo.search.name;
-  const keySaved = !!(state.toolsInfo.search && state.toolsInfo.search.key_saved);
-  btn.title = `Let the model search the web and read pages${via ? ` (via ${via})` : ''}`
-    + (keySaved ? '' : '. No search key: results can be blocked. Add one in Parameters.');
-  btn.classList.toggle('needs-key', !keySaved);
-  if (window.SingularityToolSteps) window.SingularityToolSteps.setSearchKeySaved(keySaved);
-}
-
-function openSearchSettings() {
-  const dropdown = document.getElementById('playground-settings-dropdown');
-  if (!dropdown) return;
-  if (!dropdown.classList.contains('open')) {
-    dropdown.classList.add('open');
-    if (typeof loadModelSettings === 'function') loadModelSettings(state.selectedModel || 'gpt-5.6-sol');
-  }
-  const group = document.getElementById('search-settings');
-  if (group && group.scrollIntoView) group.scrollIntoView({ block: 'center' });
-  const select = document.getElementById('search-backend-select');
-  const customBtn = document.getElementById('btn-search-backend-select');
-  const keyInput = document.getElementById('search-api-key-input');
-  const target = (select && select.value === 'auto') ? (customBtn || select) : keyInput;
-  if (target) target.focus();
-}
-
-async function loadSearchSettings() {
-  try {
-    const res = await fetch('/api/tools');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    state.toolsInfo = await res.json();
-    return true;
-  } catch (err) {
-    state.toolsInfo = null;
-    return false;
-  }
-}
-
-function initSearchToggle() {
-  const btn = document.getElementById('btn-search-toggle');
-  const select = document.getElementById('search-backend-select');
-  const keyInput = document.getElementById('search-api-key-input');
-  const hint = document.getElementById('search-settings-hint');
-  const saveBtn = document.getElementById('btn-save-search-settings');
-  if (!btn) return;
-  const defaultHint = hint ? hint.textContent : '';
-
-  const updateSearchBackendCustomUI = (val) => {
-    if (select) select.value = val;
-    const label = document.getElementById('search-backend-selected-label');
-    const menu = document.getElementById('search-backend-select-menu');
-    if (menu) {
-      menu.querySelectorAll('.claude-select-option').forEach(opt => {
-        const isMatch = opt.getAttribute('data-value') === val;
-        opt.classList.toggle('active', isMatch);
-        if (isMatch && label) {
-          const spanEl = opt.querySelector('span');
-          label.textContent = spanEl ? spanEl.textContent : opt.textContent.trim();
-        }
-      });
-    }
-  };
-
-  const customWrap = document.getElementById('search-backend-select-wrap');
-  const customBtn = document.getElementById('btn-search-backend-select');
-  const customMenu = document.getElementById('search-backend-select-menu');
-
-  if (customBtn && customMenu) {
-    customBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      document.querySelectorAll('.claude-custom-select-menu.open').forEach(m => {
-        if (m !== customMenu) m.classList.remove('open');
-      });
-      customMenu.classList.toggle('open');
-    });
-
-    customMenu.querySelectorAll('.claude-select-option').forEach(opt => {
-      opt.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const val = opt.getAttribute('data-value') || 'auto';
-        updateSearchBackendCustomUI(val);
-        customMenu.classList.remove('open');
-      });
-    });
-
-    document.addEventListener('click', (e) => {
-      if (customWrap && !customWrap.contains(e.target)) {
-        customMenu.classList.remove('open');
-      }
-    });
-  }
-
-  const syncSettingsForm = () => {
-    const search = state.toolsInfo && state.toolsInfo.search;
-    const val = search ? (search.backend_setting || 'auto') : 'auto';
-    updateSearchBackendCustomUI(val);
-    if (keyInput) {
-      keyInput.value = '';
-      keyInput.placeholder = search && search.key_saved ? 'Key saved. Type to replace it.' : 'API key (optional)';
-    }
-  };
-
-  const refresh = async () => {
-    const ok = await loadSearchSettings();
-    btn.disabled = !ok;
-    if (ok) {
-      updateSearchToggleHint();
-    } else {
-      btn.title = 'Search needs a newer Singularity server. Restart Singularity.';
-    }
-    setToolsEnabled(state.toolsEnabled);
-    syncSettingsForm();
-  };
-
-  document.addEventListener('singularity:open-search-settings', openSearchSettings);
-
-  btn.addEventListener('click', () => {
-    if (btn.disabled) return;
-    setToolsEnabled(!state.toolsEnabled);
-    if (state.chatId) saveChatTools(state.chatId);
-  });
-
-  if (saveBtn) {
-    saveBtn.addEventListener('click', async () => {
-      const payload = { search_backend: select ? select.value : 'auto' };
-      if (keyInput && keyInput.value.trim()) payload.search_api_key = keyInput.value.trim();
-      else if (select && select.value === 'auto') payload.search_api_key = '';
-      saveBtn.disabled = true;
-      try {
-        const res = await fetch('/api/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-          let detail = `HTTP ${res.status}`;
-          try { detail = (await res.json()).detail || detail; } catch (_) {}
-          throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
-        }
-        await refresh();
-        showToast('Search settings saved', 'success', 2200);
-      } catch (err) {
-        showToast(`Could not save search settings: ${err.message}`, 'error', 6000);
-      } finally {
-        saveBtn.disabled = false;
-      }
-    });
-  }
-
-  refresh();
 }
 
 window.initSmoothInputs = initSmoothInputs;

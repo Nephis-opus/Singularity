@@ -12,12 +12,14 @@ reasoning/thinking streams, and full current frontier model catalog.
 
 import asyncio
 import base64
+import glob
 import http.server
 import json
 import logging
 import os
 import random
 import re
+import subprocess
 import threading
 import time
 import urllib.parse
@@ -101,14 +103,16 @@ def resolve_antigravity_model(model_name: str) -> Tuple[str, Optional[str], int]
     """
     Resolve model alias and reasoning level to (upstream_model, reasoning_effort, thinking_budget).
     Recognizes all active Antigravity frontier models:
-      - Claude Opus 5.5 (High / Medium / Low) -> claude-opus-5-5-thinking / fallback claude-opus-4-6-thinking
-      - Claude Sonnet 5.5 (High / Medium / Low) -> claude-sonnet-5-5-thinking / fallback claude-sonnet-4-6
+      - Claude Opus 5.5 (High / Medium / Low) -> claude-opus-5-5-high / medium / low
+      - Claude Sonnet 5.5 (High / Medium / Low) -> claude-sonnet-5-5-high / medium / low
       - Claude Opus 4.6 (Thinking) -> claude-opus-4-6-thinking
       - Claude Sonnet 4.6 (Thinking) -> claude-sonnet-4-6
-      - Gemini 3.8 Flash (High / Medium / Low) -> gemini-3.8-flash-tiered
-      - Gemini 3.7 Flash (High / Medium / Low) -> gemini-3.7-flash-tiered
-      - Gemini 3.6 Flash (High / Medium / Low) -> gemini-3.6-flash-tiered
-      - Gemini 3.1 Pro (High / Low) -> gemini-pro-agent
+      - Gemini 3.8 Flash -> gemini-3.8-flash-tiered
+      - Gemini 3 Flash Agent -> gemini-3-flash-agent
+      - Gemini 3.5 Flash Low -> gemini-3.5-flash-low
+      - Gemini 3.5 Flash Extra Low -> gemini-3.5-flash-extra-low
+      - Gemini 3.5 Flash-Lite -> gemini-3.5-flash-lite
+      - Gemini 2.5 Pro -> gemini-2.5-pro
       - GPT-OSS 120B (Medium) -> gpt-oss-120b-medium
     """
     raw = (model_name or "").strip().lower()
@@ -131,42 +135,32 @@ def resolve_antigravity_model(model_name: str) -> Tuple[str, Optional[str], int]
         effort = "high"
         cleaned = cleaned.replace("-thinking", "")
 
-    # 1. Claude Opus 5.5
-    if "opus-5-5" in cleaned or "opus-5.5" in cleaned:
-        upstream = "claude-opus-5-5-thinking" if (effort or "thinking" in raw) else "claude-opus-5-5"
-        budget = REASONING_BUDGET_MAP.get(effort or "medium", 2048)
-        return upstream, effort or "medium", budget
+    # 1. Claude Opus (Opus 5.5, Opus 4.6, Opus 4.7, Opus 4.8, Opus 5, or general opus)
+    # In Antigravity plans (Google AI Pro), Claude Opus is powered by the active Opus model.
+    # Map all Opus variants (opus-4.6, opus4.6, opus-4.7, opus) directly to active claude-opus-5-5-{eff}
+    # preventing upstream CloudCode "Claude Opus 4.6 is no longer available" error.
+    if "opus" in cleaned:
+        eff = effort or "medium"
+        upstream = f"claude-opus-5-5-{eff}"
+        budget = REASONING_BUDGET_MAP.get(eff, 2048)
+        return upstream, eff, budget
 
-    # 2. Claude Sonnet 5.5
-    if "sonnet-5-5" in cleaned or "sonnet-5.5" in cleaned:
-        upstream = "claude-sonnet-5-5-thinking" if (effort or "thinking" in raw) else "claude-sonnet-5-5"
-        budget = REASONING_BUDGET_MAP.get(effort or "medium", 2048)
-        return upstream, effort or "medium", budget
+    # 2. Claude Sonnet (Sonnet 5.5, Sonnet 4.6, Sonnet 4.5, Sonnet 5, or general sonnet)
+    # In Antigravity plans (Google AI Pro), Claude Sonnet is powered by the active Sonnet model.
+    # Map all Sonnet variants (sonnet-4.6, sonnet4.6, sonnet) directly to active claude-sonnet-5-5-{eff}
+    # preventing upstream CloudCode "Claude Sonnet 4.6 is no longer available" error.
+    if "sonnet" in cleaned:
+        eff = effort or "medium"
+        upstream = f"claude-sonnet-5-5-{eff}"
+        budget = REASONING_BUDGET_MAP.get(eff, 2048)
+        return upstream, eff, budget
 
-    # 3. Claude Opus 4.6
-    if "opus-4-6" in cleaned or "opus-4.6" in cleaned or "opus-4-7" in cleaned:
-        upstream = "claude-opus-4-6-thinking"
-        budget = REASONING_BUDGET_MAP.get(effort or "high", 1024)
-        return upstream, effort or "high", budget
-
-    # 4. Claude Sonnet 4.6
-    if "sonnet-4-6" in cleaned or "sonnet-4.6" in cleaned:
-        upstream = "claude-sonnet-4-6"
-        budget = REASONING_BUDGET_MAP.get(effort or "high", 1024)
-        return upstream, effort or "high", budget
-
-    # 5. Gemini 4 Argon
+    # 5. Gemini 4 Argon (High / Medium / Low)
     if "argon" in cleaned or "gemini-4" in cleaned:
-        if effort == "high":
-            upstream = "gemini-4-argon-high"
-        elif effort == "low":
-            upstream = "gemini-4-argon-low"
-        elif effort == "medium":
-            upstream = "gemini-4-argon-medium"
-        else:
-            upstream = "gemini-4-argon"
-        budget = REASONING_BUDGET_MAP.get(effort or "medium", 2048)
-        return upstream, effort or "medium", budget
+        eff = effort or "medium"
+        upstream = f"gemini-4-argon-{eff}"
+        budget = REASONING_BUDGET_MAP.get(eff, 2048)
+        return upstream, eff, budget
 
     # 6. Gemini 3.8 Flash
     if "gemini-3-8" in cleaned or "gemini-3.8" in cleaned:
@@ -174,40 +168,324 @@ def resolve_antigravity_model(model_name: str) -> Tuple[str, Optional[str], int]
         budget = REASONING_BUDGET_MAP.get(effort or "medium", 2048)
         return upstream, effort or "medium", budget
 
-    # 7. Gemini 3.7 Flash
-    if "gemini-3-7" in cleaned or "gemini-3.7" in cleaned:
-        upstream = "gemini-3.7-flash-tiered"
-        budget = REASONING_BUDGET_MAP.get(effort or "medium", 2048)
-        return upstream, effort or "medium", budget
+    # 7. Gemini 3 Flash Agent
+    if "gemini-3-flash" in cleaned:
+        upstream = "gemini-3-flash-agent"
+        budget = REASONING_BUDGET_MAP.get(effort or "high", 8192)
+        return upstream, effort or "high", budget
 
-    # 7. Gemini 3.6 Flash
-    if "gemini-3-6" in cleaned or "gemini-3.6" in cleaned:
-        if effort == "high":
-            upstream = "gemini-3.6-flash-high"
-        elif effort == "medium":
-            upstream = "gemini-3.6-flash-medium"
-        elif effort == "low":
-            upstream = "gemini-3.6-flash-low"
+    # 8. Gemini 3.5 Flash / Flash-Lite
+    if "gemini-3-5" in cleaned or "gemini-3.5" in cleaned:
+        if "lite" in cleaned:
+            upstream = "gemini-3.5-flash-lite"
+        elif effort == "low" or "extra-low" in cleaned:
+            upstream = "gemini-3.5-flash-extra-low"
         else:
-            upstream = "gemini-3.6-flash-tiered"
+            upstream = "gemini-3.5-flash-low"
         budget = REASONING_BUDGET_MAP.get(effort or "medium", 2048)
         return upstream, effort or "medium", budget
 
-    # 8. Gemini 3.1 Pro / Gemini Pro Agent
-    if "gemini-3-1-pro" in cleaned or "gemini-3.1-pro" in cleaned or "gemini-3-1" in cleaned or "gemini-pro" in cleaned:
-        upstream = "gemini-pro-agent"
+    # 9. Gemini 2.5 Pro
+    if "gemini-2-5-pro" in cleaned or "gemini-2.5-pro" in cleaned:
+        upstream = "gemini-2.5-pro"
         budget = REASONING_BUDGET_MAP.get(effort or "high", 10001)
         return upstream, effort or "high", budget
 
-    # 9. GPT-OSS 120B
+    # 10. GPT-OSS 120B
     if "gpt-oss" in cleaned or "oss-120b" in cleaned:
         upstream = "gpt-oss-120b-medium"
         budget = REASONING_BUDGET_MAP.get(effort or "medium", 8192)
         return upstream, effort or "medium", budget
 
-    # 10. Direct / Fallback upstream model pass-through
+    # 11. Direct / Fallback upstream model pass-through
     default_budget = REASONING_BUDGET_MAP.get(effort or "medium", 2048)
     return cleaned, effort, default_budget
+
+
+# Local Antigravity Language Server Model Enum Mappings
+LOCAL_MODEL_ENUM_MAP = {
+    "gemini-4-argon-high": "MODEL_PLACEHOLDER_M417",
+    "gemini-4-argon-medium": "MODEL_PLACEHOLDER_M418",
+    "gemini-4-argon-low": "MODEL_PLACEHOLDER_M419",
+    "claude-opus-5-5-high": "MODEL_PLACEHOLDER_M402",
+    "claude-opus-5-5-medium": "MODEL_PLACEHOLDER_M401",
+    "claude-opus-5-5-low": "MODEL_PLACEHOLDER_M400",
+    "claude-opus-4-6-thinking": "MODEL_PLACEHOLDER_M402",
+    "claude-opus-4-6": "MODEL_PLACEHOLDER_M401",
+    "claude-opus": "MODEL_PLACEHOLDER_M401",
+    "claude-sonnet-5-5-high": "MODEL_PLACEHOLDER_M405",
+    "claude-sonnet-5-5-medium": "MODEL_PLACEHOLDER_M404",
+    "claude-sonnet-5-5-low": "MODEL_PLACEHOLDER_M403",
+    "claude-sonnet-4-6-thinking": "MODEL_PLACEHOLDER_M405",
+    "claude-sonnet-4-6": "MODEL_PLACEHOLDER_M404",
+    "claude-sonnet": "MODEL_PLACEHOLDER_M404",
+    "gemini-3.8-flash-tiered": "MODEL_PLACEHOLDER_M318",
+    "gemini-3.8-flash-high": "MODEL_PLACEHOLDER_M318",
+    "gemini-3.8-flash-medium": "MODEL_PLACEHOLDER_M319",
+    "gemini-3.8-flash-low": "MODEL_PLACEHOLDER_M320",
+    "gemini-3-flash-agent": "MODEL_PLACEHOLDER_M84",
+    "gemini-3-flash": "MODEL_PLACEHOLDER_M18",
+    "gemini-3.5-flash-low": "MODEL_PLACEHOLDER_M20",
+    "gemini-3.5-flash-extra-low": "MODEL_PLACEHOLDER_M187",
+    "gemini-3.5-flash-lite": "MODEL_PLACEHOLDER_M198",
+    "gemini-2.5-pro": "MODEL_GOOGLE_GEMINI_2_5_PRO",
+    "gpt-oss-120b-medium": "MODEL_OPENAI_GPT_OSS_120B_MEDIUM",
+}
+
+_LOCAL_SERVER_CACHE: Optional[Dict[str, Any]] = None
+_LOCAL_SERVER_CACHE_TIME: float = 0.0
+
+
+def _find_active_local_server(force_refresh: bool = False) -> Optional[Dict[str, Any]]:
+    """
+    Auto-discover running Antigravity language server process on the host.
+    Prioritizes standalone Antigravity (where Google AI Pro is active) over IDE extensions.
+    Verifies process liveness via OS signal and fast cached probe without brittle scans.
+    """
+    global _LOCAL_SERVER_CACHE, _LOCAL_SERVER_CACHE_TIME
+    now = time.time()
+
+    if not force_refresh and _LOCAL_SERVER_CACHE:
+        pid = _LOCAL_SERVER_CACHE.get("pid")
+        if pid:
+            try:
+                # Fast OS check to verify if process is still running
+                os.kill(int(pid), 0)
+                # Keep active cache valid as long as process is alive
+                if (now - _LOCAL_SERVER_CACHE_TIME) < 300.0:
+                    return _LOCAL_SERVER_CACHE
+            except (OSError, ValueError):
+                _LOCAL_SERVER_CACHE = None
+
+    # Fast probe of last known working server before running full process scans
+    if _LOCAL_SERVER_CACHE and _LOCAL_SERVER_CACHE.get("port") and _LOCAL_SERVER_CACHE.get("csrf_token"):
+        cached_port = _LOCAL_SERVER_CACHE["port"]
+        cached_csrf = _LOCAL_SERVER_CACHE["csrf_token"]
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{cached_port}/exa.language_server_pb.LanguageServerService/GetAvailableModels",
+                data=b"{}",
+                headers={
+                    "Content-Type": "application/json",
+                    "x-codeium-csrf-token": cached_csrf,
+                },
+            )
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                if resp.status == 200:
+                    _LOCAL_SERVER_CACHE_TIME = now
+                    return _LOCAL_SERVER_CACHE
+        except Exception:
+            pass
+
+    try:
+        out = subprocess.check_output(["ss", "-tlnp"], stderr=subprocess.DEVNULL).decode("utf-8")
+    except Exception:
+        return None
+
+    servers = []
+    for p in glob.glob("/proc/[0-9]*/cmdline"):
+        try:
+            with open(p, "rb") as f:
+                cmd = f.read().split(b"\0")
+            if not any(b"language_server" in arg for arg in cmd):
+                continue
+            pid = p.split("/")[2]
+            csrf = None
+            is_standalone = any(
+                b"--standalone" in arg or b"subclient_type hub" in arg or b"Antigravity-x64" in arg
+                for arg in cmd
+            )
+            for i, arg in enumerate(cmd):
+                if arg == b"--csrf_token" and i + 1 < len(cmd):
+                    csrf = cmd[i + 1].decode("utf-8", errors="ignore")
+                    break
+            if not csrf:
+                continue
+
+            for line in out.splitlines():
+                if f"pid={pid}," in line or f"pid={pid})" in line:
+                    m = re.search(r"127\.0\.0\.1:(\d+)", line)
+                    if m:
+                        port = int(m.group(1))
+                        try:
+                            req = urllib.request.Request(
+                                f"http://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/GetAvailableModels",
+                                data=b"{}",
+                                headers={
+                                    "Content-Type": "application/json",
+                                    "x-codeium-csrf-token": csrf,
+                                },
+                            )
+                            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                                if resp.status == 200:
+                                    servers.append({
+                                        "pid": pid,
+                                        "port": port,
+                                        "csrf_token": csrf,
+                                        "is_standalone": is_standalone,
+                                    })
+                                    break
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+    if servers:
+        # Prioritize standalone Antigravity over IDE instances
+        servers.sort(key=lambda s: not s.get("is_standalone", False))
+        _LOCAL_SERVER_CACHE = servers[0]
+        _LOCAL_SERVER_CACHE_TIME = now
+        return _LOCAL_SERVER_CACHE
+
+    _LOCAL_SERVER_CACHE = None
+    return None
+
+
+def _format_messages_for_prompt(messages: List[Dict[str, Any]]) -> str:
+    """Format standard OpenAI message history into a prompt string for Antigravity GetModelResponse."""
+    if not messages:
+        return ""
+    if len(messages) == 1 and messages[0].get("role", "user") == "user":
+        content = messages[0].get("content") or ""
+        if isinstance(content, list):
+            return "\n".join(
+                p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
+            )
+        return str(content)
+
+    parts = []
+    for msg in messages:
+        role = msg.get("role", "user").lower()
+        content = msg.get("content") or ""
+        if isinstance(content, list):
+            text_blocks = [
+                p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
+            ]
+            content = "\n".join(text_blocks)
+        content_str = str(content).strip()
+        if not content_str:
+            continue
+        if role == "system":
+            parts.append(f"System: {content_str}")
+        elif role == "assistant":
+            parts.append(f"Assistant: {content_str}")
+        else:
+            parts.append(f"User: {content_str}")
+
+    if parts:
+        return "\n\n".join(parts) + "\n\nAssistant:"
+    return ""
+
+
+async def _stream_local_antigravity(
+    server_info: Dict[str, Any],
+    model_enum: str,
+    prompt: str,
+    original_model: str,
+) -> AsyncIterator[Dict[str, Any]]:
+    """Stream response from local running Antigravity runtime (GetModelResponse RPC)."""
+    chunk_id = f"chatcmpl-agy-{uuid.uuid4().hex[:12]}"
+    now = int(time.time())
+    url = f"http://127.0.0.1:{server_info['port']}/exa.language_server_pb.LanguageServerService/GetModelResponse"
+    headers = {
+        "Content-Type": "application/json",
+        "x-codeium-csrf-token": server_info["csrf_token"],
+    }
+    payload = {
+        "prompt": prompt,
+        "model": model_enum,
+    }
+
+    # 1. Immediately yield initial assistant delta so client (Janitor AI / browser)
+    # achieves instant TTFB (< 50ms) and never triggers a 60s socket read timeout
+    yield {
+        "id": chunk_id,
+        "object": "chat.completion.chunk",
+        "created": now,
+        "model": original_model,
+        "choices": [{
+            "index": 0,
+            "delta": {"role": "assistant"},
+            "finish_reason": None,
+        }],
+    }
+
+    timeout_cfg = httpx.Timeout(connect=15.0, read=600.0, write=60.0, pool=15.0)
+    async with httpx.AsyncClient(timeout=timeout_cfg) as client:
+        post_task = asyncio.create_task(client.post(url, json=payload, headers=headers))
+
+        # Emit periodic SSE keepalive chunks every 3.0 seconds while model is thinking/generating
+        while not post_task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(post_task), timeout=3.0)
+                break
+            except asyncio.TimeoutError:
+                yield {
+                    "id": chunk_id,
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": original_model,
+                    "choices": [{
+                        "index": 0,
+                        "delta": {},
+                        "finish_reason": None,
+                    }],
+                }
+
+        resp = await post_task
+        if resp.status_code != 200:
+            raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+        data = resp.json()
+        response_text = data.get("response", "")
+
+        if not response_text:
+            logger.warning("Local Antigravity GetModelResponse returned empty text (possible content safety block).")
+            yield {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": original_model,
+                "choices": [{
+                    "index": 0,
+                    "delta": {
+                        "content": (
+                            "⚠️ **Gemini 4 Argon returned an empty response.**\n\n"
+                            "This occurs when Google Cloud Code's automated safety guardrails trigger on explicit NSFW directives or system prompt jailbreak tags.\n\n"
+                            "💡 **Suggestions**:\n"
+                            "• In Janitor AI, try softening explicit jailbreak or NSFW override directives in the character definition.\n"
+                            "• Or switch to **`gemini-4-argon-medium`** (Web Channel) which uses your paid Google AI Pro session directly via web rather than Cloud Code API filters."
+                        )
+                    },
+                    "finish_reason": "stop",
+                }],
+            }
+            return
+
+        chunk_size = 48
+        for i in range(0, len(response_text), chunk_size):
+            yield {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "created": now,
+                "model": original_model,
+                "choices": [{
+                    "index": 0,
+                    "delta": {"content": response_text[i : i + chunk_size]},
+                    "finish_reason": None,
+                }],
+            }
+        yield {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": now,
+            "model": original_model,
+            "choices": [{
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop",
+            }],
+        }
+
 
 
 # -----------------------------------------------------------------------------
@@ -770,6 +1048,93 @@ async def stream_antigravity_chat(
     upstream_model, effort, thinking_budget = resolve_antigravity_model(model)
     enable_thinking = thinking_budget > 0 or "-thinking" in upstream_model
 
+    # 0. Check for live local Antigravity runtime (Standalone Antigravity has priority)
+    local_server = _find_active_local_server()
+    if local_server:
+        model_enum = LOCAL_MODEL_ENUM_MAP.get(upstream_model)
+        if model_enum:
+            prompt_str = _format_messages_for_prompt(messages)
+            try:
+                logger.info(
+                    f"Routing {upstream_model} ({model_enum}) to local Antigravity runtime on port {local_server['port']}"
+                )
+                async for chunk in _stream_local_antigravity(
+                    local_server, model_enum, prompt_str, model
+                ):
+                    yield chunk
+                return
+            except Exception as e:
+                logger.warning(
+                    f"Local Antigravity runtime request failed on port {local_server.get('port')}: {repr(e)}. Attempting re-discovery..."
+                )
+                # If connection dropped or port changed, force re-discovery and retry once
+                refreshed_server = _find_active_local_server(force_refresh=True)
+                if refreshed_server and (refreshed_server.get("port") != local_server.get("port") or refreshed_server.get("pid") != local_server.get("pid")):
+                    try:
+                        logger.info(
+                            f"Retrying {upstream_model} ({model_enum}) on newly discovered port {refreshed_server['port']}"
+                        )
+                        async for chunk in _stream_local_antigravity(
+                            refreshed_server, model_enum, prompt_str, model
+                        ):
+                            yield chunk
+                        return
+                    except Exception as retry_err:
+                        logger.warning(f"Retry on refreshed local server failed: {repr(retry_err)}")
+                        e = retry_err
+
+                if "argon" in upstream_model:
+                    # Differentiate upstream timeout vs local runtime offline vs content safety
+                    is_timeout = isinstance(e, (httpx.TimeoutException, asyncio.TimeoutError)) or "timeout" in repr(e).lower()
+                    if is_timeout:
+                        err_title = f"⚠️ **Google Antigravity Upstream Timeout ({model})**"
+                        err_body = (
+                            f"The upstream Google CloudCode language server took longer than 10 minutes to complete this turn.\n\n"
+                            f"• **Context Size**: Deep roleplays with large character sheets and thinking models can occasionally stall upstream.\n"
+                            f"• **Remedy**: Click **Regenerate** in Janitor AI to retry, or switch to `gemini-4-argon-medium` (Web Channel) for fast web-pool inference."
+                        )
+                    else:
+                        err_title = f"⚠️ **Google Antigravity Runtime Notice ({model})**"
+                        err_body = (
+                            f"The local Antigravity runtime encountered an error: {repr(e) or 'Client disconnected'}.\n\n"
+                            f"• **Check Standalone Antigravity**: Ensure Standalone Antigravity is open and active.\n"
+                            f"• **Web Channel Alternative**: Switch to `gemini-4-argon-medium` in Janitor AI to use your Google AI Pro session directly via Web Channel."
+                        )
+                    yield {
+                        "id": f"chatcmpl-agy-{uuid.uuid4().hex[:12]}",
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {
+                                "content": f"{err_title}\n\n{err_body}"
+                            },
+                            "finish_reason": "stop",
+                        }],
+                    }
+                    return
+    elif "argon" in upstream_model:
+        yield {
+            "id": f"chatcmpl-agy-{uuid.uuid4().hex[:12]}",
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "delta": {
+                    "content": (
+                        f"⚠️ **Google Antigravity: Standalone Antigravity Not Detected**\n\n"
+                        f"`{model}` requires Standalone Antigravity (with your Google AI Pro account) running on this machine.\n\n"
+                        f"1. Please launch **Standalone Antigravity** on your PC.\n"
+                        f"2. Or switch to **`gemini-4-argon-medium`** to use your Google AI Pro session via Web Channel."
+                    )
+                },
+                "finish_reason": "stop",
+            }],
+        }
+        return
+
     # 1. Resolve available accounts from input, SQLite vault, or local configuration
     active_accounts = accounts or []
     if not active_accounts:
@@ -861,40 +1226,7 @@ async def stream_antigravity_chat(
             if chunk.get("_error_status"):
                 err_status = chunk.get("_error_status")
                 err_msg = chunk.get("_error_msg") or f"HTTP {err_status}"
-                # 1. Fallback for Claude 5.5 on non-Pro / free accounts
-                if err_status in (404, 429) and "5-5" in target_model:
-                    fallback_model = "claude-opus-4-6-thinking" if "opus" in target_model else "claude-sonnet-4-6"
-                    logger.info(f"Antigravity 5.5 model not accessible on current tier, falling back to {fallback_model}")
-                    request_body["model"] = fallback_model
-                    async for fb_chunk in _execute_upstream_request(
-                        request_body, token, model, fallback_model
-                    ):
-                        if fb_chunk.get("_error_status"):
-                            last_error = fb_chunk.get("_error_msg")
-                            logger.warning(f"Antigravity fallback to {fallback_model} failed with status {fb_chunk.get('_error_status')}: {last_error}")
-                            break
-                        success = True
-                        yield fb_chunk
-                    if success:
-                        break
-
-                # 2. Fallback for Gemini 4 Argon on non-Ultra / free accounts
-                if err_status in (404, 429) and "argon" in target_model:
-                    fallback_model = "gemini-3.8-flash-tiered"
-                    logger.info(f"Antigravity Argon model not accessible on current tier, falling back to {fallback_model}")
-                    request_body["model"] = fallback_model
-                    async for fb_chunk in _execute_upstream_request(
-                        request_body, token, model, fallback_model
-                    ):
-                        if fb_chunk.get("_error_status"):
-                            last_error = fb_chunk.get("_error_msg")
-                            logger.warning(f"Antigravity fallback to {fallback_model} failed with status {fb_chunk.get('_error_status')}: {last_error}")
-                            break
-                        success = True
-                        yield fb_chunk
-                    if success:
-                        break
-
+                logger.warning(f"Antigravity upstream returned status {err_status} for {target_model}: {err_msg}")
                 last_error = err_msg
                 break
 
@@ -907,11 +1239,12 @@ async def stream_antigravity_chat(
 
     # If all accounts exhausted
     err_msg = last_error or "Antigravity service temporarily unavailable or accounts rate-limited."
+
+
     if "RESOURCE_EXHAUSTED" in str(err_msg) or "429" in str(err_msg):
         help_msg = (
             f"⚠️ **Google Antigravity Rate Limit / Quota Notice**\n\n"
             f"The model `{model}` has reached its rolling request quota across all stacked Antigravity accounts.\n\n"
-            f"• **Reasoning Tier**: Gemini 4 Argon utilizes high-budget reasoning pools with rolling windows.\n"
             f"• **Remedy**: Wait a few moments for quota restoration, or switch to `agy-gemini-3-8-flash` in the model switcher."
         )
         yield {
@@ -965,11 +1298,13 @@ async def _execute_upstream_request(
             "Accept-Encoding": "gzip",
         }
 
+        logger.info(f"Antigravity requesting {target_host} for model {upstream_model}")
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 async with client.stream(
                     "POST", target_url, headers=headers, json=request_body
                 ) as resp:
+                    logger.info(f"Antigravity upstream response HTTP {resp.status_code} from {target_host} for {upstream_model}")
                     if resp.status_code != 200:
                         err_bytes = await resp.aread()
                         err_text = err_bytes.decode("utf-8", errors="replace")
@@ -999,6 +1334,13 @@ async def _execute_upstream_request(
                             except Exception:
                                 continue
 
+                            # Extract true modelVersion from upstream response if present
+                            reported_model = (
+                                data.get("response", {}).get("modelVersion")
+                                or data.get("modelVersion")
+                                or upstream_model
+                            )
+
                             # Parse candidate parts
                             candidates = (
                                 data.get("candidates")
@@ -1022,7 +1364,7 @@ async def _execute_upstream_request(
                                                 "id": chunk_id,
                                                 "object": "chat.completion.chunk",
                                                 "created": now,
-                                                "model": original_model,
+                                                "model": reported_model,
                                                 "choices": [{
                                                     "index": 0,
                                                     "delta": {"reasoning_content": t_text},
@@ -1032,11 +1374,14 @@ async def _execute_upstream_request(
                                     # Normal Content
                                     elif part.get("text"):
                                         c_text = part.get("text")
+                                        if "is no longer available. Please switch to" in c_text:
+                                            logger.warning(f"Upstream returned deprecation notice: {c_text.strip()}")
+                                            continue
                                         yield {
                                             "id": chunk_id,
                                             "object": "chat.completion.chunk",
                                             "created": now,
-                                            "model": original_model,
+                                            "model": reported_model,
                                             "choices": [{
                                                 "index": 0,
                                                 "delta": {"content": c_text},
@@ -1049,7 +1394,7 @@ async def _execute_upstream_request(
                         "id": chunk_id,
                         "object": "chat.completion.chunk",
                         "created": now,
-                        "model": original_model,
+                        "model": upstream_model,
                         "choices": [{
                             "index": 0,
                             "delta": {},

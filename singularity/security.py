@@ -6,13 +6,13 @@ One policy shared by the :9000 gateway (ASGI middleware) and the provider worker
 
 A request is let through when all of these hold:
   1. Cross-site browser requests are refused: an Origin header must be a loopback origin,
-     the gateway's own host (any port, e.g. Tavern on :5173), or listed in
+     the gateway's own host (any port, e.g. web clients on other local ports), or listed in
      SINGULARITY_ALLOWED_ORIGINS. "Origin: null" (sandboxed artifacts) is refused too.
   2. It is authenticated by ANY of:
        - Authorization: Bearer <gateway key>  (or X-API-Key)      API clients, phones, tunnel
        - the HttpOnly session cookie set by POST /api/auth/login  the playground in a browser
        - trusted local: loopback peer, loopback Host header, no proxy/forwarding headers
-         (CLI, Tavern's server, local SDKs; the ngrok tunnel never qualifies)
+         (CLI, local web clients, local SDKs; the ngrok tunnel never qualifies)
 Static UI assets and the login endpoints are public; everything else needs rule 2.
 """
 
@@ -206,7 +206,7 @@ def origin_allowed(origin: str, host_header: str) -> bool:
         return False
     if req_host in LOOPBACK_NAMES:
         return True
-    # Same machine, other port (Tavern on :5173 calling the gateway on :9000 over the LAN).
+    # Same machine, other port (e.g. web client on another port calling the gateway on :9000 over the LAN).
     if req_host == _hostname(host_header):
         return True
 

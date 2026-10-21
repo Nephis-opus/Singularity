@@ -159,6 +159,10 @@ import db
 import providers
 import security
 try:
+    from singularity import claudecode_bridge
+except ImportError:
+    import claudecode_bridge
+try:
     from singularity import worker
 except ImportError:
     import worker
@@ -246,6 +250,8 @@ def resolve_model_provider(model_name: str) -> str:
     # 1. Search in catalog first for exact ID match
     for item in MODELS_CATALOG:
         if item["id"].lower() == m:
+            if item["provider"] == "claude" and providers.missing_credentials("claude") and not providers.missing_credentials("antigravity"):
+                return "antigravity"
             return item["provider"]
 
     # 2. Explicit prefixes or known names
@@ -254,26 +260,24 @@ def resolve_model_provider(model_name: str) -> str:
     if m.startswith("agy-") or m.startswith("antigravity-") or m.startswith("agy_") or m.startswith("antigravity_"):
         return "antigravity"
     if m.startswith("claude") or "fable" in m or "flable" in m or "opus" in m or "sonnet" in m or "haiku" in m:
+        if providers.missing_credentials("claude") and not providers.missing_credentials("antigravity"):
+            return "antigravity"
         return "claude"
-    if m.startswith("gemini") or m.startswith("argon") or "argon" in m or m.startswith("imagen") or m.startswith("nano-banana") or m.startswith("veo") or m.startswith("google-omni") or m == "omni" or m.startswith("omni-"):
+    if m.startswith("gemini") or m.startswith("argon") or "argon" in m or m.startswith("imagen") or m.startswith("nano-banana") or m.startswith("veo"):
         return "gemini"
     if m.startswith("kimi") or m.startswith("moonshot"):
         return "kimi"
     if m.startswith("glm") or m.startswith("cogview"):
         return "glm"
-    if m.startswith("grok") or m in ["fast", "heavy"]:
-        return "grok"
     if m.startswith("deepseek") or m.startswith("ds-") or m.startswith("r1") or m.startswith("v3") or m.startswith("v4") or m.startswith("coder") or m == "flash":
         return "deepseek"
     if m.startswith("qwen") or m.startswith("tongyi") or m.startswith("wanx"):
         return "qwen"
     if m.startswith("mimo") or m.startswith("xiaomi"):
         return "mimo"
-    if m.startswith("gpt") or m.startswith("o1") or m.startswith("o3") or m.startswith("o4") or m in ["auto", "research", "flare", "astra", "luna", "sol", "terra", "sunburst"] or m.startswith("image-2.5"):
-        return "chatgpt"
 
-    # Fallback to chatgpt
-    return "chatgpt"
+    # Fallback to gemini
+    return "gemini"
 
 
 # -------------------------------------------------------------------
@@ -930,7 +934,7 @@ async def chat_completions(request: Request):
     except Exception:
         body = {}
 
-    requested_model = body.get("model", "gpt-5-6-mini")
+    requested_model = body.get("model", "gemini-3.8-flash")
     incoming_messages = list(body.get("messages") or []) if isinstance(body.get("messages"), list) else []
 
     # -------------------------------------------------------------------------
@@ -1016,7 +1020,7 @@ async def chat_completions(request: Request):
     else:
         backend_model = model_name
 
-    # Universal Artifacts system prompt injection (supports all models: GPT, Claude, Gemini, DeepSeek, Qwen, etc.)
+    # Universal Artifacts system prompt injection (supports all models: Gemini, Claude, DeepSeek, Qwen, etc.)
     if "artifacts" in locals() or "artifacts" in globals():
         artifacts_enabled = body.get("artifacts") is True or request.headers.get("x-singularity-artifacts") == "true"
         if artifacts_enabled:
@@ -1027,8 +1031,8 @@ async def chat_completions(request: Request):
         provider_id, target_port = res
     else:
         provider_id = res
-        meta_cfg = providers.PROVIDERS_CONFIG.get(provider_id, providers.PROVIDERS_CONFIG.get("chatgpt", {}))
-        target_port = meta_cfg.get("port", 8000)
+        meta_cfg = providers.PROVIDERS_CONFIG.get(provider_id, providers.PROVIDERS_CONFIG.get("gemini", {}))
+        target_port = meta_cfg.get("port", 8084)
 
     # 1. Look up persistent model settings in Singularity SQLite DB
     model_cfg = db.get_model_settings(model_name)
@@ -1065,17 +1069,6 @@ async def chat_completions(request: Request):
                 if "generationConfig" not in body or not isinstance(body["generationConfig"], dict):
                     body["generationConfig"] = {}
                 body["generationConfig"]["thinkingConfig"] = {"thinkingBudget": thinking_cap_int}
-
-            elif provider_id in ("chatgpt", "openai"):
-                if thinking_cap_int <= 0:
-                    body["reasoning_effort"] = "low"
-                elif thinking_cap_int <= 4096:
-                    body["reasoning_effort"] = "low"
-                elif thinking_cap_int <= 16384:
-                    body["reasoning_effort"] = "medium"
-                else:
-                    body["reasoning_effort"] = "high"
-                body["max_completion_tokens"] = thinking_cap_int
 
             elif provider_id in ("deepseek", "deepseek-ai"):
                 body["thinking_enabled"] = thinking_cap_int > 0
@@ -1672,7 +1665,7 @@ async def chat_completions(request: Request):
 
 @app.post("/v1/images/generations")
 async def image_generations(request: Request):
-    """Route image generation requests to Gemini, Grok, or GLM."""
+    """Route image generation requests to Gemini, GLM, or configured providers."""
     try:
         body = await request.json()
     except Exception:
@@ -1796,234 +1789,6 @@ def get_lan_ip() -> str:
         return "127.0.0.1"
 
 
-@app.get("/api/tavern/status")
-async def api_tavern_status(request: Request):
-    """Detect if Tavern Web Studio is running on default or alternate ports."""
-    import socket
-
-    def is_port_open(port: int) -> bool:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(0.2)
-                return s.connect_ex(("127.0.0.1", port)) == 0
-        except Exception:
-            return False
-
-    lan_ip = get_lan_ip()
-    req_host = request.headers.get("host", "localhost:9000").split(":")[0]
-    scheme = request.url.scheme or "http"
-    effective_host = req_host
-    if effective_host in ("0.0.0.0", "::", ""):
-        effective_host = "localhost"
-
-    # Check port 5173 (Vite dev) or 3001 (standalone Express)
-    active_client = None
-    if is_port_open(5173):
-        active_client = 5173
-    elif is_port_open(3001):
-        active_client = 3001
-    elif is_port_open(5180):
-        active_client = 5180
-
-    if active_client:
-        return {
-            "running": True,
-            "port": active_client,
-            "client_url": f"{scheme}://{effective_host}:{active_client}",
-            "api_url": f"{scheme}://{effective_host}:3001",
-            "lan_url": f"http://{lan_ip}:{active_client}",
-            "lan_ip": lan_ip,
-        }
-
-    return {
-        "running": False,
-        "port": 5173,
-        "client_url": f"{scheme}://{effective_host}:5173",
-        "api_url": f"{scheme}://{effective_host}:3001",
-        "lan_url": f"http://{lan_ip}:5173",
-        "lan_ip": lan_ip,
-    }
-
-
-@app.post("/api/tavern/start")
-async def api_tavern_start(request: Request = None):
-    """Start Tavern Studio natively in the background if not already running."""
-    import socket, subprocess, os, shutil
-
-    def is_port_open(port: int) -> bool:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(0.2)
-                return s.connect_ex(("127.0.0.1", port)) == 0
-        except Exception:
-            return False
-
-    req_host = "localhost"
-    scheme = "http"
-    if request:
-        try:
-            req_host = request.headers.get("host", "localhost:9000").split(":")[0]
-            scheme = request.url.scheme or "http"
-        except Exception:
-            pass
-    effective_host = req_host
-    if effective_host in ("0.0.0.0", "::", ""):
-        effective_host = "localhost"
-
-    if is_port_open(5173):
-        return {"status": "already_running", "port": 5173, "client_url": f"{scheme}://{effective_host}:5173"}
-    if is_port_open(3001):
-        return {"status": "already_running", "port": 3001, "client_url": f"{scheme}://{effective_host}:3001"}
-
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    tav_dir = None
-    for candidate in ["TAVERN", "TAV-TEST"]:
-        d = os.path.join(root_dir, candidate)
-        if os.path.isdir(d) and os.path.isfile(os.path.join(d, "package.json")):
-            tav_dir = d
-            break
-
-    if not tav_dir:
-        return {"status": "error", "error": "Tavern directory not found"}
-
-    env = dict(os.environ)
-    # Tavern's API has no login: keep it on loopback unless the user opted into LAN mode.
-    env["API_HOST"] = "0.0.0.0" if security.is_lan_mode() else "127.0.0.1"
-    env.pop("RP_ALLOWED_ORIGINS", None)
-
-    # Detect modern Node.js or Bun across nvm, fnm, local paths
-    extra_paths = []
-    bun_bin = os.path.expanduser("~/.bun/bin")
-    if os.path.isdir(bun_bin):
-        extra_paths.append(bun_bin)
-
-    nvm_dir = os.path.expanduser("~/.nvm/versions/node")
-    if os.path.isdir(nvm_dir):
-        try:
-            versions = sorted(os.listdir(nvm_dir), reverse=True)
-            for v in versions:
-                p = os.path.join(nvm_dir, v, "bin")
-                if os.path.isdir(p):
-                    extra_paths.append(p)
-        except Exception:
-            pass
-
-    fnm_dir = os.path.expanduser("~/.local/share/fnm/current/bin")
-    if os.path.isdir(fnm_dir):
-        extra_paths.append(fnm_dir)
-
-    if sys.platform == "win32":
-        win_candidates = [
-            os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "nodejs"),
-            os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"), "nodejs"),
-            os.path.join(os.environ.get("APPDATA", ""), "npm"),
-            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "node"),
-            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "nodejs"),
-            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "bun"),
-            os.path.join(os.environ.get("USERPROFILE", ""), ".bun", "bin"),
-            os.path.join(os.environ.get("USERPROFILE", ""), "scoop", "shims"),
-            os.environ.get("NVM_SYMLINK", ""),
-            os.environ.get("NVM_HOME", ""),
-            r"C:\ProgramData\chocolatey\bin",
-            r"C:\tools\node",
-        ]
-        for p in win_candidates:
-            if p and os.path.isdir(p) and p not in extra_paths:
-                extra_paths.append(p)
-
-    if extra_paths:
-        env["PATH"] = os.pathsep.join(extra_paths) + os.pathsep + env.get("PATH", "")
-
-    # Resolve exact runner path (supports bun.exe, npm.cmd, npm.exe)
-    runner = (
-        shutil.which("bun", path=env.get("PATH"))
-        or shutil.which("bun.exe", path=env.get("PATH"))
-        or shutil.which("npm", path=env.get("PATH"))
-        or shutil.which("npm.cmd", path=env.get("PATH"))
-        or shutil.which("npm.exe", path=env.get("PATH"))
-    )
-
-    if not runner and sys.platform == "win32":
-        for cand_dir in extra_paths:
-            for bin_name in ["bun.exe", "npm.cmd", "npm.exe"]:
-                target = os.path.join(cand_dir, bin_name)
-                if os.path.isfile(target):
-                    runner = target
-                    break
-            if runner:
-                break
-
-    if not runner:
-        return {
-            "status": "error",
-            "error": "Node.js (v20+) or Bun is required to launch Tavern Studio. Please install from https://nodejs.org",
-        }
-
-    # Windowless process flags for Windows
-    startupinfo = None
-    creationflags = 0
-    if sys.platform == "win32":
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = 0  # SW_HIDE
-        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
-
-    # Launch Tavern server natively in background
-    try:
-        if sys.platform == "win32":
-            tav_bat = os.path.join(tav_dir, "run_tavern.bat")
-            if os.path.isfile(tav_bat):
-                cmd_str = f'cmd.exe /c "call "{tav_bat}""'
-            else:
-                cmd_str = f'"{runner}" run dev'
-            subprocess.Popen(
-                cmd_str,
-                cwd=tav_dir,
-                env=env,
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                startupinfo=startupinfo,
-                creationflags=creationflags,
-            )
-        else:
-            nm_path = os.path.join(tav_dir, "node_modules")
-            if not os.path.isdir(nm_path):
-                try:
-                    subprocess.run(
-                        [runner, "install"],
-                        cwd=tav_dir,
-                        env=env,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        timeout=180,
-                    )
-                except Exception:
-                    pass
-
-            subprocess.Popen(
-                [runner, "run", "dev"],
-                cwd=tav_dir,
-                env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-    # Wait up to 3 seconds for port to open
-    for _ in range(10):
-        await asyncio.sleep(0.3)
-        if is_port_open(5173):
-            return {"status": "started", "port": 5173, "client_url": f"{scheme}://{effective_host}:5173"}
-        if is_port_open(3001):
-            return {"status": "started", "port": 3001, "client_url": f"{scheme}://{effective_host}:3001"}
-
-    return {"status": "started", "port": 5173, "client_url": f"{scheme}://{effective_host}:5173"}
 
 
 @app.post("/api/services/start_all")
@@ -2322,15 +2087,12 @@ async def api_delete_model_settings(request: Request, model: Optional[str] = Non
 async def api_validate_accounts(request: Request):
     """
     Probe each stacked account for the given provider and return live token validity.
-
-    For ChatGPT: decodes the JWT exp field (instant, no network) or hits
-    /api/auth/session for session-token based accounts.
     For Gemini: tries extracting SNlM0e from gemini.google.com with the stored cookie.
     For all others: returns db status as-is.
 
     Response: { "accounts": [{ "id", "identifier", "name", "plan", "valid": bool, "reason": str, "expires_at": int|null }] }
     """
-    provider = request.query_params.get("provider", "chatgpt").lower().strip()
+    provider = request.query_params.get("provider", "gemini").lower().strip()
     try:
         accounts = db.get_accounts(provider)
     except Exception as e:
@@ -2338,119 +2100,16 @@ async def api_validate_accounts(request: Request):
 
     results = []
 
-    def _decode_jwt_local(token: str):
-        """Decode JWT payload without verifying signature."""
-        try:
-            parts = token.split(".")
-            if len(parts) < 2:
-                return None
-            padded = parts[1] + "=" * (-len(parts[1]) % 4)
-            return json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
-        except Exception:
-            return None
-
-    if provider == "chatgpt":
-        from singularity.engines.chatgpt import extract_chatgpt_credentials
-        now = time.time()
-
-        for acc in accounts:
-            acc_id = acc.get("id")
-            ident = acc.get("identifier") or acc.get("name") or str(acc_id)
-            raw_token = acc.get("token", "")
-            valid = False
-            reason = "Unknown"
-            expires_at = None
-
-            try:
-                creds = extract_chatgpt_credentials(raw_token)
-                access_token = creds.get("access_token", "")
-                session_token = creds.get("session_token", "")
-
-                if access_token:
-                    jwt = _decode_jwt_local(access_token)
-                    if jwt:
-                        exp = float(jwt.get("exp", 0))
-                        expires_at = int(exp)
-                        if exp > now + 30:
-                            valid = True
-                            reason = "Token valid"
-                        else:
-                            reason = "Access token expired"
-                    else:
-                        valid = True
-                        reason = "Could not decode JWT (assuming valid)"
-                elif session_token:
-                    try:
-                        async with httpx.AsyncClient(
-                            timeout=10.0,
-                            follow_redirects=True,
-                            headers={
-                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
-                                "Cookie": f"__Secure-next-auth.session-token={session_token}",
-                                "Accept": "application/json",
-                            }
-                        ) as client:
-                            r = await client.get("https://chatgpt.com/api/auth/session")
-                            if r.status_code == 200:
-                                data = r.json()
-                                new_at = data.get("accessToken")
-                                if new_at:
-                                    jwt = _decode_jwt_local(new_at)
-                                    if jwt:
-                                        exp = float(jwt.get("exp", now + 3600))
-                                        expires_at = int(exp)
-                                    valid = True
-                                    reason = "Session active"
-                                else:
-                                    reason = "Session expired or no access token returned"
-                            elif r.status_code == 401:
-                                reason = "Session token expired (401)"
-                            else:
-                                reason = f"Auth check returned HTTP {r.status_code}"
-                    except Exception as probe_err:
-                        reason = f"Network probe failed: {str(probe_err)[:80]}"
-                else:
-                    jwt = _decode_jwt_local(raw_token)
-                    if jwt:
-                        exp = float(jwt.get("exp", 0))
-                        expires_at = int(exp)
-                        if exp > now + 30:
-                            valid = True
-                            reason = "Raw token valid"
-                        else:
-                            reason = "Raw token expired"
-                    else:
-                        valid = True
-                        reason = "Cannot decode (assuming active)"
-            except Exception as e:
-                reason = f"Validation error: {str(e)[:100]}"
-
-            results.append({
-                "id": acc_id,
-                "identifier": ident,
-                "name": acc.get("name") or ident,
-                "plan": acc.get("plan", "FREE"),
-                "valid": valid,
-                "reason": reason,
-                "expires_at": expires_at,
-            })
-
-    elif provider == "gemini":
-        from singularity.engines.gemini import _get_gemini_session_context
+    if provider == "gemini":
+        from singularity.engines.gemini import probe_gemini_session
         for acc in accounts:
             acc_id = acc.get("id")
             ident = acc.get("identifier") or acc.get("name") or str(acc_id)
             cookie_str = acc.get("token", "")
-            valid = False
-            reason = "Unknown"
             try:
-                snlm0e, bl = await _get_gemini_session_context(cookie_str)
-                if snlm0e:
-                    valid = True
-                    reason = "SNlM0e session active"
-                else:
-                    reason = "Could not extract SNlM0e — cookie likely expired or missing __Secure-1PSIDTS"
+                valid, reason = await probe_gemini_session(cookie_str)
             except Exception as e:
+                valid = False
                 reason = f"Probe error: {str(e)[:100]}"
             results.append({
                 "id": acc_id,
@@ -2505,8 +2164,13 @@ async def api_save_cookies(provider_id: str, request: Request):
     body = await request.json()
     accounts = body.get("accounts", [])
     if isinstance(accounts, str):
-        # Split by newlines (strictly NOT by comma)
-        accounts = [line.strip() for line in accounts.splitlines() if line.strip()]
+        raw_text = accounts.strip()
+        # If input is a multi-line cURL command or full header dump, treat as ONE account instead of splitting lines
+        if "curl " in raw_text or "-H " in raw_text or "\ncookie:" in raw_text.lower():
+            accounts = [raw_text]
+        else:
+            # Split by newlines (strictly NOT by comma)
+            accounts = [line.strip() for line in raw_text.splitlines() if line.strip()]
     res = save_stacked_cookies(provider_id, accounts)
     return res
 
@@ -2521,8 +2185,18 @@ async def api_remove_cookie(provider_id: str, request: Request):
     identifier = body.get("identifier")
     index = body.get("index")
     account_id = body.get("id")
+
+    # Capture account info before deletion so we can purge from cloud
+    target_accounts = db.get_accounts(provider_id)
+    account_to_remove = None
+    if account_id is not None:
+        account_to_remove = next((a for a in target_accounts if a.get("id") == account_id), None)
+    if not account_to_remove and identifier:
+        account_to_remove = next((a for a in target_accounts if a.get("identifier") == identifier or str(a.get("id")) == str(identifier)), None)
+
     res = remove_stacked_cookie(provider_id, identifier=identifier, index=account_id if account_id is not None else index)
     return res
+
 
 
 # -------------------------------------------------------------------
@@ -3146,6 +2820,43 @@ async def api_install_tunnel(request: Request):
     return tunnel.install_ngrok(force=force)
 
 
+# -------------------------------------------------------------------
+# Claude Code Bridge Endpoints
+# -------------------------------------------------------------------
+
+@app.get("/api/claudecode/status")
+async def api_get_claudecode_status():
+    return claudecode_bridge.get_bridge_status()
+
+
+@app.post("/api/claudecode/start")
+async def api_start_claudecode(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    port = int(body.get("port") or claudecode_bridge.DEFAULT_PORT)
+    gateway = str(body.get("gateway") or "http://127.0.0.1:9000")
+    return claudecode_bridge.start_bridge(port=port, gateway_url=gateway)
+
+
+@app.post("/api/claudecode/stop")
+async def api_stop_claudecode():
+    return claudecode_bridge.stop_bridge()
+
+
+@app.post("/api/claudecode/restart")
+async def api_restart_claudecode(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    port = int(body.get("port") or claudecode_bridge.DEFAULT_PORT)
+    gateway = str(body.get("gateway") or "http://127.0.0.1:9000")
+    return claudecode_bridge.restart_bridge(port=port, gateway_url=gateway)
+
+
+
 def _extract_clean_jwt(token_str: str) -> str:
     s = token_str.strip()
     if s.startswith("Bearer "):
@@ -3245,6 +2956,36 @@ async def api_mimo_autofetch(request: Request):
             "ok": False,
             "status_code": 500,
             "detail": f"Failed to auto-fetch Xiaomi MiMo token: {str(exc)}"
+        }, status_code=500)
+
+
+@app.post("/api/gemini/autofetch")
+async def api_gemini_autofetch(request: Request):
+    """Auto-fetches the freshest Google Gemini session tokens (__Secure-1PSID & __Secure-1PSIDTS) from local browsers."""
+    try:
+        from singularity.engines.gemini import auto_fetch_gemini_token
+        result = auto_fetch_gemini_token(save_to_db=True)
+        if result.get("ok"):
+            return JSONResponse({
+                "ok": True,
+                "message": result.get("message"),
+                "browser": result.get("browser"),
+                "profile": result.get("profile"),
+                "cookie_string": result.get("cookie_string"),
+                "token": result.get("cookie_string"),
+                "has_psidts": result.get("has_psidts", False),
+                "accounts": db.get_accounts("gemini"),
+            })
+        else:
+            return JSONResponse({
+                "ok": False,
+                "detail": result.get("detail", "No active Gemini session found in local browser cookies.")
+            }, status_code=404)
+    except Exception as exc:
+        return JSONResponse({
+            "ok": False,
+            "status_code": 500,
+            "detail": f"Failed to auto-fetch Gemini session: {str(exc)}"
         }, status_code=500)
 
 
@@ -3968,9 +3709,8 @@ async def api_cloud_sync_pull(request: Request):
             pers_res = await client.get(f"{url}/rest/v1/personas?user_id=eq.{user_id}&select=*", headers=headers)
             personas = pers_res.json() if pers_res.status_code == 200 else []
 
-            # 3. Connected accounts
-            accs_res = await client.get(f"{url}/rest/v1/connected_accounts?user_id=eq.{user_id}&select=*", headers=headers)
-            connected_accounts = accs_res.json() if accs_res.status_code == 200 else []
+            # 3. Connected accounts (Disabled: cookies are never stored on cloud)
+            connected_accounts = []
 
             # 4. Connect chat sessions
             sess_res = await client.get(f"{url}/rest/v1/connect_chat_sessions?user_id=eq.{user_id}&select=*", headers=headers)
@@ -4043,16 +3783,6 @@ async def api_cloud_sync_pull(request: Request):
                 if pers_map:
                     db.set_connect_vault_val("personas", list(pers_map.values()))
 
-            # 6. Restore connected accounts into SQLite vault
-            if connected_accounts:
-                for ca in connected_accounts:
-                    if isinstance(ca, dict) and ca.get("provider") and ca.get("credential_json"):
-                        try:
-                            cred = json.loads(ca["credential_json"]) if isinstance(ca["credential_json"], str) else ca["credential_json"]
-                            token = cred.get("token") or cred.get("raw") or (cred if isinstance(cred, str) else json.dumps(cred))
-                            db.save_account(ca["provider"], token, name=cred.get("name"), plan=cred.get("plan", "free"))
-                        except Exception:
-                            pass
 
             return JSONResponse({
                 "success": True,
@@ -4272,27 +4002,13 @@ async def api_cloud_sync_push(request: Request):
                 logger.debug(f"Could not upsert profile row to cloud: {e}")
                 results["profiles"] = False
 
-            # G. Upsert connected accounts from SQLite credentials
-            accounts = db.get_accounts()
-            acc_synced = 0
-            for acc in accounts:
-                acc_id = acc.get("identifier") or f"{acc['provider']}_{acc.get('id', 1)}"
-                acc_row = {
-                    "id": acc_id,
-                    "user_id": user_id,
-                    "provider": acc["provider"],
-                    "credential_json": json.dumps(acc),
-                    "status": acc.get("status", "active"),
-                    "updated_at": now_iso
-                }
-                try:
-                    a_res = await client.post(f"{url}/rest/v1/connected_accounts", headers=headers, json=acc_row)
-                    if a_res.status_code in (200, 201):
-                        acc_synced += 1
-                except Exception as e:
-                    logger.debug(f"Failed to sync account {acc_id} to cloud: {e}")
-                    break
-            results["connected_accounts"] = acc_synced
+            # G. Cloud Cookie Safety Guard: purge any stale connected_accounts from cloud
+            try:
+                await client.delete(f"{url}/rest/v1/connected_accounts?user_id=eq.{user_id}", headers=headers)
+            except Exception:
+                pass
+            results["connected_accounts"] = 0
+
 
             # H. Non-destructive Union for Personas
             cloud_personas = []
@@ -4385,7 +4101,7 @@ async def api_cloud_sync_push(request: Request):
                         "id": c["id"],
                         "user_id": user_id,
                         "title": c.get("title") or "Chat",
-                        "model": c.get("model") or "gpt-5.6-sol",
+                        "model": c.get("model") or "gemini-3.8-flash",
                         "messages_json": c.get("messages_json") if isinstance(c.get("messages_json"), str) else json.dumps(c.get("messages") or []),
                         "settings_json": c.get("settings_json") if isinstance(c.get("settings_json"), str) else json.dumps(c.get("settings") or {}),
                         "created_at": c.get("created_at") or now_iso,
@@ -4938,7 +4654,13 @@ async def serve_offline():
 class CachedStaticFiles(StaticFiles):
     def file_response(self, *args, **kwargs):
         resp = super().file_response(*args, **kwargs)
-        resp.headers.setdefault("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
+        # Prevent aggressive disk caching of application scripts, stylesheets, and HTML
+        path = str(args[0]) if args else ""
+        if path.endswith((".js", ".css", ".html")):
+            resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+            resp.headers["Pragma"] = "no-cache"
+        else:
+            resp.headers.setdefault("Cache-Control", "public, max-age=86400")
         return resp
 
 app.mount("/static", CachedStaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -4949,17 +4671,17 @@ def _ensure_packages():
     try:
         import curl_cffi  # noqa: F401
     except ImportError:
-        print("  [!] curl_cffi is not installed; ChatGPT/DeepSeek may be blocked. "
+        print("  [!] curl_cffi is not installed; DeepSeek may be blocked. "
               "Run: python -m pip install -r requirements.txt", flush=True)
 
 
 @app.on_event("startup")
 async def on_startup():
-    """Start supervisor watchdog and auto-launch in-process workers (chatgpt, kimi, grok, glm, deepseek, qwen) if offline."""
+    """Start supervisor watchdog and auto-launch in-process workers (kimi, glm, deepseek, qwen) if offline."""
     _ensure_packages()
     try:
         worker.ensure_supervisor_running()
-        for p in ["chatgpt", "kimi", "grok", "glm", "deepseek", "qwen", "antigravity"]:
+        for p in ["kimi", "glm", "deepseek", "qwen", "antigravity"]:
             try:
                 start_provider(p)
             except Exception:
@@ -4971,14 +4693,8 @@ async def on_startup():
         antigravity.start_oauth_listener()
     except Exception:
         pass
-    try:
-        await api_tavern_start()
-    except Exception:
-        pass
-
-
 def free_listening_ports(ports: List[int]):
-    """Terminate stale processes listening on specified ports so uvicorn and Tavern can bind cleanly."""
+    """Terminate stale processes listening on specified ports so uvicorn can bind cleanly."""
     import signal
     current_pid = os.getpid()
     for p in ports:
@@ -5099,8 +4815,8 @@ def main():
     host = os.getenv("HOST") or ("0.0.0.0" if lan_mode else "127.0.0.1")
     port = int(os.getenv("PORT", "9000"))
 
-    # Free port 9000 (gateway), Tavern ports (5173, 3001), and port 3000 (OAuth bridge)
-    free_listening_ports([port, 5173, 3001, 3000])
+    # Free port 9000 (gateway) and port 3000 (OAuth bridge)
+    free_listening_ports([port, 3000])
     start_oauth_redirect_bridge(target_port=port)
 
     try:
@@ -5133,9 +4849,6 @@ def main():
     print(f"  {C_BOLD}➜{C_RESET}  {C_DIM}Local:{C_RESET}    {C_CYAN}http://localhost:{port}{C_RESET}", flush=True)
     if lan_ip:
         print(f"  {C_BOLD}➜{C_RESET}  {C_DIM}Network:{C_RESET}  {C_CYAN}http://{lan_ip}:{port}{C_RESET} {C_DIM}(Phone & LAN){C_RESET}", flush=True)
-    print(f"  {C_BOLD}➜{C_RESET}  {C_DIM}Tavern:{C_RESET}   {C_CYAN}http://localhost:5173{C_RESET}", flush=True)
-    if lan_ip:
-        print(f"  {C_BOLD}➜{C_RESET}  {C_DIM}Tavern:{C_RESET}   {C_CYAN}http://{lan_ip}:5173{C_RESET} {C_DIM}(Phone & LAN){C_RESET}", flush=True)
 
     print("", flush=True)
     if total_accounts > 0:
@@ -5152,7 +4865,7 @@ def main():
 
     try:
         worker.ensure_supervisor_running()
-        for p in ["chatgpt", "kimi", "grok", "glm", "deepseek", "qwen", "antigravity", "mimo"]:
+        for p in ["kimi", "glm", "deepseek", "qwen", "antigravity", "mimo"]:
             try:
                 start_provider(p)
             except Exception:

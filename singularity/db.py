@@ -2,7 +2,7 @@
 """
 Singularity Unified Credential Database Manager
 Zero-dependency SQLite store for multi-account stacking across all 6 AI providers:
-ChatGPT, Claude, Gemini, GLM, Kimi, and Grok.
+Claude, Gemini, GLM, Kimi, DeepSeek, Qwen, Antigravity, AI Studio, and MiMo.
 
 Designed to be 100% self-contained within the Singularity repository for
 effortless cross-device portability (PC, Android Termux, laptops).
@@ -129,7 +129,7 @@ def _redact_identifier(provider: str, identifier: str, token: str, metadata_json
     if identifier.startswith(f"{provider}_") and len(identifier) == len(provider) + 17:
         return identifier
     bare = identifier
-    for prefix in ("user_", "chatgpt_", "kimi_", "ds_", "qwen_"):
+    for prefix in ("user_", "kimi_", "ds_", "qwen_"):
         if bare.startswith(prefix):
             bare = bare[len(prefix):]
             break
@@ -625,68 +625,8 @@ def parse_credential(provider: str, raw: str) -> Optional[Dict[str, Any]]:
     if not raw or raw.startswith("#"):
         return None
 
-    # 1. ChatGPT
-    if provider == "chatgpt":
-        # Check if JSON dump
-        if raw.startswith("{") or raw.startswith("["):
-            try:
-                data = json.loads(raw)
-                if isinstance(data, dict):
-                    user = data.get("user", {}) if isinstance(data.get("user"), dict) else {}
-                    email = user.get("email") or data.get("email")
-                    name = user.get("name") or data.get("name")
-                    access_token = data.get("accessToken") or data.get("access_token")
-                    session_token = data.get("sessionToken") or data.get("session_token")
-                    plan = data.get("account", {}).get("planType") or data.get("plan_type") or data.get("type") or "free"
-
-                    if not access_token and "token" in data:
-                        access_token = data["token"]
-
-                    if not email and access_token:
-                        jwt = _decode_jwt_payload(access_token)
-                        if jwt:
-                            email = jwt.get("https://api.openai.com/profile", {}).get("email") or jwt.get("email")
-                            if not name:
-                                name = jwt.get("https://api.openai.com/profile", {}).get("name")
-
-                    token = access_token or session_token or raw
-                    identifier = (email or f"user_{token[:12]}").strip().lower()
-                    name = name or (email.split("@")[0] if email and "@" in email else "ChatGPT User")
-                    return {
-                        "provider": "chatgpt",
-                        "identifier": identifier,
-                        "name": name,
-                        "token": raw,
-                        "plan": plan,
-                        "status": "active",
-                        "metadata": json.dumps({"email": email, "access_token": access_token or "", "session_token": session_token or ""}),
-                    }
-            except Exception:
-                pass
-
-        # Raw JWT / token
-        jwt = _decode_jwt_payload(raw)
-        email = None
-        name = "ChatGPT User"
-        if jwt:
-            email = jwt.get("https://api.openai.com/profile", {}).get("email") or jwt.get("email")
-            name = jwt.get("https://api.openai.com/profile", {}).get("name") or name
-
-        identifier = (email or f"chatgpt_{raw[:15]}").strip().lower()
-        if email and "@" in email:
-            name = email.split("@")[0]
-        return {
-            "provider": "chatgpt",
-            "identifier": identifier,
-            "name": name,
-            "token": raw,
-            "plan": "free",
-            "status": "active",
-            "metadata": json.dumps({"email": email, "access_token": raw, "session_token": ""}),
-        }
-
-    # 2. Kimi
-    elif provider == "kimi":
+    # 1. Kimi
+    if provider == "kimi":
         raw = _clean_jwt_string(raw)
         # Check if cookie / env format: KIMI_TOKEN=..., kimi-refresh-token=..., refresh_token=...
         cookie_m = re.search(r"(?:kimi[-_]?refresh[-_]?token|refresh[-_]?token|kimi[-_]?token)=([^\s;]+)", raw, re.IGNORECASE)
@@ -740,31 +680,23 @@ def parse_credential(provider: str, raw: str) -> Optional[Dict[str, Any]]:
             "metadata": json.dumps({"sessionKey": key}),
         }
 
-    # 4. Grok
-    elif provider == "grok":
-        sso_m = re.search(r"sso=([^;]+)", raw)
-        uid_m = re.search(r"x-userid=([^;]+)", raw)
-        sso = sso_m.group(1).strip() if sso_m else ""
-        uid = uid_m.group(1).strip() if uid_m else ""
-
-        identifier = uid or (sso[:20] if sso else raw[:30])
-        name = f"Grok ({uid[:8]})" if uid else "Grok Account"
-        return {
-            "provider": "grok",
-            "identifier": identifier,
-            "name": name,
-            "token": raw,
-            "plan": "free",
-            "status": "active",
-            "metadata": json.dumps({"sso": sso, "uid": uid}),
-        }
-
-    # 5. Gemini
+    # 3. Gemini
     elif provider == "gemini":
         raw_str = raw.strip()
-        if raw_str.lower().startswith("cookie:"):
+
+        # If user pasted a full cURL command or request header block, extract the Cookie header directly
+        curl_cookie_m = re.search(
+            r"""(?:-H\s+['"]cookie:\s*([^'"]+)['"]|-b\s+['"]([^'"]+)['"]|(?:^|[\r\n])cookie:\s*([^\r\n]+))""",
+            raw_str,
+            re.IGNORECASE,
+        )
+        if curl_cookie_m:
+            raw_str = (curl_cookie_m.group(1) or curl_cookie_m.group(2) or curl_cookie_m.group(3) or "").strip()
+        elif raw_str.lower().startswith("cookie:"):
             raw_str = raw_str[7:].strip()
+
         raw_str = re.sub(r'[\r\n]+', '; ', raw_str)
+
         # Check if user passed an AI Studio / Gemini API key
         if raw_str.startswith("AIzaSy") or raw_str.startswith("AQ."):
             api_key = raw_str
@@ -778,16 +710,25 @@ def parse_credential(provider: str, raw: str) -> Optional[Dict[str, Any]]:
                 "status": "active",
                 "metadata": json.dumps({"api_key": api_key}),
             }
-        psid_m = re.search(r"__Secure-1PSID=([^;]+)", raw_str)
-        psidts_m = re.search(r"__Secure-1PSIDTS=([^;]+)", raw_str)
-        psid = psid_m.group(1).strip() if psid_m else raw_str[:25]
+
+        psid_m = re.search(r"__Secure-1PSID=([^; '\"\\]+)", raw_str)
+        if not psid_m:
+            # Strictly reject lines that do not contain a valid __Secure-1PSID cookie
+            return None
+
+        psid = psid_m.group(1).strip()
+        psidts_m = re.search(r"__Secure-1PSIDTS=([^; '\"\\]+)", raw_str)
+        sapisid_m = re.search(r"(?:SAPISID|__Secure-1PAPISID)=([^; '\"\\]+)", raw_str)
+
         has_psidts = bool(psidts_m)
         metadata = {
             "psid": psid,
             "has_psidts": has_psidts,
+            "has_sapisid": bool(sapisid_m),
         }
         if not has_psidts:
             metadata["warning"] = "Missing __Secure-1PSIDTS cookie. Google requires both __Secure-1PSID and __Secure-1PSIDTS for full authentication & image generation."
+
         identifier = psid
         return {
             "provider": "gemini",
@@ -871,14 +812,32 @@ def parse_credential(provider: str, raw: str) -> Optional[Dict[str, Any]]:
                     cookies = d.get("cookies") or d.get("cookie") or ""
             except Exception:
                 pass
-        elif ";" in raw_str and ("eyJ" in raw_str or "x5sec" in raw_str):
-            parts = [p.strip() for p in raw_str.split(";", 1)]
-            if parts[0].startswith("eyJ"):
-                token = parts[0]
-                cookies = parts[1]
-            elif "x5sec" in parts[0] or "bx-v" in parts[0]:
-                cookies = parts[0]
-                token = parts[1]
+
+        if "token=eyJ" in raw_str:
+            tok_m = re.search(r'token=(eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)', raw_str)
+            if tok_m:
+                token = tok_m.group(1).strip()
+                cookies = raw_str
+        else:
+            jwt_match = re.search(r'(?:Bearer\s+)?(eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)', raw_str)
+            if jwt_match:
+                token = jwt_match.group(1).strip()
+                if ";" in raw_str and not cookies:
+                    remainder = raw_str.replace(jwt_match.group(0), "").strip()
+                    remainder = re.sub(r'^[;\s]+|[;\s]+$', '', remainder)
+                    if remainder:
+                        cookies = remainder
+            elif ";" in raw_str:
+                parts = [p.strip() for p in raw_str.split(";", 1)]
+                if "eyJ" in parts[0]:
+                    token = parts[0]
+                    cookies = parts[1]
+                elif "eyJ" in parts[1]:
+                    cookies = parts[0]
+                    token = parts[1]
+
+        if token.lower().startswith("bearer "):
+            token = token[7:].strip()
 
         if not email and token:
             jwt = _decode_jwt_payload(token)
@@ -1329,12 +1288,10 @@ def export_all_json() -> Dict[str, Any]:
     """Export all stored credentials across all providers as a portable JSON structure."""
     accounts = get_accounts()
     grouped: Dict[str, List[Dict[str, Any]]] = {
-        "chatgpt": [],
         "claude": [],
         "gemini": [],
         "glm": [],
         "kimi": [],
-        "grok": [],
         "deepseek": [],
         "qwen": [],
         "antigravity": [],
@@ -1520,14 +1477,7 @@ def _get_family_candidates(model: str) -> List[str]:
             "gemini-2.5-pro",
             "gemini",
         ])
-    elif any(k in m for k in ("gpt", "o1", "o3", "chatgpt")):
-        candidates.extend([
-            "gpt-5.6-sol",
-            "gpt-5-6-mini",
-            "o3-mini",
-            "o1",
-            "chatgpt",
-        ])
+
 
     return list(dict.fromkeys(candidates))
 

@@ -284,6 +284,18 @@ async def stream_claude_chat(
             all_accounts = []
 
     if not all_accounts:
+        # Check if Antigravity is available as an authentic provider for Claude models (Google AI Pro plan)
+        try:
+            from singularity.engines import antigravity
+            agy_accs = db.get_accounts("antigravity") or antigravity._find_active_local_server()
+            if agy_accs:
+                logger.info(f"Routing Claude request ({model}) to Antigravity engine (Google AI Pro plan)")
+                async for chunk in antigravity.stream_antigravity_chat(model=model, messages=messages, **kwargs):
+                    yield chunk
+                return
+        except Exception as e:
+            logger.warning(f"Failed to route Claude request to Antigravity fallback: {e}")
+
         yield {
             "id": chat_id,
             "object": "chat.completion.chunk",

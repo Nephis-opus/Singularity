@@ -8,7 +8,9 @@ Direct Connect-protocol streaming and completion client for Moonshot AI / Kimi W
 
 import asyncio
 import base64
+import hashlib
 import json
+import mimetypes
 import os
 import random
 import re
@@ -145,6 +147,139 @@ def _estimate_tokens(text: str) -> int:
     words = len(non_cjk.split())
     chars = len(non_cjk.strip())
     return max(1, cjk + max(int(words * 1.3), int(chars / 3.8)))
+
+
+def _extract_images_from_messages(messages: List[Dict[str, Any]]) -> List[Tuple[bytes, str, str]]:
+    """
+    Extract attached images from OpenAI/Anthropic messages format.
+    Returns: list of (image_bytes, mime_type, file_name)
+    """
+    extracted = []
+    seen_hashes = set()
+    for m in messages:
+        content = m.get("content", "")
+        items = content if isinstance(content, list) else []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            itype = item.get("type", "")
+            img_url = ""
+            media_type = "image/png"
+
+            if itype == "image_url":
+                iu = item.get("image_url", {})
+                img_url = iu.get("url", "") if isinstance(iu, dict) else str(iu)
+            elif itype == "image":
+                src = item.get("source", {})
+                if isinstance(src, dict) and src.get("type") == "base64" and src.get("data"):
+                    media_type = src.get("media_type", "image/png")
+                    img_url = f"data:{media_type};base64,{src['data']}"
+                elif item.get("url"):
+                    img_url = item.get("url")
+
+            if not img_url:
+                continue
+
+            try:
+                img_bytes = None
+                ext = "png"
+                if img_url.startswith("data:"):
+                    header, b64 = img_url.split(",", 1)
+                    if ";" in header:
+                        media_type = header.split(";")[0].replace("data:", "").strip() or "image/png"
+                    img_bytes = base64.b64decode(b64)
+                    ext = media_type.split("/")[-1].replace("jpeg", "jpg")
+                elif img_url.startswith("http://") or img_url.startswith("https://"):
+                    with httpx.Client(timeout=15.0) as client:
+                        resp = client.get(img_url)
+                        if resp.status_code == 200:
+                            ct = resp.headers.get("content-type", "image/png").split(";")[0].strip()
+                            ext = ct.split("/")[-1].replace("jpeg", "jpg")
+                            img_bytes = resp.content
+                            media_type = ct
+                elif os.path.isfile(img_url):
+                    media_type = mimetypes.guess_type(img_url)[0] or "image/png"
+                    ext = media_type.split("/")[-1].replace("jpeg", "jpg")
+                    with open(img_url, "rb") as f:
+                        img_bytes = f.read()
+
+                if img_bytes:
+                    h = hashlib.sha256(img_bytes).hexdigest()
+                    if h not in seen_hashes:
+                        seen_hashes.add(h)
+                        extracted.append((img_bytes, media_type, f"input_image_{len(extracted)+1}.{ext}"))
+            except Exception as e:
+                print(f"[Kimi Vision Extraction Error]: {e}")
+
+    return extracted
+
+
+_KIMI_IMAGE_CACHE: Dict[str, Tuple[str, float]] = {}
+
+
+async def _upload_kimi_image(
+    client: httpx.AsyncClient,
+    access_token: str,
+    img_bytes: bytes,
+    mime_type: str = "image/png",
+    file_name: str = "image.png",
+    base_url: str = KIMI_API_BASE,
+) -> Optional[str]:
+    """Upload image to Kimi TOS via pre-sign-url and register via /api/file for native multimodal vision."""
+    img_hash = hashlib.sha256(img_bytes).hexdigest()
+    now = time.time()
+    cached = _KIMI_IMAGE_CACHE.get(img_hash)
+    if cached and (now - cached[1]) < 7200:
+        return cached[0]
+
+    headers = {
+        **FAKE_HEADERS,
+        "Authorization": f"Bearer {access_token}",
+        "Origin": base_url,
+        "Referer": f"{base_url}/",
+    }
+
+    try:
+        # Step 1: Request pre-signed upload URL
+        presign_resp = await client.post(
+            f"{base_url}/api/pre-sign-url",
+            headers=headers,
+            json={"action": "image", "name": file_name},
+            timeout=15.0,
+        )
+        if presign_resp.status_code != 200:
+            print(f"  -> [Kimi Pre-Sign Error {presign_resp.status_code}]: {presign_resp.text[:150]}")
+            return None
+        presign_data = presign_resp.json()
+        upload_url = presign_data.get("url")
+        file_id = presign_data.get("file_id")
+        if not upload_url or not file_id:
+            return None
+
+        # Step 2: Upload raw image binary to storage bucket (TOS)
+        put_headers = {"Content-Type": mime_type}
+        put_resp = await client.put(upload_url, content=img_bytes, headers=put_headers, timeout=30.0)
+        if put_resp.status_code >= 400:
+            print(f"  -> [Kimi TOS Upload Error {put_resp.status_code}]: {put_resp.text[:150]}")
+            return None
+
+        # Step 3: Register and trigger image parsing on Kimi backend
+        reg_payload = {"type": "image", "name": file_name, "file_id": file_id}
+        reg_resp = await client.post(
+            f"{base_url}/api/file",
+            headers=headers,
+            json=reg_payload,
+            timeout=15.0,
+        )
+        if reg_resp.status_code != 200:
+            print(f"  -> [Kimi File Register Error {reg_resp.status_code}]: {reg_resp.text[:150]}")
+            return None
+
+        _KIMI_IMAGE_CACHE[img_hash] = (file_id, now)
+        return file_id
+    except Exception as e:
+        print(f"  -> [Kimi Image Upload Exception]: {e}")
+        return None
 
 
 def _format_messages_to_prompt(messages: List[Dict[str, Any]], thinking_budget: Optional[int] = None) -> str:
@@ -402,6 +537,7 @@ async def stream_kimi_chat(
             enable_thinking = th
 
     enable_search = "search" in model.lower()
+    attached_images = _extract_images_from_messages(messages)
     prompt_text = _format_messages_to_prompt(messages, thinking_budget=thinking_budget if enable_thinking else None)
 
     scenarios = resolve_kimi_scenarios(model, enable_search=enable_search)
@@ -424,18 +560,6 @@ async def stream_kimi_chat(
         for current_scenario in scenarios:
             if account_success or has_yielded_tokens:
                 break
-
-            payload: Dict[str, Any] = {
-                "scenario": current_scenario,
-                "tools": [{"type": "TOOL_TYPE_SEARCH", "search": {}}] if enable_search else [],
-                "message": {
-                    "role": "user",
-                    "blocks": [{"message_id": "", "text": {"content": prompt_text}}],
-                    "scenario": current_scenario,
-                },
-                "options": {"thinking": enable_thinking},
-            }
-            connect_body = _encode_connect_request(payload)
 
             # Candidate endpoints to prevent DNS or connectivity failures
             candidate_endpoints = [
@@ -465,6 +589,35 @@ async def stream_kimi_chat(
                         except Exception as auth_err:
                             last_error_msg = f"Token refresh error on {acc_name}: {str(auth_err)}"
                             break
+
+                        uploaded_file_ids = []
+                        if attached_images:
+                            for img_b, m_type, f_name in attached_images:
+                                fid = await _upload_kimi_image(
+                                    client, access_token, img_b, mime_type=m_type, file_name=f_name, base_url=current_base
+                                )
+                                if fid:
+                                    uploaded_file_ids.append(fid)
+
+                        blocks = []
+                        for fid in uploaded_file_ids:
+                            blocks.append({"message_id": "", "file": {"id": fid}})
+                        blocks.append({"message_id": "", "text": {"content": prompt_text}})
+
+                        payload: Dict[str, Any] = {
+                            "scenario": current_scenario,
+                            "tools": [{"type": "TOOL_TYPE_SEARCH", "search": {}}] if enable_search else [],
+                            "message": {
+                                "role": "user",
+                                "blocks": blocks,
+                                "scenario": current_scenario,
+                            },
+                            "options": {"thinking": enable_thinking},
+                        }
+                        if uploaded_file_ids:
+                            payload["refs"] = uploaded_file_ids
+
+                        connect_body = _encode_connect_request(payload)
 
                         headers = {
                             **FAKE_HEADERS,

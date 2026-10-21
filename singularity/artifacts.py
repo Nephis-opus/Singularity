@@ -3,8 +3,8 @@
 Singularity Universal Artifacts Engine
 ======================================
 Protocol definitions, instruction injectors, and parsers for Singularity
-interactive Artifacts (<antArtifact>) across all AI models (GPT-5/6, DeepSeek,
-Gemini, Qwen, Grok, Kimi, GLM, Claude).
+interactive Artifacts (<antArtifact>) across all supported AI models
+(Gemini, Claude, DeepSeek, Kimi, Qwen, GLM, Antigravity, MiMo).
 """
 
 import json
@@ -69,7 +69,7 @@ def inject_artifacts_prompt(messages: List[Dict[str, Any]], enabled: bool = True
 
 def convert_genui_to_artifact(text: str) -> str:
     """
-    Convert OpenAI ChatGPT GenUI app_block tags (※genui※{...}※) into standard
+    Convert legacy GenUI app_block tags (※genui※{...}※) into standard
     Singularity Artifact tags (<antArtifact ...>...</antArtifact>).
     """
     if not text or "※genui※" not in text:

@@ -456,14 +456,6 @@ body.dock-vertical .glass-dock-item.active::after {
   color: var(--brand-primary, #d97757);
 }
 
-/* 7. Tavern Studio - Swinging Wooden Tavern Sign Motion */
-.glass-dock-item[data-dock-id="tavern"]:hover svg,
-.glass-dock-item[data-tab="tavern"]:hover svg {
-  transform-origin: 50% 10% !important;
-  animation: tavernSignSwing 0.52s var(--ease-spring) forwards !important;
-  color: var(--brand-primary, #d97757);
-}
-
 /* 8. Janitor Bio Studio - Broom Sweep & Sparkle Motion */
 .glass-dock-item[data-dock-id="bio"]:hover svg,
 .glass-dock-item[data-tab="bio"]:hover svg {
@@ -532,14 +524,6 @@ body.dock-vertical .glass-dock-item.active::after {
   45% { transform: rotate(14deg) scale(1.2); }
   80% { transform: rotate(4deg) scale(1.08); }
   100% { transform: rotate(8deg) scale(1.12); }
-}
-
-@keyframes tavernSignSwing {
-  0% { transform: rotate(0deg) scale(1); }
-  25% { transform: rotate(-14deg) scale(1.18); }
-  55% { transform: rotate(9deg) scale(1.12); }
-  80% { transform: rotate(-4deg) scale(1.08); }
-  100% { transform: rotate(0deg) scale(1.1); }
 }
 
 

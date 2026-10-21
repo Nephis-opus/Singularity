@@ -3,7 +3,7 @@
 Singularity Unified Provider Worker Daemon
 ==========================================
 A lightweight, 100% self-contained micro-server providing native backend daemons
-for each AI provider (Gemini, ChatGPT, Claude, Kimi, GLM, Grok, DeepSeek, Qwen) across Windows,
+for each AI provider (Gemini, Claude, Kimi, GLM, DeepSeek, Qwen, Antigravity, AI Studio, MiMo) across Windows,
 Linux, macOS, and Android/Termux without requiring any legacy scripts or binaries.
 
 Supports:
@@ -574,7 +574,7 @@ def get_running_thread_workers() -> List[str]:
 
 def main():
     parser = argparse.ArgumentParser(description="Singularity Provider Worker Daemon")
-    parser.add_argument("--provider", required=True, help="Provider ID (gemini, chatgpt, claude, kimi, glm, grok)")
+    parser.add_argument("--provider", required=True, help="Provider ID (gemini, claude, kimi, glm, deepseek, qwen, antigravity, aistudio, mimo)")
     parser.add_argument("--port", type=int, required=True, help="Port to listen on")
     parser.add_argument("--host", default="127.0.0.1", help="Host address (default: 127.0.0.1)")
     args = parser.parse_args()

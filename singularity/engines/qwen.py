@@ -4,7 +4,7 @@ Singularity Native Qwen Engine
 ==============================
 Authentic, self-contained multi-account streaming driver for Alibaba Qwen (chat.qwen.ai).
 Supports:
-- Qwen3.8-Max, Qwen3.8-Omni-Flash, Qwen3.8-Plus, Qwen3.8-Flash-Next, Qwen3.7-Plus, Qwen3.7-Max, Qwen3.6-Plus, Qwen3.5-Flash
+- Qwen3.8-Max, Qwen3.8-Plus, Qwen3.8-Flash-Next, Qwen3.7-Plus, Qwen3.7-Max, Qwen3.6-Plus, Qwen3.5-Flash
 - Wanx / Qwen-Video (t2v) text-to-video generation with async task polling & live status streaming
 - Thinking Mode (qwen-thinking) with live reasoning tokens (delta.reasoning_content)
 - Real-time Web Search Grounding (qwen-search) and Deep Research (qwen-deep-research)
@@ -46,20 +46,93 @@ QWEN_LIST_CHATS_URL = f"{QWEN_BASE_URL}/api/v2/chats"
 QWEN_COMPLETION_URL = f"{QWEN_BASE_URL}/api/v2/chat/completions"
 QWEN_TASK_STATUS_URL = f"{QWEN_BASE_URL}/api/v1/tasks/status"
 
+BAXIA_VERSION = "2.5.37"
+WEB_USER_AGENT = "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"
+WEB_ACCEPT_LANGUAGE = "en-US,en;q=0.9"
+
+_CACHED_BX_UMID: Optional[Tuple[str, float]] = None
+
+
+def _collect_fingerprint_data() -> Dict[str, Any]:
+    platforms = ["Win32", "Linux x86_64", "MacIntel", "Linux armv81"]
+    languages = ["en-US", "zh-CN", "en-GB"]
+    renderers = [
+        "ANGLE (Intel, Intel(R) UHD Graphics 630, OpenGL 4.6)",
+        "ANGLE (NVIDIA, NVIDIA GeForce GTX 1080, OpenGL 4.6)",
+        "ANGLE (AMD, AMD Radeon RX 580, OpenGL 4.6)",
+    ]
+    import base64
+    canvas = base64.b64encode(random.randbytes(24)).decode("utf-8")
+    return {
+        "p": random.choice(platforms),
+        "l": random.choice(languages),
+        "hc": random.randint(4, 16),
+        "dm": random.choice([4, 8, 16, 32]),
+        "to": random.choice([-480, -300, 0, 60, 480]),
+        "sw": random.randint(1920, 2120),
+        "sh": random.randint(1080, 1180),
+        "cd": 24,
+        "pr": random.choice([1, 1.25, 1.5, 2]),
+        "wf": random.choice(renderers)[:20],
+        "cf": canvas,
+        "af": f"{124.04347527516074 + random.random() * 0.001:.14f}",
+        "ts": int(time.time() * 1000),
+        "r": random.random(),
+    }
+
+
+def _encode_baxia_token(data: Dict[str, Any]) -> str:
+    import base64
+    json_str = json.dumps(data, separators=(",", ":"))
+    encoded = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
+    v_clean = BAXIA_VERSION.replace(".", "")
+    return f"{v_clean}!{encoded}"
+
+
+async def _get_baxia_tokens() -> Tuple[str, str, str]:
+    """Generate dynamic bx-ua fingerprint and fetch/cache authentic bx-umidtoken."""
+    global _CACHED_BX_UMID
+    bx_ua = _encode_baxia_token(_collect_fingerprint_data())
+    now = time.time()
+    if _CACHED_BX_UMID and (now - _CACHED_BX_UMID[1] < 300):
+        return bx_ua, _CACHED_BX_UMID[0], BAXIA_VERSION
+
+    bx_umid = ""
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get("https://sg-wum.alibaba.com/w/wu.json", headers={"User-Agent": WEB_USER_AGENT})
+            text = resp.text
+            m = re.search(r"umx\.wu\('([^']+)'\)", text) or re.search(r"'([^']+)'", text)
+            if m:
+                bx_umid = m.group(1)
+            elif resp.headers.get("etag"):
+                bx_umid = resp.headers.get("etag")
+    except Exception:
+        pass
+
+    if not bx_umid or not bx_umid.startswith("T2gA"):
+        bx_umid = "T2gA" + "".join(random.choices("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", k=40))
+
+    _CACHED_BX_UMID = (bx_umid, now)
+    return bx_ua, bx_umid, BAXIA_VERSION
+
+
 QWEN_BASE_HEADERS = {
-    "Host": "chat.qwen.ai",
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/event-stream",
+    "Accept": "application/json",
+    "Accept-Language": WEB_ACCEPT_LANGUAGE,
     "Content-Type": "application/json",
-    "Accept-Language": "en-US,en;q=0.9",
     "Origin": QWEN_BASE_URL,
     "Referer": f"{QWEN_BASE_URL}/",
-    "sec-ch-ua": '"Chromium";v="149", "Google Chrome";v="149", "Not-A.Brand";v="24"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Linux"',
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin",
+    "sec-ch-ua": '"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
+    "sec-ch-ua-mobile": "?1",
+    "sec-ch-ua-platform": '"Android"',
+    "User-Agent": WEB_USER_AGENT,
+    "source": "h5",
+    "bx-v": BAXIA_VERSION,
+    "X-Accel-Buffering": "no",
 }
 
 _ACCOUNT_ROTATION_INDEX = 0
@@ -82,9 +155,14 @@ def _decode_jwt(token_str: str) -> Optional[Dict[str, Any]]:
 
 
 def extract_qwen_credentials(raw_token: str) -> Dict[str, Any]:
-    """Parse raw Qwen credential string or JSON dump."""
+    """Parse raw Qwen credential string, cookie bundle, or JSON dump."""
     raw = (raw_token or "").strip()
     cookies = ""
+    token = ""
+    email = ""
+    uid = ""
+    plan = "FREE"
+
     if raw.startswith("{"):
         try:
             data = json.loads(raw)
@@ -100,33 +178,48 @@ def extract_qwen_credentials(raw_token: str) -> Dict[str, Any]:
                 cookies = data.get("cookies") or data.get("cookie") or ""
                 email = data.get("email", "")
                 uid = data.get("uid") or data.get("id") or ""
-                return {
-                    "email": email,
-                    "token": token,
-                    "uid": uid,
-                    "plan": data.get("plan", "FREE"),
-                    "cookies": cookies,
-                }
+                plan = data.get("plan", "FREE")
         except Exception:
             pass
 
-    # Format: token;cookies or cookies;token
-    if ";" in raw:
-        parts = [p.strip() for p in raw.split(";", 1)]
-        if parts[0].startswith("eyJ"):
-            token = parts[0]
-            cookies = parts[1]
-        elif "x5sec=" in parts[0] or "bx-v" in parts[0] or "cna=" in parts[0]:
-            cookies = parts[0]
-            token = parts[1]
+    if not token:
+        if "token=eyJ" in raw:
+            tok_m = re.search(r'token=(eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)', raw)
+            if tok_m:
+                token = tok_m.group(1).strip()
+                cookies = raw
         else:
-            token = raw
-    else:
-        token = raw
+            jwt_match = re.search(r'(?:Bearer\s+)?(eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)', raw)
+            if jwt_match:
+                token = jwt_match.group(1).strip()
+                if ";" in raw and not cookies:
+                    remainder = raw.replace(jwt_match.group(0), "").strip()
+                    remainder = re.sub(r'^[;\s]+|[;\s]+$', '', remainder)
+                    if remainder:
+                        cookies = remainder
+            elif ";" in raw:
+                parts = [p.strip() for p in raw.split(";", 1)]
+                if "eyJ" in parts[0]:
+                    token = parts[0]
+                    cookies = parts[1]
+                elif "eyJ" in parts[1]:
+                    cookies = parts[0]
+                    token = parts[1]
+            else:
+                token = raw
+
+    if cookies and "token=eyJ" in cookies:
+        m = re.search(r'token=(eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)', cookies)
+        if m:
+            cookie_jwt = m.group(1)
+            token_jwt_data = _decode_jwt(token)
+            cookie_jwt_data = _decode_jwt(cookie_jwt)
+            token_exp = (token_jwt_data or {}).get("exp", 0)
+            cookie_exp = (cookie_jwt_data or {}).get("exp", 0)
+            if not token or cookie_exp > token_exp:
+                token = cookie_jwt
 
     jwt_data = _decode_jwt(token)
-    email = ""
-    uid = ""
     if jwt_data:
         email = jwt_data.get("email", "")
         uid = jwt_data.get("sub") or jwt_data.get("uid") or jwt_data.get("user_id") or jwt_data.get("id") or ""
@@ -135,7 +228,7 @@ def extract_qwen_credentials(raw_token: str) -> Dict[str, Any]:
         "email": email,
         "token": token,
         "uid": uid,
-        "plan": "FREE",
+        "plan": plan,
         "cookies": cookies,
     }
 
@@ -160,8 +253,16 @@ def get_qwen_accounts() -> List[Dict[str, Any]]:
                 try:
                     meta_obj = json.loads(meta_str) if isinstance(meta_str, str) else meta_str
                     if isinstance(meta_obj, dict):
-                        if meta_obj.get("cookies") and not creds.get("cookies"):
+                        if meta_obj.get("cookies"):
                             creds["cookies"] = meta_obj.get("cookies")
+                            if "token=eyJ" in creds["cookies"]:
+                                m = re.search(r'token=(eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)', creds["cookies"])
+                                if m:
+                                    c_jwt = m.group(1)
+                                    c_exp = (_decode_jwt(c_jwt) or {}).get("exp", 0)
+                                    t_exp = (_decode_jwt(creds.get("token", "")) or {}).get("exp", 0)
+                                    if c_exp > t_exp:
+                                        creds["token"] = c_jwt
                 except Exception:
                     pass
             accounts.append(creds)
@@ -171,17 +272,14 @@ def get_qwen_accounts() -> List[Dict[str, Any]]:
 
 
 async def _rotate_account(accounts: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
-    """Rotate round-robin through available Qwen accounts, prioritizing accounts with x5sec cookies."""
+    """Rotate round-robin through available Qwen accounts."""
     global _ACCOUNT_ROTATION_INDEX
     accs = accounts or get_qwen_accounts()
     if not accs:
         return None
 
-    # Filter/prioritize accounts that have valid x5sec anti-bot cookies
-    valid_accs = [
-        a for a in accs
-        if "x5sec=" in (a.get("cookies") or "") or "x5sec=" in (a.get("metadata") or "")
-    ]
+    # Filter accounts with valid token
+    valid_accs = [a for a in accs if (a.get("token") or "").strip()]
     pool = valid_accs if valid_accs else accs
 
     async with _ROTATION_LOCK:
@@ -218,17 +316,15 @@ def _resolve_qwen_model_and_features(model: str, prompt: str = "") -> Tuple[str,
     base_model = "qwen3.7-plus"
     if "3.8-max" in m or "qwen-max" in m:
         base_model = "qwen3.8-max"
-    elif "3.8-omni" in m:
-        base_model = "qwen3.8-omni-flash"
     elif "3.8-flash" in m or "flash-next" in m:
         base_model = "qwen3.8-flash-next"
-    elif "3.8-plus" in m or "qwen-plus" in m:
-        base_model = "qwen3.8-plus"
+    elif "3.8-plus" in m or "qwen-plus" in m or m == "qwen" or m == "qwen-turbo":
+        base_model = "qwen3.7-plus"
     elif "3.7-max" in m:
         base_model = "qwen3.7-max"
     elif "3.7-plus" in m:
         base_model = "qwen3.7-plus"
-    elif "3.5-flash" in m or "turbo" in m:
+    elif "3.5-flash" in m:
         base_model = "qwen3.5-flash"
     elif "3.6-plus" in m or "coder" in m:
         base_model = "qwen3.6-plus"
@@ -306,19 +402,20 @@ async def _create_or_get_chat(
     chat_type: str = "t2t",
 ) -> Optional[str]:
     """Create a new chat conversation session or obtain an existing one from chat.qwen.ai."""
-    ts = int(time.time())
+    ts = int(time.time() * 1000)
     payload = {
-        "title": f"api_{ts}",
+        "title": "Chat",
         "models": [model],
         "chat_mode": "normal",
         "chat_type": chat_type,
         "timestamp": ts,
+        "project_id": "",
     }
 
     # 1. Try creating a new chat session
     try:
         if HAS_CURL_CFFI:
-            async with cffi_requests.AsyncSession(impersonate="chrome124", timeout=15.0) as s:
+            async with cffi_requests.AsyncSession(timeout=15.0) as s:
                 resp = await s.post(QWEN_CREATE_CHAT_URL, headers=headers, json=payload)
                 if resp.status_code == 200:
                     try:
@@ -347,7 +444,7 @@ async def _create_or_get_chat(
     # 2. Fallback: Retrieve existing chat session from user account
     try:
         if HAS_CURL_CFFI:
-            async with cffi_requests.AsyncSession(impersonate="chrome124", timeout=15.0) as s:
+            async with cffi_requests.AsyncSession(timeout=15.0) as s:
                 r = await s.get(f"{QWEN_LIST_CHATS_URL}?limit=5", headers=headers)
                 if r.status_code == 200:
                     items = r.json().get("data", [])
@@ -386,7 +483,7 @@ async def _poll_video_task(
             body = ""
             status_code = 0
             if HAS_CURL_CFFI:
-                async with cffi_requests.AsyncSession(impersonate="chrome124", timeout=20.0) as s:
+                async with cffi_requests.AsyncSession(timeout=20.0) as s:
                     r = await s.get(poll_url, headers=headers)
                     status_code = r.status_code
                     body = r.text
@@ -441,9 +538,9 @@ def _build_chat_payload(
     stream: bool = True,
 ) -> Dict[str, Any]:
     """Build the Qwen /api/v2/chat/completions JSON payload."""
-    ts = int(time.time())
-    fid = uuid.uuid4().hex
-    cid = uuid.uuid4().hex
+    ts = int(time.time() * 1000)
+    fid = str(uuid.uuid4())
+    cid = str(uuid.uuid4())
 
     if chat_type == "t2v":
         feature_config = {
@@ -496,26 +593,24 @@ def _build_chat_payload(
             "thinking_mode": "Auto" if thinking_enabled else "Disabled",
             "thinking_format": "summary",
             "auto_search": search_enabled or chat_type == "deep_research",
-            "code_interpreter": False,
-            "plugins_enabled": False,
-            "function_calling": False,
-            "enable_tools": False,
-            "enable_function_call": False,
-            "tool_choice": "none",
         }
         msg_chat_type = chat_type
         sub_chat_type = chat_type
         extra_meta = {"subChatType": chat_type}
 
+    ts = int(time.time())
     payload = {
         "stream": stream,
         "version": "2.1",
         "incremental_output": True,
+        "chatId": chat_id,
+        "parentId": "",
         "chat_id": chat_id,
         "chat_mode": "normal",
         "model": model,
         "parent_id": None,
         "messages": [{
+            "id": None,
             "fid": fid,
             "parentId": None,
             "childrenIds": [cid],
@@ -525,6 +620,7 @@ def _build_chat_payload(
             "files": [],
             "timestamp": ts,
             "models": [model],
+            "model": "",
             "chat_type": msg_chat_type,
             "feature_config": feature_config,
             "extra": {"meta": extra_meta},
@@ -678,7 +774,13 @@ async def stream_qwen_chat(
     if not cookies:
         cookies = os.getenv("QWEN_COOKIES", "").strip()
 
-    if not token:
+    clean_token = token.strip()
+    if clean_token.lower().startswith("bearer bearer "):
+        clean_token = clean_token[14:].strip()
+    elif clean_token.lower().startswith("bearer "):
+        clean_token = clean_token[7:].strip()
+
+    if not clean_token:
         yield {
             "id": req_id,
             "object": "chat.completion.chunk",
@@ -695,16 +797,32 @@ async def stream_qwen_chat(
         return
 
     # Ensure token cookie is present in Cookie string if omitted
-    if cookies and "token=" not in cookies and token.startswith("eyJ"):
-        cookies = f"token={token}; {cookies}"
+    if cookies:
+        if "token=" not in cookies and clean_token.startswith("eyJ"):
+            cookies = f"token={clean_token}; {cookies}"
+    else:
+        cookies = f"token={clean_token}"
+
+    # Generate Baxia anti-bot headers
+    bx_ua, bx_umid, bx_v = await _get_baxia_tokens()
+
+    # Qwen H5 mobile API takes standard single Bearer header
+    if clean_token.lower().startswith("bearer bearer "):
+        clean_token = clean_token[14:].strip()
+    elif clean_token.lower().startswith("bearer "):
+        clean_token = clean_token[7:].strip()
+    auth_val = f"Bearer {clean_token}"
 
     auth_headers = {
         **QWEN_BASE_HEADERS,
-        "Authorization": f"Bearer {token}",
-        "x-request-id": str(uuid.uuid4()),
+        "Authorization": auth_val,
+        "Cookie": cookies,
+        "bx-ua": bx_ua,
+        "bx-umidtoken": bx_umid,
+        "bx-v": bx_v,
+        "source": "h5",
+        "X-Request-Id": str(uuid.uuid4()),
     }
-    if cookies:
-        auth_headers["Cookie"] = cookies
 
     # Obtain chat session ID
     chat_id = await _create_or_get_chat(auth_headers, base_model, chat_type)
@@ -740,7 +858,7 @@ async def stream_qwen_chat(
         status_code = 0
         try:
             if HAS_CURL_CFFI:
-                async with cffi_requests.AsyncSession(impersonate="chrome124", timeout=90.0) as session:
+                async with cffi_requests.AsyncSession(timeout=90.0) as session:
                     resp = await session.post(stream_url, headers=req_headers, json=payload)
                     status_code = resp.status_code
                     body_text = resp.text
@@ -876,8 +994,54 @@ async def stream_qwen_chat(
 
     try:
         if HAS_CURL_CFFI:
-            async with cffi_requests.AsyncSession(impersonate="chrome124", timeout=120.0) as session:
+            async with cffi_requests.AsyncSession(timeout=120.0) as session:
                 resp = await session.post(stream_url, headers=stream_headers, json=payload, stream=True)
+                if resp.status_code != 200:
+                    err_body = ""
+                    try:
+                        err_body = resp.text
+                    except Exception:
+                        pass
+                    if "RGV587" in err_body or "FAIL_SYS_USER_VALIDATE" in err_body or "bxpunish" in err_body:
+                        punish_url_match = re.search(r'https?://[^\s"\'<>]+\/punish\?[^\s"\'<>]+', err_body)
+                        punish_url = punish_url_match.group(0) if punish_url_match else f"{QWEN_BASE_URL}/"
+                        if "x5referer=" not in punish_url:
+                            sep = "&" if "?" in punish_url else "?"
+                            punish_url += f"{sep}x5referer=https%3A%2F%2Fchat.qwen.ai%2F"
+                        yield {
+                            "id": req_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {
+                                    "content": (
+                                        "⚠️ **Alibaba Cloud Security Slider Verification Required (RGV587)**\n\n"
+                                        "Alibaba Cloud WAF requires a quick one-time slider check to generate your session's anti-bot token (`x5sec`).\n\n"
+                                        f"👉 **[Click Here to Complete Slider Verification]({punish_url})**\n\n"
+                                        "1. Open the link above in your browser where `chat.qwen.ai` is logged in.\n"
+                                        "2. Slide the verification puzzle piece to verify.\n"
+                                        "3. Once verified, rerun your request.\n"
+                                    )
+                                },
+                                "finish_reason": "error",
+                            }],
+                        }
+                        return
+                    yield {
+                        "id": req_id,
+                        "object": "chat.completion.chunk",
+                        "created": created,
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"content": f"\n\n[Qwen Error HTTP {resp.status_code}: {err_body[:300]}]"},
+                            "finish_reason": "error",
+                        }],
+                    }
+                    return
+
                 first_chunk = True
                 reasoning_tokens_streamed = 0
                 reasoning_cap_reached = False
@@ -887,8 +1051,9 @@ async def stream_qwen_chat(
                     line = raw_line.decode("utf-8", errors="ignore") if isinstance(raw_line, bytes) else raw_line
                     line = line.strip()
 
-                    # Handle WAF challenge in stream
-                    if "RGV587" in line or "FAIL_SYS_USER_VALIDATE" in line:
+                    # Handle WAF challenge or error in stream
+                    line_lower = line.lower()
+                    if any(k in line_lower for k in ("rgv587", "fail_sys_user_validate", "punish", "x5secdata", "cf_app_waf")):
                         punish_url_match = re.search(r'https?://[^\s"\'<>]+\/punish\?[^\s"\'<>]+', line)
                         punish_url = punish_url_match.group(0) if punish_url_match else f"{QWEN_BASE_URL}/"
                         if "x5referer=" not in punish_url:
@@ -911,6 +1076,25 @@ async def stream_qwen_chat(
                                         "3. Once verified, rerun your request.\n"
                                     )
                                 },
+                                "finish_reason": "error",
+                            }],
+                        }
+                        return
+
+                    if line.startswith("{") and '"success":false' in line.replace(" ", ""):
+                        try:
+                            err_data = json.loads(line)
+                            err_info = err_data.get("data", {}).get("details") or err_data.get("data", {}).get("code") or err_data.get("message") or line
+                        except Exception:
+                            err_info = line
+                        yield {
+                            "id": req_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": f"\n\n[Qwen Upstream Error: {err_info}]"},
                                 "finish_reason": "error",
                             }],
                         }
@@ -990,6 +1174,52 @@ async def stream_qwen_chat(
         else:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 async with client.stream("POST", stream_url, headers=stream_headers, json=payload, timeout=120.0) as resp:
+                    if resp.status_code != 200:
+                        err_body = ""
+                        try:
+                            err_body = (await resp.aread()).decode("utf-8", errors="ignore")
+                        except Exception:
+                            pass
+                        if "RGV587" in err_body or "FAIL_SYS_USER_VALIDATE" in err_body or "bxpunish" in err_body:
+                            punish_url_match = re.search(r'https?://[^\s"\'<>]+\/punish\?[^\s"\'<>]+', err_body)
+                            punish_url = punish_url_match.group(0) if punish_url_match else f"{QWEN_BASE_URL}/"
+                            if "x5referer=" not in punish_url:
+                                sep = "&" if "?" in punish_url else "?"
+                                punish_url += f"{sep}x5referer=https%3A%2F%2Fchat.qwen.ai%2F"
+                            yield {
+                                "id": req_id,
+                                "object": "chat.completion.chunk",
+                                "created": created,
+                                "model": model,
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {
+                                        "content": (
+                                            "⚠️ **Alibaba Cloud Security Slider Verification Required (RGV587)**\n\n"
+                                            "Alibaba Cloud WAF requires a quick one-time slider check to generate your session's anti-bot token (`x5sec`).\n\n"
+                                            f"👉 **[Click Here to Complete Slider Verification]({punish_url})**\n\n"
+                                            "1. Open the link above in your browser where `chat.qwen.ai` is logged in.\n"
+                                            "2. Slide the verification puzzle piece to verify.\n"
+                                            "3. Once verified, rerun your request.\n"
+                                        )
+                                    },
+                                    "finish_reason": "error",
+                                }],
+                            }
+                            return
+                        yield {
+                            "id": req_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": f"\n\n[Qwen Error HTTP {resp.status_code}: {err_body[:300]}]"},
+                                "finish_reason": "error",
+                            }],
+                        }
+                        return
+
                     first_chunk = True
                     reasoning_tokens_streamed = 0
                     reasoning_cap_reached = False
@@ -998,7 +1228,8 @@ async def stream_qwen_chat(
                             continue
                         line = line.strip()
 
-                        if "RGV587" in line or "FAIL_SYS_USER_VALIDATE" in line:
+                        line_lower = line.lower()
+                        if any(k in line_lower for k in ("rgv587", "fail_sys_user_validate", "punish", "x5secdata", "cf_app_waf")):
                             punish_url_match = re.search(r'https?://[^\s"\'<>]+\/punish\?[^\s"\'<>]+', line)
                             punish_url = punish_url_match.group(0) if punish_url_match else f"{QWEN_BASE_URL}/"
                             if "x5referer=" not in punish_url:
@@ -1021,6 +1252,25 @@ async def stream_qwen_chat(
                                             "3. Once verified, rerun your request.\n"
                                         )
                                     },
+                                    "finish_reason": "error",
+                                }],
+                            }
+                            return
+
+                        if line.startswith("{") and '"success":false' in line.replace(" ", ""):
+                            try:
+                                err_data = json.loads(line)
+                                err_info = err_data.get("data", {}).get("details") or err_data.get("data", {}).get("code") or err_data.get("message") or line
+                            except Exception:
+                                err_info = line
+                            yield {
+                                "id": req_id,
+                                "object": "chat.completion.chunk",
+                                "created": created,
+                                "model": model,
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {"content": f"\n\n[Qwen Upstream Error: {err_info}]"},
                                     "finish_reason": "error",
                                 }],
                             }

@@ -143,6 +143,7 @@ if "%ARG1%"=="chat" goto :RUN_CLI
 if "%ARG1%"=="thinking" goto :RUN_CLI
 if "%ARG1%"=="service" goto :RUN_CLI
 if "%ARG1%"=="tunnel" goto :RUN_CLI
+if "%ARG1%"=="claudecode" goto :RUN_CLI
 if "%ARG1%"=="key" goto :RUN_CLI
 if "%ARG1%"=="bench" goto :RUN_CLI
 if "%ARG1%"=="update" goto :RUN_CLI
@@ -155,8 +156,8 @@ goto :LAUNCH_GATEWAY
 :RESTART_SERVER
 shift
 echo.
-echo   [🔄] Restarting Singularity [clearing ports 9000, 5173, 3001]...
-for %%P in (9000 5173 3001) do (
+echo   [🔄] Restarting Singularity [clearing port 9000]...
+for %%P in (9000) do (
     for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":%%P .*LISTENING"') do (
         taskkill /F /PID %%A >nul 2>&1
     )
@@ -164,8 +165,8 @@ for %%P in (9000 5173 3001) do (
 timeout /t 1 /nobreak >nul 2>&1
 
 :LAUNCH_GATEWAY
-:: Terminate any stale processes holding port 9000, 5173, or 3001
-for %%P in (9000 5173 3001) do (
+:: Terminate any stale processes holding port 9000
+for %%P in (9000) do (
     for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":%%P .*LISTENING"') do (
         taskkill /F /PID %%A >nul 2>&1
     )
@@ -178,7 +179,6 @@ for %%P in (9000 5173 3001) do (
 set "SINGULARITY_LAN="
 for %%A in (%*) do if /I "%%~A"=="--lan" set "SINGULARITY_LAN=1"
 for %%A in (%*) do if /I "%%~A"=="--no-update" set "SINGULARITY_NO_UPDATE=1"
-for %%A in (%*) do if /I "%%~A"=="--no-tavern" set "SINGULARITY_NO_TAVERN=1"
 set "API_HOST=127.0.0.1"
 if defined SINGULARITY_LAN set "API_HOST=0.0.0.0"
 set "RP_ALLOWED_ORIGINS="
@@ -186,26 +186,6 @@ set "RP_ALLOWED_ORIGINS="
 echo.
 echo   [*] Initializing Singularity Gateway [Windows]...
 echo.
-
-:: Launch Tavern Studio alongside Singularity if present
-set "TAV_DIR="
-if exist "%ROOT_DIR%TAVERN\package.json" set "TAV_DIR=%ROOT_DIR%TAVERN"
-if not defined TAV_DIR if exist "%ROOT_DIR%TAV-TEST\package.json" set "TAV_DIR=%ROOT_DIR%TAV-TEST"
-
-if defined TAV_DIR if not defined SINGULARITY_NO_TAVERN (
-    netstat -ano | findstr ":5173" >nul 2>&1
-    if errorlevel 1 (
-        netstat -ano | findstr ":3001" >nul 2>&1
-        if errorlevel 1 (
-            echo [*] Starting Tavern Studio alongside Singularity [ports 5173 / 3001]...
-            if exist "!TAV_DIR!\run_tavern.bat" (
-                start "Tavern Web Studio" cmd /c "call "!TAV_DIR!\run_tavern.bat""
-            ) else (
-                start "Tavern Web Studio" cmd /c "cd /d "!TAV_DIR!" && call npm run dev"
-            )
-        )
-    )
-)
 
 "%PYTHON_EXE%" %PYTHON_ARGS% server.py %*
 goto :AFTER_RUN

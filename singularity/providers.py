@@ -2,7 +2,7 @@
 """
 Singularity Provider Engine
 Manages status, lifecycle, limits, models, and cookie storage for all 7 providers:
-ChatGPT (8000), Claude (8080), Gemini (8084), GLM (8085), Kimi (8086), Grok (8087), DeepSeek (8088).
+Gemini (8084), Claude (8080), GLM (8085), Kimi (8086), DeepSeek (8088), Qwen (8089), Antigravity (8090), AI Studio (8091), MiMo (8092).
 """
 
 import asyncio
@@ -80,7 +80,6 @@ GUEST_CAPABLE_PROVIDERS = frozenset({"gemini", "glm"})
 ENV_CREDENTIALS = {
     "deepseek": ("DEEPSEEK_TOKEN",),
     "qwen": ("QWEN_TOKEN", "QWEN_COOKIES"),
-    "grok": ("GROK_COOKIE",),
     "antigravity": ("AGY_TOKEN", "AGY_REFRESH_TOKEN", "GOOGLE_OAUTH_TOKEN"),
     "aistudio": ("AISTUDIO_COOKIE", "GEMINI_COOKIE"),
     "mimo": ("MIMO_TOKEN", "MIMO_SERVICE_TOKEN", "MIMO_COOKIE", "XIAOMI_COOKIE"),
@@ -135,21 +134,6 @@ PROVIDERS_CONFIG = {
         "cookie_placeholder": "Paste raw cookie string containing __Secure-1PSID=... and __Secure-1PSIDTS=...",
         "auth_header": None,
     },
-    "chatgpt": {
-        "id": "chatgpt",
-        "name": "ChatGPT",
-        "port": 8000,
-        "host": os.getenv("CHATGPT_HOST", PROVIDER_HOST),
-        "badge": "OpenAI",
-        "color": "#10A37F",
-        "start_script": "start_chatgpt2api.sh",
-        "stop_script": "stop_chatgpt2api.sh",
-        "health_path": "/healthz",
-        "cookie_type": "json_or_token",
-        "cookie_label": "Next-Auth Session JSON or Access Token",
-        "cookie_placeholder": "Paste JSON session dump or access token (one per account card)...",
-        "auth_header": "Bearer chatgpt2api",
-    },
     "claude": {
         "id": "claude",
         "name": "Claude",
@@ -194,21 +178,6 @@ PROVIDERS_CONFIG = {
         "cookie_label": "GLM Refresh Token",
         "cookie_placeholder": "Paste Zhipu refresh token (one account per line or card)...",
         "auth_header": "Bearer sk-glm-local",
-    },
-    "grok": {
-        "id": "grok",
-        "name": "Grok",
-        "port": 8087,
-        "host": os.getenv("GROK_HOST", PROVIDER_HOST),
-        "badge": "xAI",
-        "color": "#E5E5E5",
-        "start_script": "start_grok2api.sh",
-        "stop_script": "stop_grok2api.sh",
-        "health_path": "/healthz",
-        "cookie_type": "cookie_string",
-        "cookie_label": "Grok SSO Cookie & UserID",
-        "cookie_placeholder": "sso=...; sso-rw=...; x-userid=...",
-        "auth_header": None,
     },
     "deepseek": {
         "id": "deepseek",
@@ -423,24 +392,7 @@ MODELS_CATALOG = [
         'name': 'Gemini 3.8 Flash Cyber (AI Studio)',
         'provider': 'aistudio'
     },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '1M tokens',
-        'description': 'Hybrid reasoning frontier model in AI Studio with responsive multi-step logic.',
-        'id': 'ais-gemini-3.7-flash',
-        'locked': False,
-        'name': 'Gemini 3.7 Flash (AI Studio)',
-        'provider': 'aistudio'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'High-budget chain-of-thought mathematical and algorithmic reasoning.',
-        'id': 'ais-gemini-3.7-flash-thinking',
-        'locked': False,
-        'name': 'Gemini 3.7 Flash Thinking (AI Studio)',
-        'provider': 'aistudio'
-    },
+
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '2M tokens',
@@ -603,7 +555,7 @@ MODELS_CATALOG = [
         'description': 'Flagship Claude Opus 5.5 in Antigravity with deep high-budget multi-step reasoning.',
         'id': 'agy-claude-opus-5-5-high',
         'locked': False,
-        'name': 'Claude Opus 5.5 (High Reasoning)',
+        'name': 'Claude Opus 5.5 (High)',
         'provider': 'antigravity'
     },
     {
@@ -612,7 +564,7 @@ MODELS_CATALOG = [
         'description': 'Balanced Claude Opus 5.5 in Antigravity with medium reasoning budget.',
         'id': 'agy-claude-opus-5-5-medium',
         'locked': False,
-        'name': 'Claude Opus 5.5 (Medium Reasoning)',
+        'name': 'Claude Opus 5.5 (Medium)',
         'provider': 'antigravity'
     },
     {
@@ -621,16 +573,7 @@ MODELS_CATALOG = [
         'description': 'Rapid responsive Claude Opus 5.5 in Antigravity with low reasoning budget.',
         'id': 'agy-claude-opus-5-5-low',
         'locked': False,
-        'name': 'Claude Opus 5.5 (Low Reasoning)',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '200K tokens',
-        'description': 'Default alias for Claude Opus 5.5 in Antigravity with balanced reasoning.',
-        'id': 'agy-claude-opus-5-5',
-        'locked': False,
-        'name': 'Claude Opus 5.5',
+        'name': 'Claude Opus 5.5 (Low)',
         'provider': 'antigravity'
     },
     {
@@ -639,7 +582,7 @@ MODELS_CATALOG = [
         'description': 'Frontier Claude Sonnet 5.5 in Antigravity with deep high-budget reasoning.',
         'id': 'agy-claude-sonnet-5-5-high',
         'locked': False,
-        'name': 'Claude Sonnet 5.5 (High Reasoning)',
+        'name': 'Claude Sonnet 5.5 (High)',
         'provider': 'antigravity'
     },
     {
@@ -648,7 +591,7 @@ MODELS_CATALOG = [
         'description': 'Balanced Claude Sonnet 5.5 in Antigravity with medium reasoning budget.',
         'id': 'agy-claude-sonnet-5-5-medium',
         'locked': False,
-        'name': 'Claude Sonnet 5.5 (Medium Reasoning)',
+        'name': 'Claude Sonnet 5.5 (Medium)',
         'provider': 'antigravity'
     },
     {
@@ -657,22 +600,13 @@ MODELS_CATALOG = [
         'description': 'Fast responsive Claude Sonnet 5.5 in Antigravity with low reasoning budget.',
         'id': 'agy-claude-sonnet-5-5-low',
         'locked': False,
-        'name': 'Claude Sonnet 5.5 (Low Reasoning)',
+        'name': 'Claude Sonnet 5.5 (Low)',
         'provider': 'antigravity'
     },
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '200K tokens',
-        'description': 'Default alias for Claude Sonnet 5.5 in Antigravity with balanced reasoning.',
-        'id': 'agy-claude-sonnet-5-5',
-        'locked': False,
-        'name': 'Claude Sonnet 5.5',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '200K tokens',
-        'description': 'Claude Opus 4.6 with chain-of-thought thinking via Antigravity.',
+        'description': 'Claude Opus 4.6 / 5.5 with chain-of-thought thinking via Antigravity plan.',
         'id': 'agy-claude-opus-4-6-thinking',
         'locked': False,
         'name': 'Claude Opus 4.6 (Thinking)',
@@ -681,7 +615,25 @@ MODELS_CATALOG = [
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '200K tokens',
-        'description': 'Claude Sonnet 4.6 with chain-of-thought thinking via Antigravity.',
+        'description': 'Flagship Claude Opus via Google Antigravity plan.',
+        'id': 'agy-claude-opus-4-6',
+        'locked': False,
+        'name': 'Claude Opus 4.6 (AGY)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Flagship Claude Opus via Google Antigravity plan.',
+        'id': 'agy-claude-opus',
+        'locked': False,
+        'name': 'Claude Opus (AGY)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Claude Sonnet 4.6 / 5.5 with chain-of-thought thinking via Antigravity plan.',
         'id': 'agy-claude-sonnet-4-6-thinking',
         'locked': False,
         'name': 'Claude Sonnet 4.6 (Thinking)',
@@ -689,191 +641,110 @@ MODELS_CATALOG = [
     },
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Claude Sonnet via Google Antigravity plan.',
+        'id': 'agy-claude-sonnet-4-6',
+        'locked': False,
+        'name': 'Claude Sonnet 4.6 (AGY)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'context': '200K tokens',
+        'description': 'Claude Sonnet via Google Antigravity plan.',
+        'id': 'agy-claude-sonnet',
+        'locked': False,
+        'name': 'Claude Sonnet (AGY)',
+        'provider': 'antigravity'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '1M tokens',
-        'description': 'Google DeepMind flagship Gemini 4 Argon in Antigravity with deep high-budget reasoning.',
+        'description': 'Google DeepMind Gemini 4 Argon High Reasoning in Antigravity (Requires Google AI Pro).',
         'id': 'agy-gemini-4-argon-high',
         'locked': False,
-        'name': 'Gemini 4 Argon (High Reasoning)',
+        'name': 'Gemini 4 Argon High (AGY)',
         'provider': 'antigravity'
     },
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '1M tokens',
-        'description': 'Balanced Google DeepMind Gemini 4 Argon in Antigravity with medium reasoning.',
+        'description': 'Google DeepMind Gemini 4 Argon Medium Reasoning in Antigravity (Requires Google AI Pro).',
         'id': 'agy-gemini-4-argon-medium',
         'locked': False,
-        'name': 'Gemini 4 Argon (Medium Reasoning)',
+        'name': 'Gemini 4 Argon Medium (AGY)',
         'provider': 'antigravity'
     },
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '1M tokens',
-        'description': 'Rapid Google DeepMind Gemini 4 Argon in Antigravity with low reasoning budget.',
+        'description': 'Google DeepMind Gemini 4 Argon Low Reasoning in Antigravity (Requires Google AI Pro).',
         'id': 'agy-gemini-4-argon-low',
         'locked': False,
-        'name': 'Gemini 4 Argon (Low Reasoning)',
+        'name': 'Gemini 4 Argon Low (AGY)',
         'provider': 'antigravity'
     },
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '1M tokens',
-        'description': 'Default alias for Gemini 4 Argon in Antigravity with balanced reasoning.',
-        'id': 'agy-gemini-4-argon',
-        'locked': False,
-        'name': 'Gemini 4 Argon',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '1M tokens',
-        'description': 'Google DeepMind Gemini 3.8 Flash in Antigravity with deep high-budget reasoning.',
-        'id': 'agy-gemini-3-8-flash-high',
-        'locked': False,
-        'name': 'Gemini 3.8 Flash (High Reasoning)',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '1M tokens',
-        'description': 'Balanced Google DeepMind Gemini 3.8 Flash in Antigravity with medium reasoning.',
-        'id': 'agy-gemini-3-8-flash-medium',
-        'locked': False,
-        'name': 'Gemini 3.8 Flash (Medium Reasoning)',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '1M tokens',
-        'description': 'Rapid Google DeepMind Gemini 3.8 Flash in Antigravity with low reasoning budget.',
-        'id': 'agy-gemini-3-8-flash-low',
-        'locked': False,
-        'name': 'Gemini 3.8 Flash (Low Reasoning)',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '1M tokens',
-        'description': 'Default alias for Gemini 3.8 Flash in Antigravity with balanced reasoning.',
+        'description': 'Google DeepMind Gemini 3.8 Flash tiered in Antigravity.',
         'id': 'agy-gemini-3-8-flash',
         'locked': False,
-        'name': 'Gemini 3.8 Flash',
+        'name': 'Gemini 3.8 Flash (AGY)',
         'provider': 'antigravity'
     },
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '1M tokens',
-        'description': 'Google DeepMind Gemini 3.7 Flash in Antigravity with deep high-budget reasoning.',
-        'id': 'agy-gemini-3-7-flash-high',
+        'description': 'Google DeepMind Gemini 3 Flash Agent in Antigravity.',
+        'id': 'agy-gemini-3-flash-agent',
         'locked': False,
-        'name': 'Gemini 3.7 Flash (High Reasoning)',
+        'name': 'Gemini 3 Flash Agent (AGY)',
         'provider': 'antigravity'
     },
     {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
         'context': '1M tokens',
-        'description': 'Balanced Google DeepMind Gemini 3.7 Flash in Antigravity with medium reasoning.',
-        'id': 'agy-gemini-3-7-flash-medium',
+        'description': 'Google DeepMind Gemini 3.5 Flash Low Reasoning in Antigravity.',
+        'id': 'agy-gemini-3-5-flash-low',
         'locked': False,
-        'name': 'Gemini 3.7 Flash (Medium Reasoning)',
+        'name': 'Gemini 3.5 Flash Low (AGY)',
         'provider': 'antigravity'
     },
     {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
         'context': '1M tokens',
-        'description': 'Rapid Google DeepMind Gemini 3.7 Flash in Antigravity with low reasoning.',
-        'id': 'agy-gemini-3-7-flash-low',
+        'description': 'Google DeepMind Gemini 3.5 Flash Extra Low Reasoning in Antigravity.',
+        'id': 'agy-gemini-3-5-flash-extra-low',
         'locked': False,
-        'name': 'Gemini 3.7 Flash (Low Reasoning)',
+        'name': 'Gemini 3.5 Flash Extra-Low (AGY)',
         'provider': 'antigravity'
     },
     {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
+        'capabilities': ['chat', 'code', 'streaming'],
         'context': '1M tokens',
-        'description': 'Default alias for Gemini 3.7 Flash in Antigravity with balanced reasoning.',
-        'id': 'agy-gemini-3-7-flash',
+        'description': 'Google DeepMind Gemini 3.5 Flash-Lite in Antigravity.',
+        'id': 'agy-gemini-3-5-flash-lite',
         'locked': False,
-        'name': 'Gemini 3.7 Flash',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '1M tokens',
-        'description': 'Google DeepMind Gemini 3.6 Flash in Antigravity with deep high reasoning.',
-        'id': 'agy-gemini-3-6-flash-high',
-        'locked': False,
-        'name': 'Gemini 3.6 Flash (High Reasoning)',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '1M tokens',
-        'description': 'Balanced Google DeepMind Gemini 3.6 Flash in Antigravity with medium reasoning.',
-        'id': 'agy-gemini-3-6-flash-medium',
-        'locked': False,
-        'name': 'Gemini 3.6 Flash (Medium Reasoning)',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '1M tokens',
-        'description': 'Rapid Google DeepMind Gemini 3.6 Flash in Antigravity with low reasoning.',
-        'id': 'agy-gemini-3-6-flash-low',
-        'locked': False,
-        'name': 'Gemini 3.6 Flash (Low Reasoning)',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '1M tokens',
-        'description': 'Default alias for Gemini 3.6 Flash in Antigravity with balanced reasoning.',
-        'id': 'agy-gemini-3-6-flash',
-        'locked': False,
-        'name': 'Gemini 3.6 Flash',
+        'name': 'Gemini 3.5 Flash-Lite (AGY)',
         'provider': 'antigravity'
     },
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '2M tokens',
-        'description': 'Flagship Google DeepMind Gemini 3.1 Pro in Antigravity with deep reasoning.',
-        'id': 'agy-gemini-3-1-pro-high',
+        'description': 'Google DeepMind Gemini 2.5 Pro long-context model in Antigravity.',
+        'id': 'agy-gemini-2-5-pro',
         'locked': False,
-        'name': 'Gemini 3.1 Pro (High Reasoning)',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '2M tokens',
-        'description': 'Fast Google DeepMind Gemini 3.1 Pro in Antigravity with low reasoning budget.',
-        'id': 'agy-gemini-3-1-pro-low',
-        'locked': False,
-        'name': 'Gemini 3.1 Pro (Low Reasoning)',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
-        'context': '2M tokens',
-        'description': 'Default alias for Gemini 3.1 Pro in Antigravity.',
-        'id': 'agy-gemini-3-1-pro',
-        'locked': False,
-        'name': 'Gemini 3.1 Pro',
+        'name': 'Gemini 2.5 Pro (AGY)',
         'provider': 'antigravity'
     },
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
         'context': '128K tokens',
-        'description': 'Open-weights 120B parameter reasoning model in Antigravity with medium reasoning.',
+        'description': 'Open-weights 120B parameter reasoning model in Antigravity.',
         'id': 'agy-gpt-oss-120b-medium',
         'locked': False,
-        'name': 'GPT-OSS 120B (Medium Reasoning)',
-        'provider': 'antigravity'
-    },
-    {
-        'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
-        'context': '128K tokens',
-        'description': 'Default alias for GPT-OSS 120B in Antigravity.',
-        'id': 'agy-gpt-oss-120b',
-        'locked': False,
-        'name': 'GPT-OSS 120B',
+        'name': 'GPT-OSS 120B (Medium)',
         'provider': 'antigravity'
     },
     {
@@ -885,15 +756,7 @@ MODELS_CATALOG = [
         'name': 'Qwen 3.8 Max',
         'provider': 'qwen'
     },
-    {
-        'capabilities': ['chat', 'vision', 'audio', 'streaming'],
-        'context': '256K tokens',
-        'description': 'Ultra-low-latency real-time native omnimodal vision, audio, and speech model.',
-        'id': 'qwen3.8-omni-flash',
-        'locked': False,
-        'name': 'Qwen 3.8 Omni Flash',
-        'provider': 'qwen'
-    },
+
     {
         'capabilities': ['chat', 'reasoning', 'code', 'streaming', 'vision'],
         'context': '1M tokens',
@@ -1128,258 +991,186 @@ MODELS_CATALOG = [
         'name': 'DeepSeek-V4.1',
         'provider': 'deepseek'
     },
-    {   'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
+    # -------------------------------------------------------------------
+    # Google Gemini Web (Direct WebChannel Frontier & Multi-Tier Reasoning)
+    # -------------------------------------------------------------------
+    # Gemini 4 Argon (Mode 5, Complex Tasks Frontier)
+    # Gemini 4 Argon (Mode 5, Complex Tasks Frontier)
+    {
+        'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
         'context': '1M tokens',
-        'description': 'Google DeepMind flagship frontier reasoning model with 1M unified context and long decodes.',
-        'id': 'gemini-4-argon',
+        'description': 'Google DeepMind Gemini 4 Argon with High Thinking (extra thorough deep reasoning).',
+        'id': 'gemini-4-argon-high',
         'locked': False,
-        'name': 'Gemini 4 Argon',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
+        'name': 'Gemini 4 Argon (High)',
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
         'context': '1M tokens',
-        'description': 'Frontier reasoning scratchpad with visible chain-of-thought traces (~20k+ chars).',
-        'id': 'gemini-4-argon-thinking',
+        'description': 'Google DeepMind Gemini 4 Argon with Medium Thinking (balanced depth reasoning).',
+        'id': 'gemini-4-argon-medium',
         'locked': False,
-        'name': 'Gemini 4 Argon Thinking',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
+        'name': 'Gemini 4 Argon (Medium)',
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
         'context': '1M tokens',
-        'description': 'Frontier Pro intelligence tier with extended reasoning for massive codebases and deep analysis.',
-        'id': 'gemini-4-pro',
+        'description': 'Google DeepMind Gemini 4 Argon with Low Thinking (quick and efficient reasoning).',
+        'id': 'gemini-4-argon-low',
         'locked': False,
-        'name': 'Gemini 4 Pro',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'High-throughput Gemini 4 frontier model with ultra-fast latency.',
-        'id': 'gemini-4-flash',
-        'locked': False,
-        'name': 'Gemini 4 Flash',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'General alias for Google Gemini 4 Argon frontier model.',
-        'id': 'gemini-4',
-        'locked': False,
-        'name': 'Gemini 4',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Ultra-fast flagship model with multimodal vision and low latency.',
-        'id': 'gemini-3.8-flash',
-        'locked': False,
-        'name': 'Gemini 3.8 Flash',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Explicit chain-of-thought reasoning scratchpad (~20k chars).',
-        'id': 'gemini-3.8-flash-thinking',
-        'locked': False,
-        'name': 'Gemini 3.8 Flash Thinking',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'High-throughput frontier model with balanced reasoning and speed.',
-        'id': 'gemini-3.7-flash',
-        'locked': False,
-        'name': 'Gemini 3.7 Flash',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Frontier reasoning scratchpad with visible thinking tokens.',
-        'id': 'gemini-3.7-flash-thinking',
-        'locked': False,
-        'name': 'Gemini 3.7 Flash Thinking',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Low-latency responsive conversational and coding agent.',
-        'id': 'gemini-3.6-flash',
-        'locked': False,
-        'name': 'Gemini 3.6 Flash',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Thinking reasoning mode with intermediate reasoning traces.',
-        'id': 'gemini-3.6-flash-thinking',
-        'locked': False,
-        'name': 'Gemini 3.6 Flash Thinking',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Versatile high-speed model for everyday tasks and automation.',
-        'id': 'gemini-3.5-flash',
-        'locked': False,
-        'name': 'Gemini 3.5 Flash',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Deep reasoning mode with structured reasoning process.',
-        'id': 'gemini-3.5-flash-thinking',
-        'locked': False,
-        'name': 'Gemini 3.5 Flash Thinking',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'code', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Lightweight ultra-fast model optimized for maximum throughput.',
-        'id': 'gemini-3.5-flash-lite',
-        'locked': False,
-        'name': 'Gemini 3.5 Flash Lite',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'reasoning', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Ultra-efficient reasoning mode for fast structured deductions.',
-        'id': 'gemini-3.5-flash-lite-thinking',
-        'locked': False,
-        'name': 'Gemini 3.5 Flash Lite Thinking',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Ultra-low latency model for high-frequency queries.',
-        'id': 'gemini-flash-lite',
-        'locked': False,
-        'name': 'Gemini Flash Lite',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'reasoning', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Lightweight reasoning mode for fast logic verification.',
-        'id': 'gemini-flash-lite-thinking',
-        'locked': False,
-        'name': 'Gemini Flash Lite Thinking',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'reasoning', 'code', 'streaming'],
+        'name': 'Gemini 4 Argon (Low)',
+        'provider': 'gemini'
+    },
+    # Gemini 3.1 Pro (Mode 3, Advanced Reasoning)
+    {
+        'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
         'context': '2M tokens',
-        'description': 'Google flagship model for complex coding, mathematics, and agentic workflows.',
-        'id': 'gemini-3.1-pro',
+        'description': 'Google Gemini 3.1 Pro with High Thinking (extra thorough deep reasoning).',
+        'id': 'gemini-3.1-pro-high',
         'locked': False,
-        'name': 'Gemini 3.1 Pro',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
+        'name': 'Gemini 3.1 Pro (High)',
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
         'context': '2M tokens',
-        'description': 'Deep reasoning mode (~20k chars scratchpad).',
-        'id': 'gemini-3.1-pro-thinking',
+        'description': 'Google Gemini 3.1 Pro with Medium Thinking (balanced depth reasoning).',
+        'id': 'gemini-3.1-pro-medium',
         'locked': False,
-        'name': 'Gemini 3.1 Pro Thinking',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'code', 'streaming'],
+        'name': 'Gemini 3.1 Pro (Medium)',
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
         'context': '2M tokens',
-        'description': 'Pro with expanded context decoding and experimental features.',
-        'id': 'gemini-3.1-pro-enhanced',
+        'description': 'Google Gemini 3.1 Pro with Low Thinking (quick and efficient reasoning).',
+        'id': 'gemini-3.1-pro-low',
         'locked': False,
-        'name': 'Gemini 3.1 Pro Enhanced',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'code', 'streaming'],
+        'name': 'Gemini 3.1 Pro (Low)',
+        'provider': 'gemini'
+    },
+    # Gemini 3.8 Flash (Mode 1, All-Around Help & Fast Response)
+    {
+        'capabilities': ['chat', 'reasoning', 'vision', 'code', 'streaming'],
         'context': '1M tokens',
-        'description': 'Automatic model selection based on prompt complexity.',
-        'id': 'gemini-auto',
+        'description': 'Google Gemini 3.8 Flash with High Thinking (extended reasoning scratchpad).',
+        'id': 'gemini-3.8-flash-high',
         'locked': False,
-        'name': 'Gemini Auto Router',
-        'provider': 'gemini'},
-    {   'capabilities': ['image'],
+        'name': 'Gemini 3.8 Flash (High)',
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['chat', 'vision', 'code', 'streaming'],
+        'context': '1M tokens',
+        'description': 'Google Gemini 3.8 Flash with Medium Thinking (balanced speed and reasoning).',
+        'id': 'gemini-3.8-flash-medium',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash (Medium)',
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['chat', 'vision', 'code', 'streaming'],
+        'context': '1M tokens',
+        'description': 'Google Gemini 3.8 Flash with Low Thinking (fastest turnaround).',
+        'id': 'gemini-3.8-flash-low',
+        'locked': False,
+        'name': 'Gemini 3.8 Flash (Low)',
+        'provider': 'gemini'
+    },
+    # Gemini 3.5 Flash-Lite (Mode 6, Fastest Answers & High Throughput)
+    {
+        'capabilities': ['chat', 'reasoning', 'streaming'],
+        'context': '1M tokens',
+        'description': 'Google Gemini 3.5 Flash-Lite with High Thinking (deep reasoning for lightweight model).',
+        'id': 'gemini-3.5-flash-lite-high',
+        'locked': False,
+        'name': 'Gemini 3.5 Flash-Lite (High)',
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['chat', 'code', 'streaming'],
+        'context': '1M tokens',
+        'description': 'Google Gemini 3.5 Flash-Lite with Medium Thinking (balanced lightweight reasoning).',
+        'id': 'gemini-3.5-flash-lite-medium',
+        'locked': False,
+        'name': 'Gemini 3.5 Flash-Lite (Medium)',
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['chat', 'code', 'streaming'],
+        'context': '1M tokens',
+        'description': 'Google Gemini 3.5 Flash-Lite with Low Thinking (instant answers).',
+        'id': 'gemini-3.5-flash-lite-low',
+        'locked': False,
+        'name': 'Gemini 3.5 Flash-Lite (Low)',
+        'provider': 'gemini'
+    },
+    # Image & Video Generation Models
+    {
+        'capabilities': ['image'],
         'context': 'Prompt',
         'description': 'Gemini 3.1 Flash Image - State-of-the-art fast image generation & editing.',
         'id': 'nano-banana-2',
         'locked': False,
         'name': 'Nano Banana 2',
-        'provider': 'gemini'},
-    {   'capabilities': ['image'],
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['image'],
         'context': 'Prompt',
         'description': 'Gemini 3 Pro Image / Imagen 3 - High-fidelity reasoning & photorealistic generation.',
         'id': 'nano-banana-pro',
         'locked': False,
         'name': 'Nano Banana Pro',
-        'provider': 'gemini'},
-    {   'capabilities': ['image'],
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['image'],
         'context': 'Prompt',
         'description': 'Gemini 3.1 Flash-Lite Image - Rapid lightweight image model.',
         'id': 'nano-banana-2-lite',
         'locked': False,
         'name': 'Nano Banana 2 Lite',
-        'provider': 'gemini'},
-    {   'capabilities': ['image'],
-        'context': 'Prompt',
-        'description': 'Gemini 2.5 Flash Image - Original viral image generator & editor.',
-        'id': 'nano-banana',
-        'locked': False,
-        'name': 'Nano Banana',
-        'provider': 'gemini'},
-    {   'capabilities': ['image'],
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['image'],
         'context': 'Prompt',
         'description': 'State-of-the-art photorealistic image generation from Gemini prompt.',
         'id': 'imagen-4.0-generate-proto',
         'locked': False,
         'name': 'Imagen 4.0 Image Gen',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'audio', 'video', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Google DeepMind native any-to-any multimodal model for conversational video editing and generative media.',
-        'id': 'gemini-omni-flash',
-        'locked': False,
-        'name': 'Gemini Omni Flash',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'audio', 'video', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Google Omni 1.1 Flash preview with synchronized multimodal generation and rapid response latency.',
-        'id': 'gemini-omni-1.1-flash',
-        'locked': False,
-        'name': 'Gemini Omni 1.1 Flash',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'audio', 'video', 'reasoning', 'streaming'],
-        'context': '2M tokens',
-        'description': 'High-capacity frontier multimodal model for complex conversational video direction and deep audio-visual reasoning.',
-        'id': 'gemini-omni-pro',
-        'locked': False,
-        'name': 'Gemini Omni Pro',
-        'provider': 'gemini'},
-    {   'capabilities': ['chat', 'vision', 'audio', 'video', 'streaming'],
-        'context': '1M tokens',
-        'description': 'Direct canonical alias for Google DeepMind Gemini Omni multimodal generative engine.',
-        'id': 'google-omni',
-        'locked': False,
-        'name': 'Google Omni',
-        'provider': 'gemini'},
-    {   'capabilities': ['video', 'audio'],
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['video', 'audio'],
         'context': 'Prompt & Reference',
-        'description': 'Google DeepMind frontier cinematic video model with native synchronized audio, character consistency, and 4K output.',
+        'description': 'Google DeepMind frontier cinematic video model with native synchronized audio and 4K output.',
         'id': 'veo-3.1-generate-preview',
         'locked': False,
         'name': 'Google Veo 3.1',
-        'provider': 'gemini'},
-    {   'capabilities': ['video', 'audio'],
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['video', 'audio'],
         'context': 'Prompt & Reference',
-        'description': 'Low-latency optimized variant of Veo 3.1 for high-speed creative iteration and rapid video generation.',
+        'description': 'Low-latency optimized variant of Veo 3.1 for high-speed creative iteration.',
         'id': 'veo-3.1-fast-generate-preview',
         'locked': False,
         'name': 'Google Veo 3.1 Fast',
-        'provider': 'gemini'},
-    {   'capabilities': ['video'],
-        'context': 'Prompt',
-        'description': 'High-efficiency lightweight video generation model with fast turnaround.',
-        'id': 'veo-3.1-lite',
-        'locked': False,
-        'name': 'Google Veo 3.1 Lite',
-        'provider': 'gemini'},
-    {   'capabilities': ['video'],
-        'context': 'Prompt',
-        'description': 'High-fidelity 1080p generative video model with scene control.',
-        'id': 'veo-3.0',
-        'locked': False,
-        'name': 'Google Veo 3.0',
-        'provider': 'gemini'},
-    {   'capabilities': ['video'],
+        'provider': 'gemini'
+    },
+    {
+        'capabilities': ['video'],
         'context': 'Prompt',
         'description': 'Baseline high-definition text-to-video and image-to-video foundation model.',
         'id': 'veo-2.0-generate-001',
         'locked': False,
         'name': 'Google Veo 2.0',
-        'provider': 'gemini'},
-    {   'capabilities': ['video'],
-        'context': 'Prompt',
-        'description': 'Concise alias for Google Veo 2.0 video generation engine.',
-        'id': 'veo-2',
-        'locked': False,
-        'name': 'Google Veo 2',
-        'provider': 'gemini'},
+        'provider': 'gemini'
+    },
     {   'capabilities': ['chat', 'reasoning', 'code', 'vision'],
         'context': '200k tokens',
         'description': 'Anthropic frontier flagship with next-level cognitive depth and autonomous reasoning.',
@@ -1548,149 +1339,6 @@ MODELS_CATALOG = [
         'name': 'Claude 3 Opus Thinking (Pro)',
         'provider': 'claude',
         'reason': 'Requires Claude Pro subscription cookie'},
-    {   'capabilities': ['chat', 'reasoning', 'vision', 'web'],
-        'context': '128k tokens',
-        'description': 'Dynamically selects optimal model based on query complexity.',
-        'id': 'auto',
-        'locked': False,
-        'name': 'ChatGPT Auto Router',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['chat', 'reasoning', 'code'],
-        'context': '128k tokens',
-        'description': 'Frontier multi-modal intelligence model.',
-        'id': 'gpt-5-6',
-        'locked': False,
-        'name': 'GPT-5.6',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['chat', 'reasoning', 'code', 'streaming'],
-        'context': '128k tokens',
-        'description': 'Next-gen compact reasoning model with high throughput.',
-        'id': 'gpt-5-6-mini',
-        'locked': False,
-        'name': 'GPT-5.6 Mini',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['chat', 'web', 'streaming'],
-        'context': '128k tokens',
-        'description': 'Fast conversational model with web search.',
-        'id': 'gpt-5-3-mini',
-        'locked': False,
-        'name': 'GPT-5.3 Mini',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['chat', 'code', 'streaming'],
-        'context': '128k tokens',
-        'description': 'High efficiency turbo model for rapid interactions.',
-        'id': 'gpt-5-4-t-mini',
-        'locked': False,
-        'name': 'GPT-5.4 Turbo Mini',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['chat', 'reasoning', 'code'],
-        'context': '128k tokens',
-        'description': 'Next-gen foundational model for reasoning and coding.',
-        'id': 'gpt-5-5',
-        'locked': False,
-        'name': 'GPT-5.5',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['chat', 'streaming'],
-        'context': '128k tokens',
-        'description': 'Compact version of GPT-5.5 for high throughput.',
-        'id': 'gpt-5-5-mini',
-        'locked': False,
-        'name': 'GPT-5.5 Mini',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['chat', 'streaming'],
-        'context': '128k tokens',
-        'description': 'Accelerated lightweight GPT-5.6.',
-        'id': 'gpt-5-6-t-mini',
-        'locked': False,
-        'name': 'GPT-5.6 Turbo Mini',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['math', 'code', 'reasoning'],
-        'context': '128k tokens',
-        'description': 'Breakthrough analytical, mathematical, and logic model.',
-        'id': 'gpt-5.6-sol',
-        'locked': False,
-        'name': 'GPT-5.6 Sol',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['web', 'code', 'chat'],
-        'context': '128k tokens',
-        'description': 'Web-augmented factual question answering and live data lookup.',
-        'id': 'gpt-5.6-terra',
-        'locked': False,
-        'name': 'GPT-5.6 Terra',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['chat', 'creative'],
-        'context': '128k tokens',
-        'description': 'Fluid prose, persona generation, and interactive fiction.',
-        'id': 'gpt-5.6-luna',
-        'locked': False,
-        'name': 'GPT-5.6 Luna',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['vision', 'chat'],
-        'context': '128k tokens',
-        'description': 'High-fidelity image comprehension and diagram parsing.',
-        'id': 'sunburst',
-        'locked': False,
-        'name': 'Sunburst Multimodal',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['chat', 'reasoning', 'fast'],
-        'context': '128k tokens',
-        'description': 'Fast execution agent with real-time reasoning and tool use.',
-        'id': 'flare',
-        'locked': False,
-        'name': 'OpenAI Flare Agent',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['reasoning', 'web', 'research'],
-        'context': '256k tokens',
-        'description': 'Autonomous agentic multi-hop web research.',
-        'id': 'research',
-        'locked': False,
-        'name': 'OpenAI Deep Research',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['image'],
-        'context': 'Prompt',
-        'description': 'Accelerated photorealistic image generation with low latency.',
-        'id': 'gpt-image-2.5-flare',
-        'locked': False,
-        'name': 'GPT Image 2.5 Flare',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['image'],
-        'context': 'Prompt',
-        'description': 'High-fidelity artistic rendering & diagram generation.',
-        'id': 'gpt-image-2.5-sunburst',
-        'locked': False,
-        'name': 'GPT Image 2.5 Sunburst',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['image'],
-        'context': 'Prompt',
-        'description': 'Conversational image generation model.',
-        'id': 'gpt-image-2',
-        'locked': False,
-        'name': 'GPT Image 2',
-        'provider': 'chatgpt'},
-    {   'capabilities': ['reasoning', 'code', 'chat'],
-        'context': '128k tokens',
-        'description': 'GPT-6 Astra frontier autonomous multi-domain reasoning.',
-        'id': 'gpt-6-astra',
-        'locked': True,
-        'name': 'GPT-6 Astra',
-        'provider': 'chatgpt',
-        'reason': 'Requires ChatGPT Plus / Team / Pro account in Stacker'},
-    {   'capabilities': ['chat', 'reasoning', 'vision', 'code'],
-        'context': '256k tokens',
-        'description': 'Full-parameter flagship model reserved for ChatGPT Plus/Team accounts.',
-        'id': 'gpt-5-6-full',
-        'locked': True,
-        'name': 'GPT-5.6 Full (Plus Tier)',
-        'provider': 'chatgpt',
-        'reason': 'Requires ChatGPT Plus / Team active session in Stacker'},
-    {   'capabilities': ['reasoning', 'math', 'code'],
-        'context': '128k tokens',
-        'description': 'Deep multi-step reasoning model.',
-        'id': 'o1',
-        'locked': True,
-        'name': 'OpenAI o1 Reasoning (Plus)',
-        'provider': 'chatgpt',
-        'reason': 'Requires ChatGPT Plus / Team active session in Stacker'},
     {   'capabilities': ['chat', 'web', 'streaming'],
         'context': '200k tokens',
         'description': 'Long-context leader with web retrieval and advanced instruction following.',
@@ -2512,89 +2160,18 @@ MODELS_CATALOG = [
         'id': 'glm-image-1',
         'locked': False,
         'name': 'GLM Image 1',
-        'provider': 'glm'},
-    {   'capabilities': ['chat', 'streaming'],
-        'context': '128k tokens',
-        'description': 'xAI frontier conversational intelligence with truth-seeking alignment.',
-        'id': 'grok-3',
-        'locked': False,
-        'name': 'Grok 3',
-        'provider': 'grok'},
-    {   'capabilities': ['chat', 'reasoning', 'streaming'],
-        'context': '128k tokens',
-        'description': 'Deep real-time thinking trace before answering.',
-        'id': 'grok-3-thinking',
-        'locked': False,
-        'name': 'Grok 3 Thinking',
-        'provider': 'grok'},
-    {   'capabilities': ['chat', 'web', 'research'],
-        'context': '128k tokens',
-        'description': 'Autonomous xAI real-time web & X post deep search.',
-        'id': 'grok-3-deepsearch',
-        'locked': False,
-        'name': 'Grok 3 DeepSearch',
-        'provider': 'grok'},
-    {   'capabilities': ['chat', 'streaming', 'fast'],
-        'context': '64k tokens',
-        'description': 'Sub-second responses with 30 queries daily quota.',
-        'id': 'fast',
-        'locked': False,
-        'name': 'Grok Fast Mode',
-        'provider': 'grok'},
-    {   'capabilities': ['chat', 'streaming'],
-        'context': '128k tokens',
-        'description': 'Dynamically picks fast or heavy mode based on prompt.',
-        'id': 'auto',
-        'locked': False,
-        'name': 'Grok Auto Router',
-        'provider': 'grok'},
-    {   'capabilities': ['chat', 'reasoning', 'streaming'],
-        'context': '128k tokens',
-        'description': 'Max compute inference with 20 queries / 2-hour rolling window.',
-        'id': 'heavy',
-        'locked': False,
-        'name': 'Grok Heavy Mode',
-        'provider': 'grok'},
-    {   'capabilities': ['image', 'video'],
-        'context': 'Prompt',
-        'description': 'Aurora photorealistic image & 720p video generator.',
-        'id': 'grok-imagine-1.5',
-        'locked': False,
-        'name': 'Grok Imagine Pro & Video',
-        'provider': 'grok'},
-    {   'capabilities': ['chat', 'reasoning'],
-        'context': '256k tokens',
-        'description': 'Next-gen architecture preview requiring SuperGrok subscription.',
-        'id': 'grok-4',
-        'locked': True,
-        'name': 'Grok 4 (Premium Preview)',
-        'provider': 'grok',
-        'reason': 'Requires SuperGrok or X Premium+ membership'}]
+        'provider': 'glm'}]
 
 
 def check_account_tiers() -> Dict[str, bool]:
     """Check what account tiers and capabilities are available based on stacked credentials."""
     tiers = {
-        "chatgpt_plus": False,
         "claude_pro": False,
-        "grok_premium": False,
         "gemini_breakthrough": True,
         "sol_breakthrough": True,
     }
 
-    # 1. Check ChatGPT accounts from SQLite DB
-    try:
-        for acc in db.get_accounts("chatgpt"):
-            plan = str(acc.get("plan") or "").strip().lower()
-            meta = acc.get("metadata", {})
-            meta_plan = str(meta.get("plan") or meta.get("type") or "").strip().lower()
-            if plan in ["plus", "team", "pro", "enterprise", "go"] or meta_plan in ["plus", "team", "pro", "enterprise", "go"]:
-                tiers["chatgpt_plus"] = True
-                break
-    except Exception:
-        pass
-
-    # 2. Check Claude accounts from SQLite DB
+    # 1. Check Claude accounts from SQLite DB
     try:
         for acc in db.get_accounts("claude"):
             plan = str(acc.get("plan") or "").strip().lower()
@@ -2608,15 +2185,11 @@ def check_account_tiers() -> Dict[str, bool]:
     except Exception:
         pass
 
-    # 3. Check Grok accounts from SQLite DB
+    # 2. Check Antigravity accounts (Google AI Pro plans include Claude Opus & Sonnet access)
     try:
-        for acc in db.get_accounts("grok"):
-            plan = str(acc.get("plan") or "").strip().lower()
-            token = str(acc.get("token") or "").lower()
-            name = str(acc.get("name") or "").lower()
-            if "supergrok" in plan or "premium" in plan or "supergrok" in token or "supergrok" in name:
-                tiers["grok_premium"] = True
-                break
+        agy_accs = db.get_accounts("antigravity")
+        if agy_accs:
+            tiers["claude_pro"] = True
     except Exception:
         pass
 
@@ -2634,48 +2207,18 @@ def get_dynamic_models_catalog() -> List[Dict[str, Any]]:
         mid = m["id"].lower()
         provider = m["provider"]
 
-        # ChatGPT dynamic rules
-        if provider == "chatgpt":
-            if mid in ["astra", "gpt-6-astra", "gpt-6", "gpt-5-6-full", "o1", "o3-mini"]:
-                if tiers["chatgpt_plus"]:
-                    m["locked"] = False
-                    m["reason"] = None
-                else:
-                    m["locked"] = True
-                    m["reason"] = "Requires ChatGPT Plus / Team / Pro account in Stacker"
-            elif mid in ["sol", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]:
-                # Breakthrough model: Sol works fully with no cookies or free accounts
+        # Claude dynamic rules (Antigravity plans provide full Claude Opus & Sonnet access)
+        if provider == "claude":
+            if tiers["claude_pro"] or "opus" in mid or "sonnet" in mid:
                 m["locked"] = False
                 m["reason"] = None
-            else:
-                m["locked"] = False
-                m["reason"] = None
-
-        # Claude dynamic rules
-        elif provider == "claude":
-            if "opus-5-5" in mid or "opus-5.5" in mid or "opus-55" in mid or "opus5.5" in mid:
-                m["locked"] = False
-                m["reason"] = None
-            elif "opus" in mid or "fable" in mid or "pro" in mid or "max" in mid:
+            elif "fable" in mid or "pro" in mid or "max" in mid:
                 if tiers["claude_pro"]:
                     m["locked"] = False
                     m["reason"] = None
                 else:
                     m["locked"] = True
-                    m["reason"] = "Requires Claude Pro / Max subscription sessionKey in Stacker"
-            else:
-                m["locked"] = False
-                m["reason"] = None
-
-        # Grok dynamic rules
-        elif provider == "grok":
-            if mid == "grok-4":
-                if tiers["grok_premium"]:
-                    m["locked"] = False
-                    m["reason"] = None
-                else:
-                    m["locked"] = True
-                    m["reason"] = "Requires SuperGrok or X Premium+ membership in Stacker"
+                    m["reason"] = "Requires Claude Pro / Max sessionKey or Antigravity Google AI Pro account"
             else:
                 m["locked"] = False
                 m["reason"] = None
@@ -3037,66 +2580,7 @@ def stop_all_services() -> Dict[str, Any]:
 
 
 _KIMI_QUOTA_CACHE: Dict[str, Any] = {"timestamp": 0.0, "data": {}}
-_GROK_QUOTA_CACHE: Dict[str, Any] = {"timestamp": 0.0, "data": {}}
 
-
-async def fetch_grok_account_quotas(account: Dict[str, Any]) -> Dict[str, Any]:
-    """Fetch authentic live quotas and rate limits from grok.com for a stacked account."""
-    token = account.get("token", "").strip()
-    ident = account.get("identifier") or account.get("name") or "Grok Account"
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
-        "Cookie": token,
-        "Referer": "https://grok.com/",
-        "Origin": "https://grok.com",
-        "Content-Type": "application/json",
-    }
-    
-    res: Dict[str, Any] = {
-        "account_uid": ident,
-        "rate_limits": {},
-        "imagine_quota": {},
-    }
-    
-    try:
-        async with httpx.AsyncClient(headers=headers, timeout=6.0) as client:
-            # 1. Real media imagine quota (Image Pro & Video 720p)
-            try:
-                im_resp = await client.post("https://grok.com/rest/media/imagine/quota_info", json={})
-                if im_resp.status_code == 200:
-                    res["imagine_quota"] = im_resp.json()
-            except Exception:
-                pass
-                
-            # 2. Real per-model rate limits (fast, auto, heavy, grok-3)
-            modes = ["fast", "auto", "heavy", "grok-3"]
-            tasks = [
-                client.post("https://grok.com/rest/rate-limits", json={"modelName": m})
-                for m in modes
-            ]
-            responses = await asyncio.gather(*tasks, return_exceptions=True)
-            for m, r in zip(modes, responses):
-                if not isinstance(r, Exception) and r.status_code == 200:
-                    res["rate_limits"][m] = r.json()
-    except Exception:
-        pass
-
-    # Ensure fallback if empty
-    if not res["imagine_quota"]:
-        res["imagine_quota"] = {
-            "imagePro": {"remainingQueries": 4, "windowSizeSeconds": 86400},
-            "video720p": {"remainingQueries": 1, "windowSizeSeconds": 86400},
-        }
-    if not res["rate_limits"]:
-        res["rate_limits"] = {
-            "fast": {"remainingQueries": 30, "totalQueries": 30, "windowSizeSeconds": 86400},
-            "auto": {"remainingQueries": 7, "totalQueries": 7, "windowSizeSeconds": 86400},
-            "heavy": {"remainingQueries": 20, "totalQueries": 20, "windowSizeSeconds": 7200},
-            "grok-3": {"remainingQueries": 30, "totalQueries": 30, "windowSizeSeconds": 86400},
-        }
-        
-    return res
 
 
 async def fetch_kimi_account_quotas(account: Dict[str, Any]) -> Dict[str, Any]:
@@ -3184,93 +2668,6 @@ async def fetch_kimi_account_quotas(account: Dict[str, Any]) -> Dict[str, Any]:
 async def get_all_limits() -> Dict[str, Any]:
     """Collect live limits and quotas across all 6 providers from SQLite DB and active daemons."""
     limits: Dict[str, Any] = {}
-
-    # 1. ChatGPT limits (derived from stacked accounts in SQLite DB)
-    chatgpt_accounts = db.get_accounts("chatgpt")
-    chatgpt_data = []
-    for acc in chatgpt_accounts:
-        plan = (acc.get("plan") or "free").upper()
-        meta = acc.get("metadata", {})
-        progress = meta.get("limits_progress", [])
-        features = {f.get("feature_name"): f.get("remaining") for f in progress} if isinstance(progress, list) else {}
-
-        is_pro = plan in ["PLUS", "TEAM", "PRO", "ENTERPRISE", "GO"]
-        default_quota = 120 if is_pro else 25
-
-        # Real reasoning query limits based on plan
-        if plan == "TEAM":
-            default_reason = "100 / 3 hrs"
-        elif is_pro:
-            default_reason = "50 / 3 hrs"
-        else:
-            default_reason = "10 / day"
-
-        # Real file upload limits based on plan
-        if plan in ["PRO", "ENTERPRISE"]:
-            default_upload = "Unlimited"
-        elif plan == "TEAM":
-            default_upload = "100 / 3 hrs"
-        elif is_pro:
-            default_upload = "80 / 3 hrs"
-        else:
-            default_upload = "3 / 3 hrs"
-
-        chatgpt_data.append({
-            "email": acc.get("identifier") or acc.get("name") or "ChatGPT Account",
-            "type": plan,
-            "status": "Normal" if acc.get("status") == "active" else "Disabled",
-            "image_quota": meta.get("quota", default_quota),
-            "reason_remaining": features.get("reason", default_reason),
-            "deep_research": features.get("deep_research", "25 / day" if is_pro else "5 / day"),
-            "file_upload": features.get("file_upload", default_upload),
-            "restore_at": meta.get("restore_at", "Active"),
-        })
-
-    limits["chatgpt"] = {
-        "title": "ChatGPT Account Quotas",
-        "accounts_count": len(chatgpt_data),
-        "accounts": chatgpt_data,
-    }
-
-    # 2. Grok quotas from grok.com live API, port 8087, or SQLite DB
-    grok_accounts = db.get_accounts("grok")
-    grok_meta = PROVIDERS_CONFIG["grok"]
-    grok_host = grok_meta.get("host", "127.0.0.1")
-    grok_limits = {}
-    
-    # Try port 8087 daemon first if active
-    try:
-        async with httpx.AsyncClient(timeout=1.5) as client:
-            resp = await client.get(f"http://{grok_host}:{grok_meta['port']}/api/quotas")
-            if resp.status_code == 200:
-                grok_limits = resp.json()
-    except Exception:
-        pass
-
-    # If daemon not listening, query grok.com live directly with stacked cookie
-    if not grok_limits and grok_accounts:
-        now_ts = time.time()
-        if now_ts - _GROK_QUOTA_CACHE.get("timestamp", 0) < 45.0 and _GROK_QUOTA_CACHE.get("data"):
-            grok_limits = _GROK_QUOTA_CACHE["data"]
-        else:
-            grok_limits = await fetch_grok_account_quotas(grok_accounts[0])
-            _GROK_QUOTA_CACHE["timestamp"] = now_ts
-            _GROK_QUOTA_CACHE["data"] = grok_limits
-
-    if not grok_limits:
-        has_grok = len(grok_accounts) > 0
-        grok_limits = {
-            "account_uid": grok_accounts[0]["identifier"] if has_grok else "No Account Integrated",
-            "rate_limits": {"grok-3": {"remainingQueries": 30, "totalQueries": 30, "windowSizeSeconds": 86400}} if has_grok else {},
-            "imagine_quota": {
-                "imagePro": {"remainingQueries": 20 * len(grok_accounts) if has_grok else 0},
-                "video720p": {"remainingQueries": 5 * len(grok_accounts) if has_grok else 0},
-            },
-        }
-    limits["grok"] = {
-        "title": "Grok / xAI Limits & Quotas",
-        "data": grok_limits,
-    }
 
     # 3. Kimi token and live membership/feature limits across stacked accounts
     kimi_accounts = db.get_accounts("kimi")
@@ -3363,7 +2760,7 @@ async def get_all_limits() -> Dict[str, Any]:
             "status": "Normal" if acc.get("status") == "active" else "Disabled",
             "image_quota": 1000 if is_adv else 30,
             "veo_video_quota": "20 / day" if is_adv else "2 / day",
-            "omni_multimodal": "Enabled (Flash/Pro)" if is_adv else "Preview (Flash)",
+            "multimodal": "Enabled (Argon/Pro/Flash)" if is_adv else "Enabled (Flash)",
             "reason_remaining": "High Rate (100+/hr)" if is_adv else "Standard (60/hr)",
             "deep_research": "20 / day" if is_adv else "0 / day",
             "file_upload": "100 / prompt" if is_adv else "10 / prompt",
@@ -3377,7 +2774,7 @@ async def get_all_limits() -> Dict[str, Any]:
             "status": "Normal",
             "image_quota": 30,
             "veo_video_quota": "2 / day",
-            "omni_multimodal": "Preview (Flash)",
+            "multimodal": "Enabled (Flash)",
             "reason_remaining": "Standard (60/hr)",
             "deep_research": "0 / day",
             "file_upload": "10 / prompt",
@@ -3647,9 +3044,7 @@ def get_stored_cookies() -> Dict[str, Any]:
         "gemini": ("cookie_string", "Google __Secure-1PSID Cookie"),
         "claude": ("session_key", "Claude sessionKey (sk-ant-sid02-...)"),
         "kimi": ("jwt_refresh", "Kimi Refresh Token (JWT)"),
-        "grok": ("cookie_string", "Grok SSO & x-userid"),
         "glm": ("token_lines", "GLM Refresh Tokens"),
-        "chatgpt": ("json_or_token", "ChatGPT Accounts"),
         "deepseek": ("token_or_json", "DeepSeek userToken or Login JSON"),
         "qwen": ("token_or_json", "Qwen Bearer Token or Session JSON"),
         "antigravity": ("oauth_token_or_json", "Google OAuth Credentials (JSON or Refresh Token)"),
@@ -3668,14 +3063,6 @@ def get_stored_cookies() -> Dict[str, Any]:
             # Never return full tokens to the browser: a short mask is enough to tell accounts apart.
             masked = f"{tok[:6]}…{tok[-4:]}" if len(tok) > 16 else "••••"
             entry = {"id": acc["id"], "masked": masked, "identifier": ident, "name": name}
-            if p == "chatgpt":
-                entry.update({
-                    "email": ident,
-                    "plan": acc["plan"],
-                    "status": "Active" if acc["status"] == "active" else "Disabled",
-                })
-            elif p == "grok":
-                entry["masked"] = f"{name} ({ident[:12]}...)"
             formatted.append(entry)
 
         result[p] = {

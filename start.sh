@@ -267,7 +267,7 @@ kill_port_listeners() {
 
 # Route CLI commands vs server launch
 case "$1" in
-    status|limits|accounts|login|autofetch|import|export|simulate|host|chat|thinking|service|tunnel|key|bench|update|upgrade|-h|--help)
+    status|limits|accounts|login|autofetch|import|export|simulate|host|chat|thinking|service|tunnel|claudecode|key|bench|update|upgrade|-h|--help)
         exec "$PYTHON_BIN" cli.py "$@"
         ;;
     restart|server|"")
@@ -279,90 +279,19 @@ case "$1" in
             shift
         fi
 
-        # Cleanly terminate any stale processes holding port 9000 or Tavern ports (5173, 3001)
+        # Cleanly terminate any stale processes holding port 9000
         GATEWAY_PORT="${PORT:-9000}"
         if [ "$IS_RESTART" = "1" ]; then
-            echo "  [🔄] Restarting Singularity (clearing ports $GATEWAY_PORT, 5173, 3001)..."
+            echo "  [🔄] Restarting Singularity (clearing port $GATEWAY_PORT)..."
         fi
-        kill_port_listeners "$GATEWAY_PORT" 5173 3001 3000
+        kill_port_listeners "$GATEWAY_PORT" 3000
         sleep 0.2
 
-        # Auto-launch Tavern Studio if TAV-TEST or TAVERN directory exists
-        TAVERN_DIR=""
-        if [ -d "$DIR/TAVERN" ] && [ -f "$DIR/TAVERN/package.json" ]; then
-            TAVERN_DIR="$DIR/TAVERN"
-        elif [ -d "$DIR/TAV-TEST" ] && [ -f "$DIR/TAV-TEST/package.json" ]; then
-            TAVERN_DIR="$DIR/TAV-TEST"
-        fi
-
-        TAVERN_PID=""
-        if [ -n "$TAVERN_DIR" ] && [ "${SINGULARITY_NO_TAVERN:-0}" != "1" ] && [ "$1" != "--no-tavern" ]; then
-            if ! (echo > /dev/tcp/127.0.0.1/5173) 2>/dev/null && ! nc -z 127.0.0.1 5173 2>/dev/null && ! nc -z 127.0.0.1 3001 2>/dev/null; then
-                (
-                    cd "$TAVERN_DIR"
-                    export PATH="$HOME/.bun/bin:$PATH"
-                    export NVM_DIR="$HOME/.nvm"
-                    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" && nvm use 24 >/dev/null 2>&1 || true
-                    for nvm_node in "$HOME/.nvm/versions/node"/v2[0-9]*/bin; do
-                        [ -d "$nvm_node" ] && export PATH="$nvm_node:$PATH"
-                    done
-                    [ -d "$HOME/.local/share/fnm/current/bin" ] && export PATH="$HOME/.local/share/fnm/current/bin:$PATH"
-                    # Tavern's API has no login: loopback only unless --lan was given.
-                    if [ "${SINGULARITY_LAN:-}" = "1" ]; then
-                        export API_HOST="0.0.0.0"
-                    else
-                        export API_HOST="127.0.0.1"
-                    fi
-                    unset RP_ALLOWED_ORIGINS
-
-                    # Check for node or bun
-                    RUNNER=""
-                    if command -v bun >/dev/null 2>&1; then
-                        RUNNER="bun"
-                    elif command -v npm >/dev/null 2>&1; then
-                        RUNNER="npm"
-                    fi
-
-                    if [ -n "$RUNNER" ]; then
-                        echo "  [🏰] Starting Tavern Studio natively alongside Singularity..."
-                        if [ ! -d "node_modules" ]; then
-                            echo "  [🏰] Installing Tavern dependencies (first-time setup)..."
-                            if [ "$RUNNER" = "bun" ]; then
-                                bun install >/dev/null 2>&1 || true
-                            else
-                                npm install --silent >/dev/null 2>&1 || true
-                            fi
-                        fi
-                        if [ "$RUNNER" = "bun" ]; then
-                            bun run dev >/dev/null 2>&1
-                        else
-                            npm run dev >/dev/null 2>&1
-                        fi
-                    else
-                        echo "  [!] Note: Node.js (v20+) or Bun is required to launch Tavern Studio."
-                        echo "      Install Node.js from https://nodejs.org or Bun from https://bun.sh"
-                    fi
-                ) &
-                TAVERN_PID=$!
-            else
-                echo "  [🏰] Tavern Studio is already running."
-            fi
-        fi
-
-        cleanup() {
-            if [ -n "$TAVERN_PID" ]; then
-                kill "$TAVERN_PID" 2>/dev/null || true
-            fi
-        }
-        trap cleanup INT TERM EXIT
-
         "$PYTHON_BIN" server.py "$@"
-        EXIT_CODE=$?
-        cleanup
-        exit $EXIT_CODE
+        exit $?
         ;;
     *)
-        kill_port_listeners "${PORT:-9000}" 5173 3001 3000
+        kill_port_listeners "${PORT:-9000}" 3000
         exec "$PYTHON_BIN" server.py "$@"
         ;;
 esac

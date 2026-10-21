@@ -30,19 +30,17 @@
 
   <link rel="stylesheet" href="/static/tokens.css?v=61" />
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css?v=1" />
-  <link rel="stylesheet" href="/static/style.css?v=89" />
+  <link rel="stylesheet" href="/static/style.css?v=109" />
   <link rel="stylesheet" href="/static/tool-steps.css?v=7" />
   <link rel="stylesheet" href="/static/message-controls.css?v=4" />
   <link rel="stylesheet" href="/static/chat-management.css?v=2" />
   <link rel="stylesheet" href="/static/chat-modes.css?v=7" />
   <link rel="stylesheet" href="/static/presets.css?v=10" />
-  <link rel="stylesheet" href="/static/glass-dock.css?v=70" />
+  <link rel="stylesheet" href="/static/glass-dock.css?v=82" />
   <link rel="stylesheet" href="/static/preloader.css?v=2" />
-  <link rel="stylesheet" href="/static/janitor-bio.css?v=7" />
-  <link rel="stylesheet" href="/static/janitor-canvas.css?v=9" />
   <link rel="stylesheet" href="/static/updates.css?v=2" />
-  <link rel="stylesheet" href="/static/connect.css?v=38" />
   <link rel="stylesheet" href="/static/login-portal.css?v=2" />
+  <link rel="stylesheet" href="/static/claude-desktop.css?v=1" />
 
   <!-- Voice Conversation Mode Styles (Immune to cache) -->
   <style id="voice-mode-direct-styles">
@@ -672,30 +670,37 @@
 
       <header class="top-bar">
         <div class="page-meta">
+          <button type="button" class="control-mobile-sidebar-btn" id="btn-control-mobile-sidebar" aria-label="Open Navigation">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
           <h1 id="page-heading">Control Center</h1>
           <p id="page-subheading"></p>
         </div>
 
         <div class="top-bar-actions" id="top-actions">
-          <button class="btn btn-secondary" id="btn-refresh-telemetry">
+          <button class="btn btn-secondary" id="btn-refresh-telemetry" aria-label="Refresh Telemetry">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="23 4 23 10 17 10"></polyline>
               <polyline points="1 20 1 14 7 14"></polyline>
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
             </svg>
-            Refresh
+            <span class="btn-text">Refresh</span>
           </button>
-          <button class="btn btn-primary" id="btn-start-all">
+          <button class="btn btn-primary" id="btn-start-all" aria-label="Start All Providers">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
-            Start All
+            <span class="btn-text">Start All</span>
           </button>
-          <button class="btn btn-danger" id="btn-stop-all">
+          <button class="btn btn-danger" id="btn-stop-all" aria-label="Stop All Providers">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
             </svg>
-            Stop All
+            <span class="btn-text">Stop All</span>
           </button>
         </div>
       </header>
@@ -705,10 +710,16 @@
         <div class="tab-pane" id="pane-control">
           <div class="gateway-hero">
             <div class="gateway-hero-header">
-              <div>
-                <h3 style="font-size: 18px; font-weight: 700;">Universal API Base URL</h3>
+              <div class="gateway-title-group">
+                <h3 class="gateway-hero-title">Universal API Base URL</h3>
               </div>
-              <button class="btn btn-secondary btn-sm" id="btn-copy-url">Copy Endpoint</button>
+              <button class="btn btn-secondary btn-sm" id="btn-copy-url" aria-label="Copy API Base Endpoint">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>Copy Endpoint</span>
+              </button>
             </div>
             <div class="endpoint-copy-row">
               <span class="endpoint-text" id="gateway-url-text">http://localhost:9000/v1</span>
@@ -718,39 +729,12 @@
                 SillyTavern: <code>/chat/completions</code>
               </div>
               <div class="client-chip">API Key: <code>sk-singularity-local</code> (or any)</div>
-              <div class="client-chip clickable-chip" id="chip-tavern-studio" title="Click to launch or open Tavern Web Studio" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); color: #d8b4fe; font-weight: 600;">
-                🏰 Tavern Web Studio: <code id="tavern-chip-url">:5173</code>
-              </div>
-            </div>
-
-            <!-- Mobile-only Control Center Action Buttons -->
-            <div class="mobile-fleet-actions">
-              <button class="btn btn-secondary btn-sm" id="btn-refresh-telemetry-mobile">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="23 4 23 10 17 10"></polyline>
-                  <polyline points="1 20 1 14 7 14"></polyline>
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                </svg>
-                Refresh
-              </button>
-              <button class="btn btn-primary btn-sm" id="btn-start-all-mobile">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
-                Start All
-              </button>
-              <button class="btn btn-danger btn-sm" id="btn-stop-all-mobile">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                </svg>
-                Stop All
-              </button>
             </div>
           </div>
 
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px;">
-            <h3 style="font-size: 16px; font-weight: 700;">Provider Daemon Fleet</h3>
-            <span style="font-size: 12px; color: var(--text-muted);">Auto-refreshes every 3 seconds</span>
+          <div class="fleet-section-header">
+            <h3 class="fleet-section-title">Provider Daemon Fleet</h3>
+            <span class="fleet-refresh-hint">Auto-refreshes every 5 seconds</span>
           </div>
 
           <div class="provider-grid" id="providers-container">
@@ -758,34 +742,67 @@
           </div>
         </div>
 
-        <!-- 2. LIMITS & QUOTAS TAB -->
-        <div class="tab-pane" id="pane-limits">
-          <div class="limits-container" id="limits-container">
-            <!-- Rendered dynamically by app.js -->
-          </div>
-        </div>
-
         <!-- 3. AVAILABLE MODELS TAB -->
         <div class="tab-pane" id="pane-models">
           <div class="catalog-toolbar">
-            <div class="filter-pills" id="model-filter-pills">
-              <button class="filter-btn active" data-filter="all">All Models</button>
-              <button class="filter-btn" data-filter="unlocked">Unlocked</button>
-              <button class="filter-btn" data-filter="locked">Locked</button>
-              <button class="filter-btn" data-filter="chatgpt">ChatGPT</button>
-              <button class="filter-btn" data-filter="claude">Claude</button>
-              <button class="filter-btn" data-filter="gemini">Gemini</button>
-              <button class="filter-btn" data-filter="kimi">Kimi</button>
-              <button class="filter-btn" data-filter="glm">GLM</button>
-              <button class="filter-btn" data-filter="grok">Grok</button>
-              <button class="filter-btn" data-filter="deepseek">DeepSeek</button>
-              <button class="filter-btn" data-filter="qwen">Qwen</button>
-              <button class="filter-btn" data-filter="antigravity">Antigravity</button>
-              <button class="filter-btn" data-filter="mimo">Xiaomi MiMo</button>
-              <button class="filter-btn" data-filter="external">API connections</button>
+            <div class="catalog-toolbar-inner">
+              <!-- Mobile Sidebar Trigger Button (Phone Only) -->
+              <button type="button" class="models-mobile-sidebar-btn" id="btn-models-mobile-sidebar" aria-label="Open Navigation">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <line x1="4" y1="7" x2="20" y2="7"></line>
+                  <line x1="4" y1="12" x2="20" y2="12"></line>
+                  <line x1="4" y1="17" x2="20" y2="17"></line>
+                </svg>
+              </button>
+
+              <!-- Desktop Filter Pills (Hidden on Phone) -->
+              <div class="filter-pills" id="model-filter-pills">
+                <button class="filter-btn active" data-filter="all">All Models</button>
+                <button class="filter-btn" data-filter="antigravity">Antigravity</button>
+                <button class="filter-btn" data-filter="aistudio">AI Studio</button>
+                <button class="filter-btn" data-filter="mimo">Xiaomi MiMo</button>
+                <button class="filter-btn" data-filter="claude">Claude</button>
+                <button class="filter-btn" data-filter="gemini">Gemini</button>
+                <button class="filter-btn" data-filter="kimi">Kimi</button>
+                <button class="filter-btn" data-filter="glm">GLM</button>
+                <button class="filter-btn" data-filter="deepseek">DeepSeek</button>
+                <button class="filter-btn" data-filter="qwen">Qwen</button>
+                <button class="filter-btn" data-filter="external">API Connections</button>
+              </div>
+
+              <!-- Search Input (Centered in Middle on Phone) -->
+              <div class="model-search-wrap">
+                <svg class="model-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" class="model-search-input" id="model-search"
+                  placeholder="Search model or capability..." />
+              </div>
+
+              <!-- Custom Provider Select Dropdown (Right on Phone, Hidden on Desktop) -->
+              <div class="claude-custom-select-wrap models-provider-dropdown-wrap" id="models-provider-dropdown-wrap">
+                <button type="button" class="claude-custom-select-btn models-provider-dropdown-btn" id="btn-models-provider-dropdown" onclick="toggleModelsProviderDropdown(event)">
+                  <span class="models-provider-dropdown-text" id="models-provider-dropdown-label">All Models</span>
+                  <svg class="claude-select-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="claude-custom-select-menu models-provider-dropdown-menu" id="models-provider-dropdown-menu" role="listbox">
+                  <button type="button" class="claude-select-option selected" data-filter="all">All Models</button>
+                  <button type="button" class="claude-select-option" data-filter="antigravity">Antigravity</button>
+                  <button type="button" class="claude-select-option" data-filter="aistudio">AI Studio</button>
+                  <button type="button" class="claude-select-option" data-filter="mimo">Xiaomi MiMo</button>
+                  <button type="button" class="claude-select-option" data-filter="claude">Claude</button>
+                  <button type="button" class="claude-select-option" data-filter="gemini">Gemini</button>
+                  <button type="button" class="claude-select-option" data-filter="kimi">Kimi</button>
+                  <button type="button" class="claude-select-option" data-filter="glm">GLM</button>
+                  <button type="button" class="claude-select-option" data-filter="deepseek">DeepSeek</button>
+                  <button type="button" class="claude-select-option" data-filter="qwen">Qwen</button>
+                  <button type="button" class="claude-select-option" data-filter="external">API Connections</button>
+                </div>
+              </div>
             </div>
-            <input type="text" class="model-search-input" id="model-search"
-              placeholder="Search model or capability..." />
           </div>
 
           <div class="models-sections-wrapper" id="models-container">
@@ -797,11 +814,9 @@
         <div class="tab-pane" id="pane-cookies">
           <div class="cookie-section">
             <div class="provider-tabs-bar" id="cookie-provider-tabs">
-              <button class="provider-tab-btn active" data-p="chatgpt">ChatGPT</button>
+              <button class="provider-tab-btn active" data-p="gemini">Gemini</button>
               <button class="provider-tab-btn" data-p="claude">Claude</button>
-              <button class="provider-tab-btn" data-p="grok">Grok</button>
               <button class="provider-tab-btn" data-p="kimi">Kimi</button>
-              <button class="provider-tab-btn" data-p="gemini">Gemini</button>
               <button class="provider-tab-btn" data-p="glm">GLM</button>
               <button class="provider-tab-btn" data-p="deepseek">DeepSeek</button>
               <button class="provider-tab-btn" data-p="qwen">Qwen</button>
@@ -885,7 +900,7 @@
 
               <div class="claude-top-center">
                 <button type="button" class="claude-top-model-chip" id="claude-top-model-chip" aria-haspopup="dialog" aria-label="Select Model" title="Select Model">
-                  <span class="claude-top-model-name" id="claude-top-model-name">Gpt 5.6 Sol</span>
+                  <span class="claude-top-model-name" id="claude-top-model-name">Gemini 3.8 Flash</span>
                   <svg class="claude-select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </button>
               </div>
@@ -921,12 +936,12 @@
                       <div class="param-group" id="param-model-selector-group">
                         <div class="param-label-row">
                           <label for="btn-param-model-select">Configuring Model</label>
-                          <code id="param-active-model-name" class="param-model-badge">gpt-5.6-sol</code>
+                          <code id="param-active-model-name" class="param-model-badge">gemini-3.8-flash</code>
                         </div>
-                        <input type="hidden" id="param-model-select" value="gpt-5.6-sol" />
+                        <input type="hidden" id="param-model-select" value="gemini-3.8-flash" />
                         <div class="claude-custom-select-wrap" id="param-model-select-wrap" style="width: 100%;">
                           <button type="button" class="claude-custom-select-btn" id="btn-param-model-select" aria-haspopup="listbox" aria-expanded="false" style="width: 100%; box-sizing: border-box;">
-                            <span class="claude-custom-select-text" id="param-model-selected-label">Gpt 5.6 Sol</span>
+                            <span class="claude-custom-select-text" id="param-model-selected-label">Gemini 3.8 Flash</span>
                             <svg class="claude-select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
                           </button>
                           <div class="claude-custom-select-menu" id="param-model-select-menu" role="listbox" style="width: 100%; left: 0; right: 0; box-sizing: border-box; max-height: 270px; overflow-y: auto;">
@@ -1006,41 +1021,6 @@
                         </div>
                       </div>
 
-                      <!-- Web search (chat tools) -->
-                      <div class="param-group" id="search-settings">
-                        <div class="param-label-row">
-                          <label for="btn-search-backend-select">Web search</label>
-                        </div>
-                        <input type="hidden" id="search-backend-select" value="auto" />
-                        <div class="claude-custom-select-wrap" id="search-backend-select-wrap" style="width: 100%;">
-                          <button type="button" class="claude-custom-select-btn" id="btn-search-backend-select" aria-haspopup="listbox" style="width: 100%; box-sizing: border-box;">
-                            <span id="search-backend-selected-label">No key (DuckDuckGo, Brave, Bing)</span>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                          </button>
-                          <div class="claude-custom-select-menu" id="search-backend-select-menu" style="width: 100%; left: 0; right: 0; box-sizing: border-box;">
-                            <button type="button" class="claude-select-option active" data-value="auto">
-                              <span>No key (DuckDuckGo, Brave, Bing)</span>
-                              <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </button>
-                            <button type="button" class="claude-select-option" data-value="brave">
-                              <span>Brave Search API</span>
-                              <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </button>
-                            <button type="button" class="claude-select-option" data-value="tavily">
-                              <span>Tavily</span>
-                              <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </button>
-                            <button type="button" class="claude-select-option" data-value="serper">
-                              <span>Serper</span>
-                              <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </button>
-                          </div>
-                        </div>
-                        <input type="password" class="param-input" id="search-api-key-input" autocomplete="off"
-                          spellcheck="false" placeholder="API key (optional)" />
-                        <span id="search-settings-hint" style="display: none;"></span>
-                        <button type="button" class="btn btn-secondary btn-sm" id="btn-save-search-settings">Save search settings</button>
-                      </div>
 
                       <!-- Footer Action Controls -->
                       <div class="settings-dropdown-footer" style="display: flex; flex-wrap: wrap; gap: 8px;">
@@ -1117,7 +1097,7 @@
                       placeholder="How can I help you today?"></textarea>
 
                     <div class="claude-input-bottom-bar">
-                      <!-- Bottom Left: '+' Attachment & Model Selector (NO arrow, NO 'High', extra padding) -->
+                      <!-- Bottom Left: '+' Attachment & Model Selector -->
                       <div class="claude-input-actions-left">
                         <button class="claude-attach-btn" id="claude-attach-btn" type="button" title="Attach file or context" aria-label="Attach">
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1127,32 +1107,10 @@
                         </button>
                         <input type="file" id="claude-file-input" style="display: none;" multiple />
 
-                        <!-- Tools: opens a tray of toggle pills below the button -->
-                        <div class="composer-tools-wrapper" id="composer-tools-wrapper">
-                          <button class="claude-attach-btn claude-tools-btn" id="btn-tools-menu" type="button"
-                            aria-expanded="false" aria-controls="composer-tools-tray" title="Tools" aria-label="Tools">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                              <path d="M4 7h3M11.4 7H20M4 17h8.6M17 17h3"></path>
-                              <circle cx="9.2" cy="7" r="2.2"></circle><circle cx="14.8" cy="17" r="2.2"></circle>
-                            </svg>
-                          </button>
-                          <div class="composer-tools-tray" id="composer-tools-tray" inert aria-hidden="true">
-                            <!-- Search toggle: lets the model search the web and read pages (chat tools) -->
-                            <button class="claude-tool-pill" id="btn-search-toggle" type="button" aria-pressed="false" disabled
-                              title="Search the web">
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <circle cx="12" cy="12" r="9"></circle><line x1="3" y1="12" x2="21" y2="12"></line>
-                                <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"></path>
-                              </svg>
-                              <span class="claude-tool-pill-label">Search</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        <!-- Model Selector placed on bottom left with extra padding, clean name -->
+                        <!-- Model Selector Pill (Bottom Left) -->
                         <div class="custom-select-wrapper claude-model-selector" id="playground-model-select">
                           <button class="claude-model-trigger" id="model-select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" title="Switch Model">
-                            <span class="claude-model-name" id="model-select-label">Gpt 5.6 Sol</span>
+                            <span class="claude-model-name" id="model-select-label">Gemini 3.8 Flash</span>
                           </button>
                           <div class="custom-select-popover popover-up" id="model-select-popover">
                             <div class="select-search-box">
@@ -1166,19 +1124,8 @@
                         </div>
                       </div>
 
-                      <!-- Bottom Right: Mic, Waveform, Send -->
+                      <!-- Bottom Right: Waveform Voice Mode, Send -->
                       <div class="claude-input-actions-right">
-
-                        <!-- Mic Voice Dictation Button -->
-                        <button class="claude-action-icon-btn" id="btn-voice-input" type="button" title="Dictate message" aria-label="Microphone">
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
-                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                            <line x1="12" y1="19" x2="12" y2="23"></line>
-                            <line x1="8" y1="23" x2="16" y2="23"></line>
-                          </svg>
-                        </button>
-
                         <!-- Waveform Voice Mode Button with Dropdown Popover -->
                         <div class="voice-mode-wrapper" id="voice-mode-wrapper">
                           <button class="claude-action-icon-btn claude-waveform-btn" id="btn-voice-chat" type="button" title="Voice conversation mode" aria-label="Audio Waveform" aria-haspopup="true" aria-expanded="false">
@@ -1579,663 +1526,365 @@
           </div>
         </div>
 
-        <!-- 8. JANITOR BIO STUDIO TAB (Papercraft & DelightfulTempe Unrestricted Bio Engine) -->
-        <div class="tab-pane" id="pane-bio">
-          <div class="bio-studio-container">
-            <!-- Header Hero -->
-            <div class="bio-hero">
-              <div class="bio-hero-brand">
-                <div class="bio-hero-icon-wrap" title="Tempest">
-                  <svg viewBox="0 0 512 512" fill="currentColor">
-                    <path fill="currentColor" d="M277.38 21.66c-96.948-.878-173.34 86.818-197.982 179.76 0 .002 0 .004-.002.006-6.326 18.67-9.757 38.666-9.757 59.455 0 2.836.074 5.654.2 8.458-17.562-55.274-17.086-137.757 20.086-206.48C2.272 126.67-9.832 299.917 100.182 398.58c-22.78-2.325-46.352-9.837-70.147-24.225 78.56 96.676 160.54 101.437 227.393 91.487-23.15 12.557-50.73 19.886-83.272 19.228 92.947 37.552 157.73-7.642 194.62-60.908-3.368 19.416-10.61 39.33-22.75 59.406 75.302-61.19 94.838-124.455 95.097-181.033 5.027 52.445-7.262 120.805-55.344 191.85 137.474-80.25 141.267-308.97-44.49-397.783-1.718-.905-3.454-1.778-5.204-2.63 34.773-.313 70.898 10.356 105.168 38.25-54.364-94.094-142.49-91.19-206.094-66.456 26.697-20.213 60.655-32.96 103.078-32.102-20.95-8.053-41.322-11.827-60.86-12.004zm-20.292 72.42c27.385.31 53.167 7.19 75.85 19.15 11.03 34.65 10.764 85.084-35.82 110.73 57.38-8.063 68.747-56.41 65.92-90.386 31.604 26.8 53.065 65.168 57.894 108.617-11.442-11.052-27.03-18.682-47.832-18.995-4.228-.063-8.67.175-13.336.748 56.35 13.146 58.046 52.722 56.037 82.108-5.366 19.175-14.072 36.942-25.445 52.647 3.265-39.063-5.52-70.67-25.205-91.312-25.207-26.433-66.802-31.98-114.732-13.826-43.58 16.5-75.458 10.803-94.588-9.257-18.553-19.456-26.513-55.153-15.96-104.09 21.894-20.92 49.49-35.916 80.237-42.47 25.205 5.698 46.725 24.76 53.276 49.736 7.63 29.088-7.855 62.162-37.375 69.75-21.748 5.59-46.478-6.097-52.008-28.185-3.99-15.936 4.575-33.99 20.47-37.873 2.803-.685 5.7-.813 8.51-.447-2.895 3.556-4.636 8.09-4.636 13.033 0 11.41 9.25 20.662 20.662 20.662 11.41 0 20.664-9.25 20.664-20.662 0-5.404-2.092-10.308-5.488-13.99-9.197-14.293-27.572-20.797-44.147-16.748-26.926 6.576-40.487 35.292-34.16 60.564 8.268 33.023 43.65 49.744 74.785 41.742 40.45-10.398 60.882-54.14 50.797-92.59-5.31-20.24-17.91-37.11-34.37-48.656zm-140.086 73.168c-2.947 38.434 5.85 69.552 25.305 89.953 25.207 26.434 66.8 31.985 114.73 13.835h.002c43.58-16.508 75.457-10.814 94.587 9.246 18.525 19.428 26.487 55.05 16.002 103.878-22.39 20.436-50.385 34.833-81.43 40.66l.038-.205c-23.698-4.616-44.6-20.994-53.21-43.424-10.99-28.622 1.01-63.88 30.083-74.895 21.448-8.124 47.847.96 55.943 22.767 5.85 15.76-.836 35.1-16.582 40.848-3.484 1.272-7.217 1.67-10.818 1.28 3.006-3.587 4.82-8.207 4.82-13.254 0-11.412-9.252-20.665-20.663-20.665-11.413 0-20.664 9.254-20.664 20.666 0 3.68.973 7.13 2.66 10.123 9.034 19.034 32.092 26.332 51.073 19.403v-.002c26.41-9.642 36.89-40.114 27.69-64.9-9.013-24.28-32.39-37.62-56.384-37.894-8-.092-16.066 1.267-23.694 4.156-39.625 15.01-55.365 61.408-40.908 99.065 6.25 16.277 17.272 29.828 31.018 39.603-28.09-1.413-54.325-9.757-77.05-23.347-8.506-34.05-5.113-79.09 38.048-102.854-52.583 7.39-66.514 48.602-66.303 81.59-28.446-26.552-47.57-62.952-51.986-103.816 13.757 13.168 33.46 21.397 60.93 18.024-54.79-12.782-57.916-50.575-56.2-79.67 4.867-18.134 12.7-35.044 22.962-50.17z"/>
-                  </svg>
+        <!-- 7. CLAUDE CODE BRIDGE TAB (Local Anthropic Messages Proxy for Claude Code CLI) -->
+        <div class="tab-pane" id="pane-claudecode">
+          <div class="claudecode-container">
+            <!-- Hero Status Banner -->
+            <div class="gateway-hero" id="claudecode-hero">
+              <div class="gateway-hero-header">
+                <div class="tunnel-title-wrap">
+                  <h3 id="claudecode-status-title">ClaudeCode-Access</h3>
+                  <span class="tunnel-dot" id="claudecode-dot" style="display:none;"></span>
+                  <span class="claudecode-status-text" id="claudecode-status-text" style="display:none;">Stopped</span>
                 </div>
-                <div class="bio-hero-title-area">
-                  <div class="bio-hero-title">Tempest</div>
-                </div>
-              </div>
 
-              <!-- Sub-tab Navigation -->
-              <div class="bio-subnav" role="tablist">
-                <button type="button" class="bio-subnav-btn active" data-subtab="canvas" role="tab" aria-selected="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                  1. Bio Canvas
-                </button>
-                <button type="button" class="bio-subnav-btn" data-subtab="concept" role="tab" aria-selected="false">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                  2. AI Bio Writer
-                </button>
-                <button type="button" class="bio-subnav-btn" data-subtab="output" role="tab" aria-selected="false">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-                  3. Output &amp; Sandbox
-                </button>
-                <button type="button" class="bio-subnav-btn" data-subtab="auth" role="tab" aria-selected="false">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                  4. Credentials Vault
-                </button>
-              </div>
-            </div>
-
-            <!-- View Stage -->
-            <div class="bio-view-stage">
-              <!-- TAB 1: BIO CANVAS (Visual Cover & Layout Studio) -->
-              <div class="bio-tab-content active" id="bio-subtab-canvas">
-                <div class="bio-canvas-app">
-                  <!-- Top Instrument Toolbar -->
-                  <div class="bio-canvas-top">
-                    <div class="bio-canvas-brand">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                      <span>Bio Canvas</span>
-                    </div>
-                    <button type="button" class="bio-c-btn" id="c-b-new" title="Create New Canvas">New</button>
-                    <button type="button" class="bio-c-btn" id="c-b-tpl" title="Load Character Template">Template</button>
-                    <button type="button" class="bio-c-btn" id="c-b-open" title="Open Bio Canvas JSON">Open</button>
-                    <button type="button" class="bio-c-btn" id="c-b-save" title="Ctrl+S: Save/Download Project JSON">Save</button>
-                    <span class="bio-canvas-sep"></span>
-                    <button type="button" class="bio-c-btn" id="c-b-un" title="Undo (Ctrl+Z)">↶</button>
-                    <button type="button" class="bio-c-btn" id="c-b-re" title="Redo (Ctrl+Y)">↷</button>
-                    <span class="bio-canvas-sep"></span>
-                    <button type="button" class="bio-c-btn" data-add="text" title="Add Text Layer">+ Text</button>
-                    <button type="button" class="bio-c-btn" data-add="img" title="Add Photo Layer">+ Photo</button>
-                    <button type="button" class="bio-c-btn" data-add="rect" title="Add Shape/Gradient Layer">+ Shape</button>
-                    <span class="bio-canvas-sep"></span>
-                    <button type="button" class="bio-c-btn" id="c-b-dup" title="Duplicate (Ctrl+D)">Duplicate</button>
-                    <button type="button" class="bio-c-btn" id="c-b-up" title="Bring Layer Up">Up</button>
-                    <button type="button" class="bio-c-btn" id="c-b-dn" title="Send Layer Down">Down</button>
-                    <button type="button" class="bio-c-btn" id="c-b-del" title="Delete Layer">Delete</button>
-                    <span class="bio-canvas-sep"></span>
-                    <button type="button" class="bio-c-btn ai-btn" id="c-b-ai" title="AI Auto-Layout & Design Generator">
-                      <svg viewBox="0 0 512 512" fill="currentColor" width="13" height="13"><path d="M503 114.333v280c0 60.711-49.29 110-110 110H113c-60.711 0-110-49.289-110-110v-280c0-60.71 49.289-110 110-110h280c60.71 0 110 49.29 110 110z"/><path d="M342.065 189.759c1.886-2.42 3.541-4.63 5.289-6.77.81-1.007.74-1.771-.046-2.824-7.58-9.965-8.298-21.028-3.935-32.254 3.275-8.448 10.52-12.406 19.373-13.25 5.52-.521 10.936.046 15.959 2.73 6.596 3.53 10.438 8.912 11.688 16.341.995 5.926.81 11.712-.868 17.452-2.974 10.161-10.277 15.427-20.287 16.758-8.31 1.11-16.734 1.25-25.113 1.817-.648.046-1.308 0-2.06 0z" fill="#027aff"/><path d="M321.512 144.254h-50.064l-39.637 90.384h-56.036v-89.99H131v232.868h44.787v-98.103h78.973c13.598 0 26.015-7.927 31.744-20.252v118.355h44.787v-98.103c0-23.342-18.239-42.97-41.523-44.671v-.116h-24.593a45.577 45.577 0 0026.884-24.534l29.453-65.838z" fill="#fff"/></svg>
-                      ✨ Kimi AI Generator
-                    </button>
-                    <span class="bio-canvas-sp"></span>
-                    <span class="bio-canvas-status-item" id="c-st"></span>
-                    <span class="bio-canvas-status-item" id="c-sv2" style="margin-left: 8px;"></span>
-                    <button type="button" class="bio-c-btn primary" id="c-b-deploy" title="Deploy directly to JanitorAI character">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
-                      Deploy to JAI
-                    </button>
-                  </div>
-
-                  <!-- Left Sidebar: Layers & Tips -->
-                  <div class="bio-canvas-left">
-                    <h4 class="bio-canvas-sec-title">Layers</h4>
-                    <div class="bio-layers-list" id="c-ll"></div>
-                    <h4 class="bio-canvas-sec-title">Tips &amp; Controls</h4>
-                    <div class="bio-canvas-tips-box">
-                      Double-click text to inline edit. Shift+click for multi-selection. Arrow keys to nudge (Shift ×10). Corner handles resize; top handle rotates (Shift for 15° steps). Drag images directly onto canvas.
-                    </div>
-                    <div class="bio-canvas-back-wrap">
-                      <button type="button" class="bio-back-singularity-btn" id="btn-bio-back-singularity" title="Return to Singularity Playground">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                          <line x1="19" y1="12" x2="5" y2="12"></line>
-                          <polyline points="12 19 5 12 12 5"></polyline>
-                        </svg>
-                        <span>Back to Singularity</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Center Infinite Canvas Stage -->
-                  <div class="bio-canvas-main" id="c-C">
-                    <!-- Top Dimension & Alignment Bar -->
-                    <div class="bio-canvas-controls-bar">
-                      <span class="bio-canvas-status-item">Canvas</span>
-                      <div class="bio-num-group bio-toolbar-num" title="Canvas width">
-                        <button type="button" class="bio-num-step-btn" data-step-for="c-tw" data-step="-10">−</button>
-                        <input class="bio-num-step-input" id="c-tw" type="text" inputmode="numeric" value="480" />
-                        <button type="button" class="bio-num-step-btn" data-step-for="c-tw" data-step="10">+</button>
-                      </div>
-                      <span class="bio-canvas-status-item">×</span>
-                      <div class="bio-num-group bio-toolbar-num" title="Canvas height">
-                        <button type="button" class="bio-num-step-btn" data-step-for="c-th" data-step="-10">−</button>
-                        <input class="bio-num-step-input" id="c-th" type="text" inputmode="numeric" value="608" />
-                        <button type="button" class="bio-num-step-btn" data-step-for="c-th" data-step="10">+</button>
-                      </div>
-                      <span class="bio-canvas-sep"></span>
-                      <div class="bio-canvas-zoom-group">
-                        <button type="button" class="bio-c-btn" id="c-zo" title="Zoom Out (Ctrl+Minus)">−</button>
-                        <span class="bio-canvas-zoom-text" id="c-zv">100%</span>
-                        <button type="button" class="bio-c-btn" id="c-zi" title="Zoom In (Ctrl+Plus)">+</button>
-                        <button type="button" class="bio-c-btn" id="c-z0" title="Fit to Viewport (Ctrl+0)">Fit</button>
-                        <button type="button" class="bio-c-btn" id="c-z1" title="100% Zoom (Ctrl+1)">100%</button>
-                      </div>
-                      <span class="bio-canvas-sep"></span>
-                      <!-- Figma Quick Alignment Toolbar -->
-                      <div class="bio-canvas-align-group" title="Align Selection (Figma Tools)">
-                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-l" title="Align Left"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="2" x2="4" y2="22"></line><rect x="8" y="5" width="12" height="5" rx="1"></rect><rect x="8" y="14" width="8" height="5" rx="1"></rect></svg></button>
-                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-c" title="Align Horizontal Center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"></line><rect x="5" y="5" width="14" height="5" rx="1"></rect><rect x="7" y="14" width="10" height="5" rx="1"></rect></svg></button>
-                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-r" title="Align Right"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="20" y1="2" x2="20" y2="22"></line><rect x="4" y="5" width="12" height="5" rx="1"></rect><rect x="8" y="14" width="8" height="5" rx="1"></rect></svg></button>
-                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-t" title="Align Top"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="4" x2="22" y2="4"></line><rect x="5" y="8" width="5" height="12" rx="1"></rect><rect x="14" y="8" width="5" height="8" rx="1"></rect></svg></button>
-                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-m" title="Align Vertical Middle"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="12" x2="22" y2="12"></line><rect x="5" y="5" width="5" height="14" rx="1"></rect><rect x="14" y="7" width="5" height="10" rx="1"></rect></svg></button>
-                        <button type="button" class="bio-c-btn bio-icon-btn" id="c-al-b" title="Align Bottom"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="20" x2="22" y2="20"></line><rect x="5" y="4" width="5" height="12" rx="1"></rect><rect x="14" y="8" width="5" height="8" rx="1"></rect></svg></button>
-                      </div>
-                      <div class="bio-canvas-sp"></div>
-                      <div class="bio-canvas-pan-hint" title="Hold Spacebar + Left Mouse Drag or Middle Click to Pan">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"></path><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"></path><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"></path><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.83L7 15"></path></svg>
-                        <span>Space + Drag to pan</span>
-                      </div>
-                    </div>
-
-                    <!-- Infinite Canvas Stage World -->
-                    <div class="bio-canvas-world" id="c-world">
-                      <!-- Draggable Frame Wrapper -->
-                      <div class="bio-canvas-frame-container" id="c-frame-container">
-                        <!-- Figma-Style Frame Header Badge -->
-                        <div class="bio-frame-header" id="c-frame-header" title="Drag to move frame across infinite canvas">
-                          <div class="bio-frame-header-left">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path></svg>
-                            <span class="bio-frame-name">Character Frame</span>
-                          </div>
-                          <span class="bio-frame-dims" id="c-frame-dims">480 × 608</span>
-                        </div>
-
-                        <!-- Scaler & Layers Canvas -->
-                        <div class="bio-stage-scaler" id="c-S">
-                          <div class="bio-stage-canvas" id="c-cv"></div>
-                          <div class="bio-stage-overlay" id="c-ov"></div>
-                          <svg class="bio-stage-guides" id="c-guides"></svg>
-                        </div>
-
-                    <!-- Bottom Height Resize Handle -->
-                        <div class="bio-stage-resize-bar" id="c-rz" title="Drag down to lengthen canvas">
-                          <span class="bio-rz-label">⇅ Height <span id="c-rz-h">608</span> px — drag to extend</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Figma UI3 Floating Tools Dock -->
-                    <div class="bio-figma-dock" id="bio-figma-dock" role="toolbar" aria-label="Figma Canvas Tools">
-                      <!-- 1. Move Tool Group -->
-                      <div class="bio-dock-group" data-tool-group="move">
-                        <button type="button" class="bio-dock-btn active" id="btn-tool-move-primary" data-tool="move" title="Move (V)">
-                          <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 3l15 9-6.5 1.5L9 20z"/></svg>
-                        </button>
-                        <button type="button" class="bio-dock-chevron" data-menu="menu-move" title="Move tools">
-                          <svg viewBox="0 0 10 6" width="7" height="4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg>
-                        </button>
-                        <div class="bio-dock-menu" id="menu-move">
-                          <button type="button" class="bio-dock-menu-item active" data-tool="move">
-                            <span class="menu-check">✓</span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M4 3l15 9-6.5 1.5L9 20z"/></svg>
-                            <span class="menu-label">Move</span>
-                            <span class="menu-key">V</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="hand">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.83L7 15"/></svg>
-                            <span class="menu-label">Hand tool</span>
-                            <span class="menu-key">H</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="scale">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3h-6M21 3v6M21 3l-8 8M3 21h6M3 21v-6M3 21l8-8"/></svg>
-                            <span class="menu-label">Scale</span>
-                            <span class="menu-key">K</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <!-- 2. Frame Tool Group -->
-                      <div class="bio-dock-group" data-tool-group="frame">
-                        <button type="button" class="bio-dock-btn" id="btn-tool-frame-primary" data-tool="frame" title="Frame (F)">
-                          <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9h16M4 15h16M9 4v16M15 4v16"/></svg>
-                        </button>
-                        <button type="button" class="bio-dock-chevron" data-menu="menu-frame" title="Frame tools">
-                          <svg viewBox="0 0 10 6" width="7" height="4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg>
-                        </button>
-                        <div class="bio-dock-menu" id="menu-frame">
-                          <button type="button" class="bio-dock-menu-item active" data-tool="frame">
-                            <span class="menu-check">✓</span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16M9 4v16M15 4v16"/></svg>
-                            <span class="menu-label">Frame</span>
-                            <span class="menu-key">F</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="section">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
-                            <span class="menu-label">Section</span>
-                            <span class="menu-key">⇧S</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="slice">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l16 16M4 12l8 8M12 4l8 8"/></svg>
-                            <span class="menu-label">Slice</span>
-                            <span class="menu-key">S</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <!-- 3. Shape Tool Group -->
-                      <div class="bio-dock-group" data-tool-group="shape">
-                        <button type="button" class="bio-dock-btn" id="btn-tool-shape-primary" data-tool="rect" title="Rectangle (R)">
-                          <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-                        </button>
-                        <button type="button" class="bio-dock-chevron" data-menu="menu-shape" title="Shape tools">
-                          <svg viewBox="0 0 10 6" width="7" height="4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg>
-                        </button>
-                        <div class="bio-dock-menu" id="menu-shape">
-                          <button type="button" class="bio-dock-menu-item active" data-tool="rect">
-                            <span class="menu-check">✓</span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-                            <span class="menu-label">Rectangle</span>
-                            <span class="menu-key">R</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="line">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="4"/></svg>
-                            <span class="menu-label">Line</span>
-                            <span class="menu-key">L</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="arrow">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="9 5 19 5 19 15"/></svg>
-                            <span class="menu-label">Arrow</span>
-                            <span class="menu-key">⇧L</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="ellipse">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
-                            <span class="menu-label">Ellipse</span>
-                            <span class="menu-key">O</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="polygon">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 3 22 21 2 21"/></svg>
-                            <span class="menu-label">Polygon</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="star">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                            <span class="menu-label">Star</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="image">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                            <span class="menu-label">Image/video...</span>
-                            <span class="menu-key">Ctrl+⇧K</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <!-- 4. Pen / Vector Tool Group -->
-                      <div class="bio-dock-group" data-tool-group="pen">
-                        <button type="button" class="bio-dock-btn" id="btn-tool-pen-primary" data-tool="pen" title="Pen (P)">
-                          <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-                        </button>
-                        <button type="button" class="bio-dock-chevron" data-menu="menu-pen" title="Pen tools">
-                          <svg viewBox="0 0 10 6" width="7" height="4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg>
-                        </button>
-                        <div class="bio-dock-menu" id="menu-pen">
-                          <button type="button" class="bio-dock-menu-item active" data-tool="pen">
-                            <span class="menu-check">✓</span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-                            <span class="menu-label">Pen</span>
-                            <span class="menu-key">P</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="pencil">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-                            <span class="menu-label">Pencil</span>
-                            <span class="menu-key">⇧P</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <!-- 5. Text Tool Group -->
-                      <div class="bio-dock-group" data-tool-group="text">
-                        <button type="button" class="bio-dock-btn" id="btn-tool-text-primary" data-tool="text" title="Text (T)">
-                          <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
-                        </button>
-                        <button type="button" class="bio-dock-chevron" data-menu="menu-text" title="Text tools">
-                          <svg viewBox="0 0 10 6" width="7" height="4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg>
-                        </button>
-                        <div class="bio-dock-menu" id="menu-text">
-                          <button type="button" class="bio-dock-menu-item active" data-tool="text">
-                            <span class="menu-check">✓</span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
-                            <span class="menu-label">Text</span>
-                            <span class="menu-key">T</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="header-text">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16M4 6h4M4 18h4M20 6h-4M20 18h-4"/></svg>
-                            <span class="menu-label">Display Heading</span>
-                          </button>
-                          <button type="button" class="bio-dock-menu-item" data-tool="quote-text">
-                            <span class="menu-check"></span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.75-2-2-2H4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2h4c0 3-2 5-5 5"/></svg>
-                            <span class="menu-label">Quote Callout</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <!-- 6. Comment / Note Tool -->
-                      <button type="button" class="bio-dock-btn" id="btn-tool-comment" data-tool="comment" title="Comment / Sticky Note (C)">
-                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                      </button>
-
-                      <!-- 7. Components & Templates Tool -->
-                      <button type="button" class="bio-dock-btn" id="btn-tool-assets" data-tool="assets" title="Components & Templates (Shift+I)">
-                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                      </button>
-
-                      <div class="bio-dock-divider"></div>
-
-                      <!-- 8. Right Utility Tools -->
-                      <button type="button" class="bio-dock-btn" id="btn-tool-draw" data-tool="draw-toggle" title="Freehand Scribble / Doodle">
-                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19c4-1 6-4 8-8s4-7 8-7"/></svg>
-                      </button>
-                      <button type="button" class="bio-dock-btn active" id="btn-tool-measure" data-tool="measure-toggle" title="Smart Magnetic Guides & Distances">
-                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18M3 21h18M3 9h8M3 15h8M17 3v18"/></svg>
-                      </button>
-                      <button type="button" class="bio-dock-btn" id="btn-tool-preview" data-tool="preview-toggle" title="Toggle Live Bio Sandbox Preview">
-                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-                      </button>
-                      <button type="button" class="bio-dock-btn" id="btn-tool-dev" data-tool="dev-mode" title="Dev Mode: Copy JanitorAI HTML (</>)">
-                        <svg class="dock-tool-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Right Inspector -->
-                  <div class="bio-canvas-right">
-                    <div class="bio-inspector-tabs">
-                      <button type="button" class="bio-inspector-tab-btn active" data-tab="1">Properties</button>
-                      <button type="button" class="bio-inspector-tab-btn" data-tab="4">Page</button>
-                      <button type="button" class="bio-inspector-tab-btn" data-tab="2">Export</button>
-                      <button type="button" class="bio-inspector-tab-btn" data-tab="3">Compatibility</button>
-                    </div>
-
-                    <!-- Inspector Pane 1: Properties -->
-                    <div class="bio-inspector-pane" id="c-p1"></div>
-
-                    <!-- Inspector Pane 4: Page Sections -->
-                    <div class="bio-inspector-pane" id="c-p4" hidden></div>
-
-                    <!-- Inspector Pane 2: Export & Validation -->
-                    <div class="bio-inspector-pane" id="c-p2" hidden>
-                      <h4 class="bio-sec-title">Render Mode</h4>
-                      <div class="bio-btn-row">
-                        <button type="button" class="bio-c-btn" id="c-m-img">Image</button>
-                        <button type="button" class="bio-c-btn active" id="c-m-hyb">Hybrid</button>
-                        <button type="button" class="bio-c-btn" id="c-m-live">Live HTML</button>
-                      </div>
-                      <p class="bio-canvas-status-item" id="c-mh" style="max-width:none; white-space:normal; margin: 4px 0;"></p>
-
-                      <div id="c-imgbox">
-                        <h4 class="bio-sec-title" style="margin-top: 6px;">Cover Image</h4>
-                        <div class="bio-btn-row">
-                          <div class="claude-custom-select-wrap bio-custom-dropdown" id="c-sc-wrap" data-k="sc" style="width: 76px; min-width: 76px; max-width: 76px; flex-shrink: 0;">
-                            <input type="hidden" id="c-sc" value="2">
-                            <button type="button" class="claude-custom-select-btn bio-dropdown-btn" style="height: 32px; padding: 4px 8px; width: 76px; min-width: 0; max-width: 76px;">
-                              <span class="selected-text" style="font-size: 12px; font-weight: 600;">2×</span>
-                              <svg class="claude-select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                            </button>
-                            <div class="claude-custom-select-menu bio-dropdown-menu" style="min-width: 76px; width: 76px;">
-                              <div class="claude-select-option" data-val="1">
-                                <span class="option-label">1×</span>
-                                <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                              </div>
-                              <div class="claude-select-option active" data-val="2">
-                                <span class="option-label">2×</span>
-                                <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                              </div>
-                              <div class="claude-select-option" data-val="3">
-                                <span class="option-label">3×</span>
-                                <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                              </div>
-                            </div>
-                          </div>
-                          <button type="button" class="bio-c-btn primary" id="c-e-png">Download PNG</button>
-                          <button type="button" class="bio-c-btn" id="c-e-webp">WebP</button>
-                        </div>
-                        <p class="bio-canvas-status-item" id="c-es" style="margin-top: 4px;"></p>
-
-                        <label class="bio-f-label" style="margin-top: 8px;">
-                          JanitorAI Media Library URL
-                          <input class="bio-f-input" id="c-pu" placeholder="https://ella.janitorai.com/media-approved/….webp" />
-                        </label>
-                        <div class="bio-btn-row" style="margin-top: 6px;">
-                          <button type="button" class="bio-c-btn" id="c-pub">Link URL</button>
-                        </div>
-                        <div id="c-pst" class="bio-canvas-status-item" style="margin-top: 4px;"></div>
-
-                        <label class="bio-f-label" style="margin-top: 8px;">
-                          Image Description (alt)
-                          <input class="bio-f-input" id="c-alt" />
-                        </label>
-                      </div>
-
-                      <h4 class="bio-sec-title" style="margin-top: 8px;">Validation Checklist</h4>
-                      <div id="c-wn"></div>
-
-                      <h4 class="bio-sec-title" style="margin-top: 8px;">Generated Inline HTML</h4>
-                      <textarea class="bio-f-textarea" id="c-code" readonly style="font-family: var(--font-mono); font-size: 11px; height: 90px;"></textarea>
-
-                      <div class="bio-btn-row" style="margin-top: 6px;">
-                        <button type="button" class="bio-c-btn primary" id="c-copy">Copy HTML</button>
-                        <button type="button" class="bio-c-btn" id="c-dl">Download .html</button>
-                        <button type="button" class="bio-c-btn" id="c-pv-btn">Inspect in Sandbox</button>
-                      </div>
-                    </div>
-
-                    <!-- Inspector Pane 3: Compatibility -->
-                    <div class="bio-inspector-pane" id="c-p3" hidden></div>
-                  </div>
-                </div>
-                <input type="file" id="c-fi" hidden />
-              </div>
-
-              <!-- TAB 2: CONCEPT & DRAFT (AI BIO WRITER) -->
-              <div class="bio-tab-content" id="bio-subtab-concept">
-                <div class="bio-craft-grid">
-                  <!-- Left: Input & Presets -->
-                  <div class="bio-craft-card">
-                    <div class="bio-card-header">
-                      <h4 class="bio-card-title">Character Lore &amp; Bio Specification</h4>
-                      <div class="bio-preset-bar">
-                        <span class="bio-preset-label">Templates:</span>
-                        <button type="button" class="bio-preset-chip" data-tpl="shadow_slave">Shadow Slave RPG</button>
-                        <button type="button" class="bio-preset-chip" data-tpl="papercraft_dossier">Papercraft Dossier</button>
-                        <button type="button" class="bio-preset-chip" data-tpl="cyberpunk_terminal">Cyberpunk CRT</button>
-                        <button type="button" class="bio-preset-chip" data-tpl="blank">Blank Template</button>
-                      </div>
-                    </div>
-
-                    <div class="bio-input-wrap">
-                      <textarea class="bio-textarea" id="bio-prompt-input" placeholder="Paste your character notes, lorebook text, premise, or existing messy HTML here...
-
-The AI architect will refine, elevate, and structure it into a gorgeous tactile JAI profile respecting all Tempe inline constraints (14 Google Fonts, flexbox/grid layout, zero position, zero z-index)."></textarea>
-                    </div>
-                  </div>
-
-                  <!-- Right: Model & Styling Config -->
-                  <div class="bio-craft-card bio-sidebar-config">
-                    <h4 class="bio-card-title">Synthesis Engine</h4>
-
-                    <div class="bio-field-group">
-                      <label class="bio-field-label" for="btn-bio-model-select">AI Inference Model</label>
-                      <input type="hidden" id="bio-model-select" value="kimi-k3" />
-                      <div class="claude-custom-select-wrap" id="bio-model-select-wrap" style="width: 100%;">
-                        <button type="button" class="claude-custom-select-btn" id="btn-bio-model-select" aria-haspopup="listbox" aria-expanded="false" style="width: 100%; box-sizing: border-box;">
-                          <span class="claude-custom-select-text" id="bio-model-selected-label">Kimi K3 Flagship (Recommended)</span>
-                          <svg class="claude-select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                        </button>
-                        <div class="claude-custom-select-menu" id="bio-model-select-menu" role="listbox" style="width: 100%; left: 0; right: 0; box-sizing: border-box; max-height: 260px; overflow-y: auto;">
-                          <button type="button" class="claude-select-option active" data-value="kimi-k3">
-                            <span>Kimi K3 Flagship (Recommended)</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                          <button type="button" class="claude-select-option" data-value="kimi-k3-thinking">
-                            <span>Kimi K3 Thinking</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                          <button type="button" class="claude-select-option" data-value="gpt-5-6-mini">
-                            <span>GPT-5-6-Mini</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                          <button type="button" class="claude-select-option" data-value="gemini-4-argon">
-                            <span>Gemini 4 Argon (Reasoning &amp; Code)</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                          <button type="button" class="claude-select-option" data-value="gemini-3.8-flash">
-                            <span>Gemini 3.8 Flash</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                          <button type="button" class="claude-select-option" data-value="deepseek-chat-v4">
-                            <span>DeepSeek V4</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                          <button type="button" class="claude-select-option" data-value="claude-3-7-sonnet">
-                            <span>Claude 3.7 Sonnet</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                        </div>
-                      </div>
-                      <span class="bio-field-hint">Defaults to Kimi K3 for high-fidelity literary prose &amp; complex markdown parsing.</span>
-                    </div>
-
-                    <div class="bio-field-group">
-                      <label class="bio-field-label" for="btn-bio-style-select">Aesthetic Design Archetype</label>
-                      <input type="hidden" id="bio-style-select" value="papercraft" />
-                      <div class="claude-custom-select-wrap" id="bio-style-select-wrap" style="width: 100%;">
-                        <button type="button" class="claude-custom-select-btn" id="btn-bio-style-select" aria-haspopup="listbox" aria-expanded="false" style="width: 100%; box-sizing: border-box;">
-                          <span class="claude-custom-select-text" id="bio-style-selected-label">Tactile Papercraft &amp; Anti-AI (Warm Washi &amp; Editorial)</span>
-                          <svg class="claude-select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                        </button>
-                        <div class="claude-custom-select-menu" id="bio-style-select-menu" role="listbox" style="width: 100%; left: 0; right: 0; box-sizing: border-box; max-height: 260px; overflow-y: auto;">
-                          <button type="button" class="claude-select-option active" data-value="papercraft">
-                            <span>Tactile Papercraft &amp; Anti-AI (Warm Washi &amp; Editorial)</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                          <button type="button" class="claude-select-option" data-value="shadow_slave">
-                            <span>Obsidian Grimdark (Shadow Slave / Gold Amber &amp; Slate)</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                          <button type="button" class="claude-select-option" data-value="cyberpunk">
-                            <span>Cyberpunk Telemetry (JetBrains Mono &amp; High-Contrast Cyan)</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                          <button type="button" class="claude-select-option" data-value="literary">
-                            <span>Classical Literary Serif (Crimson Text &amp; Fraunces)</span>
-                            <svg class="option-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </button>
-                        </div>
-                      </div>
-                      <span class="bio-field-hint">Enforces strict typography pairing and ambient occlusion lighting.</span>
-                    </div>
-
-                    <div class="bio-field-group" style="gap: 10px; margin-top: 4px;">
-                      <label class="bio-checkbox-item">
-                        <input type="checkbox" id="chk-agency-mechanics" checked />
-                        <span>Include 100% Player Agency &amp; Interaction Guardrails</span>
-                      </label>
-                      <label class="bio-checkbox-item">
-                        <input type="checkbox" id="chk-char-matrix" checked />
-                        <span>Include Dramatis Personae / Character Cards Grid</span>
-                      </label>
-                      <label class="bio-checkbox-item">
-                        <input type="checkbox" id="chk-runtime-config" checked />
-                        <span>Include Optimal Temperature &amp; Context Recommendations</span>
-                      </label>
-                    </div>
-
-                    <button type="button" class="bio-btn-synthesize" id="btn-bio-synthesize">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-                      </svg>
-                      Synthesize Unrestricted Bio
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- TAB 2: CREDENTIALS & DEPLOY -->
-              <div class="bio-tab-content" id="bio-subtab-auth">
-                <div class="bio-auth-card">
-                  <div class="bio-card-header">
-                    <h4 class="bio-card-title">JanitorAI Character Deployment Vault</h4>
-                  </div>
-
-                  <div class="bio-field-group">
-                    <label class="bio-field-label" for="bio-input-uuid">
-                      Target Character UUID
-                      <span class="bio-field-hint">e.g. a3d24819-96a6-4a5b-bfe4-6b37b9382d8a</span>
-                    </label>
-                    <input type="text" class="bio-input" id="bio-input-uuid" placeholder="Paste bot character UUID here..." />
-                  </div>
-
-                  <div class="bio-field-group">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                      <label class="bio-field-label" for="bio-input-token" style="margin-bottom: 0;">
-                        JanitorAI Access Token (JWT Bearer)
-                      </label>
-                      <button type="button" class="bio-btn-autofetch-link" id="btn-bio-autofetch-link" style="background: rgba(240, 185, 45, 0.08); border: 1px solid rgba(240, 185, 45, 0.25); color: #f0b92d; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-weight: 500; transition: all 0.2s;">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                        Auto-Fetch from Browser
-                      </button>
-                    </div>
-                    <input type="password" class="bio-input" id="bio-input-token" placeholder="Paste eyJhbGciOi... JWT bearer token or click Auto-Fetch..." />
-                    <div id="bio-token-expiry-info"></div>
-                  </div>
-
-                  <!-- Full-Span Save Credentials Button at Bottom -->
-                  <button type="button" class="btn btn-primary" id="btn-bio-save-auth" style="width: 100%; padding: 13px 18px; margin-top: 14px; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-                    Save Credentials
+                <div class="tunnel-actions-wrap">
+                  <button class="btn btn-primary btn-sm" id="btn-toggle-claudecode" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span id="btn-toggle-claudecode-text">Start Bridge</span>
                   </button>
+                  <button class="btn btn-secondary btn-sm" id="btn-refresh-claudecode" type="button">Refresh</button>
+                  <button class="btn btn-secondary btn-sm" id="btn-copy-claudecode-env" type="button">Copy Gateway URL</button>
                 </div>
               </div>
 
-              <!-- TAB 3: OUTPUT & LIVE SANDBOX -->
-              <div class="bio-tab-content" id="bio-subtab-output">
-                <div class="bio-output-container">
-                  <div class="bio-output-toolbar">
-                    <div class="bio-output-actions">
-                      <button type="button" class="btn btn-secondary btn-sm" id="btn-bio-copy-html" title="Copy raw HTML to clipboard">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                        Copy HTML
-                      </button>
-                      <button type="button" class="btn btn-secondary btn-sm" id="btn-bio-copy-script" title="Copy DevTools console injection script">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-                        Copy Console Script
-                      </button>
-                      <button type="button" class="btn btn-primary btn-sm" id="btn-bio-deploy" title="Deploy directly to Janitor AI">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
-                        Deploy to JanitorAI
-                      </button>
-                    </div>
+              <!-- Endpoint Copy Row -->
+              <div class="endpoint-copy-row">
+                <span class="endpoint-text" id="claudecode-url-text">http://127.0.0.1:6045</span>
+              </div>
+            </div>
 
-                    <div class="bio-output-modes">
-                      <button type="button" class="bio-output-mode-btn" data-mode="code">Code View</button>
-                      <button type="button" class="bio-output-mode-btn active" data-mode="split">Split Sandbox</button>
-                      <button type="button" class="bio-output-mode-btn" data-mode="preview">Live Preview</button>
+            <!-- Dual Showcase Row: Video Hero Showcase + Claude Desktop App (Matching 1080/1238 Aspect Ratio) -->
+            <div class="claudecode-showcase-row">
+              <!-- 1. Left: Claude Hero Video Showcase -->
+              <div class="claudecode-video-card" id="claudecode-video-card" title="Click to play/pause">
+                <video 
+                  id="claudecode-hero-video" 
+                  src="/static/cowork-login-hero.mp4" 
+                  autoplay 
+                  loop 
+                  muted 
+                  playsinline 
+                  preload="auto"
+                ></video>
+              </div>
+            <section id="desktopApp" data-section="desktopApp" data-cta-section="desktopApp" class="SectionWrapper-module-scss-module__C2Ksua__wrapper theme-main SectionWrapper-module-scss-module__C2Ksua__spacingTopNone DesktopApp-module-scss-module__Q63uga__desktopApp"><div class="container"><div class="AppShell-module-scss-module__F71GCG__window" data-shell-theme="auto" data-cta-ignore="" role="group" aria-label="Demo of the Claude Code desktop app"><div class="AppShell-module-scss-module__F71GCG__titlebar"><div class="AppShell-module-scss-module__F71GCG__stoplights" aria-hidden="true"><span class="AppShell-module-scss-module__F71GCG__stoplight AppShell-module-scss-module__F71GCG__stoplightClose"></span><span class="AppShell-module-scss-module__F71GCG__stoplight AppShell-module-scss-module__F71GCG__stoplightMin"></span><span class="AppShell-module-scss-module__F71GCG__stoplight AppShell-module-scss-module__F71GCG__stoplightMax"></span></div><div class="AppShell-module-scss-module__F71GCG__titlebarButtons" data-appshell-control="titlebar-buttons"><button type="button" class="AppShell-module-scss-module__F71GCG__titlebarButton" data-appshell-control="sidebar-toggle" aria-pressed="false" aria-label="Collapse sidebar"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M875.2 203V797Q875.2 818.7 864.4 836.1Q853.5 853.5 836.1 864.4Q818.7 875.2 797 875.2H203Q181.3 875.2 163.9 864.4Q146.5 853.5 135.6 836.1Q124.8 818.7 124.8 797V203Q124.8 181.3 135.6 163.9Q146.5 146.5 163.9 135.6Q181.3 124.8 203 124.8H797Q818.7 124.8 836.1 135.6Q853.5 146.5 864.4 163.9Q875.2 181.3 875.2 203ZM812.8 203Q812.8 196.5 808.1 191.9Q803.5 187.2 797 187.2H203Q196.5 187.2 191.9 191.9Q187.2 196.5 187.2 203V797Q187.2 803.5 191.9 808.1Q196.5 812.8 203 812.8H797Q803.5 812.8 808.1 808.1Q812.8 803.5 812.8 797ZM374.8 156H437.2V844H374.8Z"></path></svg></button><button type="button" class="AppShell-module-scss-module__F71GCG__titlebarButton" disabled="" aria-label="Back"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M781 468.8Q794.7 468.8 803.5 478.2Q812.2 487.6 812.2 500.1Q812.2 512.7 803.5 521.9Q794.7 531.2 781 531.2H219Q205.4 531.2 196.7 521.9Q188 512.6 187.4 500.2Q186.8 487.8 196.6 477.6L446.6 227.6Q455.3 218.8 468.5 218.8Q481.7 218.8 490.3 227.6Q500.2 237.6 500.2 250.1Q500.2 262.7 490.4 272.4L294.1 468.8ZM490.4 727.6Q500.2 737.6 500.2 750.1Q500.2 762.7 490.3 772.6Q481.7 781.2 468.7 781.2Q455.8 781.2 446.6 772.4L196.6 522.4L240.4 477.6Z"></path></svg></button><button type="button" class="AppShell-module-scss-module__F71GCG__titlebarButton" disabled="" aria-label="Forward"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M219 531.2Q205.3 531.2 196.5 521.8Q187.8 512.4 187.8 499.9Q187.8 487.3 196.5 478.1Q205.3 468.8 219 468.8H705.9L509.6 272.4Q499.8 262.4 499.8 249.9Q499.8 237.3 509.7 227.4Q518.3 218.8 531.3 218.8Q544.2 218.8 553.4 227.6L803.4 477.6Q813.2 487.6 812.7 500.1Q812.2 512.7 803.5 521.9Q794.7 531.2 781 531.2ZM553.4 772.4Q544.7 781.2 531.5 781.2Q518.3 781.2 509.7 772.4Q499.8 762.4 499.8 749.9Q499.8 737.3 509.6 727.6L759.6 477.6L803.4 522.4Z"></path></svg></button></div></div><aside class="AppShell-module-scss-module__F71GCG__sidebar" data-appshell-pane="sidebar" aria-hidden="false"><div class="AppShell-module-scss-module__F71GCG__modeRow"><button type="button" disabled="" aria-pressed="false" aria-label="Home" class="AppShell-module-scss-module__F71GCG__modeTab"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M406 124.8Q464.3 124.8 515.5 146.8Q566.6 168.8 604.9 207.6Q643.3 246.5 665.2 297.1Q687.2 347.7 687.2 406Q687.2 464.3 665.2 515.5Q643.2 566.6 604.9 604.9Q566.6 643.3 515.4 665.2Q464.3 687.2 406 687.2H156Q143.4 687.2 135.3 679.1Q127.1 671.1 125.2 659.9Q123.3 648.7 130.7 638.4L191.7 551.4Q185.3 560.2 185.8 570.9Q186.2 581.7 193.1 590Q161.5 552.2 143.1 505.6Q124.8 459.1 124.8 405.9Q124.8 347.7 146.8 297.1Q168.8 246.4 207.6 207.6Q246.5 168.7 297.1 146.8Q347.7 124.8 406 124.8ZM406.1 187.2Q361.3 187.2 321.5 204.2Q281.6 221.2 251.4 251.4Q221.3 281.5 204.2 321.3Q187.2 361.2 187.2 405.9Q187.2 447.7 201.9 484.2Q216.5 520.7 240.9 549Q247.8 557.3 248.2 568.1Q248.7 578.8 242.3 587.6L181.9 674.6Q188.8 663.3 187.3 652.1Q185.8 640.9 177.1 632.8Q168.4 624.8 156 624.8H406Q451.7 624.8 491.1 607.8Q530.5 590.8 560.6 560.6Q590.7 530.5 607.8 491.1Q624.8 451.7 624.8 406.1Q624.8 361.3 607.8 321.5Q590.8 281.6 560.6 251.4Q530.5 221.3 491.1 204.2Q451.7 187.2 406.1 187.2ZM470 804.9Q461.3 796.2 460 783.2Q458.8 770.2 467.5 761.1Q476.2 750.6 489.2 750Q502.2 749.3 511.4 758.1Q540.5 783.5 577.4 798.1Q614.3 812.8 656 812.8H846L819.7 774.6Q813.8 765.9 814.3 755.3Q814.8 744.8 822.1 736.6Q846.5 707.4 860.6 671.1Q874.8 634.7 874.8 593.9Q874.8 532.8 844.6 482.7Q814.5 432.6 765.9 404.3Q754.8 398.1 751 385.6Q747.3 373.1 754.8 361.9Q761 350.8 773.5 347.1Q785.9 343.3 797.1 350.2Q839 373.8 870.7 411.2Q902.4 448.6 919.8 495.2Q937.2 541.8 937.2 594Q937.2 640 923.1 682Q908.9 724 884.6 758L931.9 825.4Q938.8 836.7 937.3 847.9Q935.8 859.1 927.1 867.2Q918.4 875.2 906 875.2H655.3Q603.1 875.2 555.5 856.4Q507.9 837.5 470 804.9Z"></path></svg></button><button type="button" aria-pressed="true" aria-label="Code" class="AppShell-module-scss-module__F71GCG__modeTab AppShell-module-scss-module__F71GCG__modeTabActive"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M660 371Q648 360.2 648 344.1Q648 328 660.4 316.5Q671.3 305 687.7 305Q704 305 715 316L871 472Q883 484.6 883 500.3Q883 516 871 528L715 684Q704 695 687.5 695Q671 695 660.3 684Q648 673 648 656.5Q648 640 660 629L789 500ZM285 316Q296 305 312.5 305Q329 305 339.7 316Q352 327 352 343.5Q352 360 340 371L211 500L340 629Q352 639.8 352 655.9Q352 672 339.6 683.5Q328.7 695 312.3 695Q296 695 285 684L129 528Q117 515.4 117 499.7Q117 484 129 472ZM476 790Q472.9 805.7 458.9 814.4Q445 823 429.1 819.9Q413.3 815.2 405.1 801.9Q397 788.6 399 773L524 210Q527.1 194.3 541 185.6Q555 177 570.9 180.1Q586.7 184.8 594.9 198.1Q603 211.4 601 227Z"></path></svg></button></div><nav class="AppShell-module-scss-module__F71GCG__navTop"><button type="button" class="AppShell-module-scss-module__F71GCG__navItem"><span class="AppShell-module-scss-module__F71GCG__navSlot"><span class="AppShell-module-scss-module__F71GCG__newDisc"><svg width="13" height="13" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M461 219Q461 201.8 472.8 190.9Q484.6 180 500.3 180Q516 180 527.5 190.9Q539 201.8 539 219V781Q539 798.2 527.2 809.1Q515.4 820 499.7 820Q484 820 472.5 809.1Q461 798.2 461 781ZM781 461Q798.2 461 809.1 472.8Q820 484.6 820 500.3Q820 516 809.1 527.5Q798.2 539 781 539H219Q201.8 539 190.9 527.2Q180 515.4 180 499.7Q180 484 190.9 472.5Q201.8 461 219 461Z"></path></svg></span></span><span>New</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__navItem" disabled=""><span class="AppShell-module-scss-module__F71GCG__navSlot"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M281 187.2Q268.5 187.2 259.1 178.4Q249.8 169.7 249.8 155.9Q249.8 143.3 259.1 134.1Q268.5 124.8 281 124.8H719Q731.5 124.8 740.9 134Q750.2 143.3 750.2 155.6Q750.2 169.2 740.9 178.2Q731.5 187.2 719 187.2ZM197 312.8H803Q826.9 312.8 846 325.9Q865 338.9 874.6 360.2Q884.2 381.4 880.2 404.3L819.2 747.9Q813.8 776.2 792 794.2Q770.3 812.2 742 812.2H258Q229.7 812.2 208 794.2Q186.2 776.2 180.8 747.9L119.8 404.3Q115.8 381.4 125.4 360.2Q135 338.9 154 325.9Q173.1 312.8 197 312.8ZM197 375.2Q189.8 375.2 184.5 380.9Q179.2 386.7 181.2 393.1L242.2 737.1Q245.1 749.8 258 749.8H742Q747.7 749.8 752 746.3Q756.3 742.7 757.8 737.1L818.8 393.1Q820.8 386.7 815.5 380.9Q810.2 375.2 803 375.2Z"></path></svg></span><span>Projects</span><span class="AppShell-module-scss-module__F71GCG__navBadge">New</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__navItem" disabled=""><span class="AppShell-module-scss-module__F71GCG__navSlot"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M437.2 656.1Q437.2 698.8 415.9 734.2Q394.6 769.5 359.3 790.9Q323.9 812.2 281.3 812.2Q238.7 812.2 203.1 790.9Q167.6 769.6 146.2 734.3Q124.8 698.9 124.8 656.3Q124.8 613.7 146.1 578.1Q167.5 542.6 202.9 521.2Q238.3 499.8 281.1 499.8Q323.8 499.8 359.2 521.1Q394.5 542.5 415.9 577.9Q437.2 613.3 437.2 656.1ZM374.8 656.1Q374.8 630.8 362.1 609.6Q349.5 588.5 327.9 575.4Q306.4 562.2 281.1 562.2Q255.8 562.2 234.6 575.4Q213.5 588.6 200.4 609.7Q187.2 630.9 187.2 656.3Q187.2 681.7 200.4 703.1Q213.6 724.6 234.7 737.2Q255.9 749.8 281.3 749.8Q306.7 749.8 328.1 737.1Q349.6 724.5 362.2 702.9Q374.8 681.4 374.8 656.1ZM357.1 541.3Q345.9 547.7 333.4 544.5Q320.9 541.4 314.7 530.1Q289.3 486.2 278.8 435.1Q268.2 384 275.2 333.9Q282.2 281.8 311 236.6Q339.7 191.4 391 161.6Q442.3 132.2 495.6 130.2Q549 128.2 598.2 147.2Q645.3 166.6 684.3 201.8Q723.2 237 747.8 279.9Q754.7 291.1 751 303.8Q747.2 316.4 736.1 322.8ZM325.9 487.7 704.9 268.7Q693.6 274.9 690.5 287.4Q687.3 299.9 693.7 311.1Q673.2 277 642.5 248.7Q611.8 220.4 574.8 205.8Q541.6 191.7 502.1 191.7Q462.7 191.8 422.3 215.3Q381 238.9 361.4 272.8Q341.8 306.7 335.8 343.6Q330.8 383.3 339.8 423.6Q348.8 463.8 368.8 498.9Q362.4 487.6 349.8 484.5Q337.1 481.3 325.9 487.7ZM813 812.2H625Q599.4 812.2 581.1 793.9Q562.8 775.6 562.8 750V437Q562.8 411.4 581.1 393.1Q599.4 374.8 625 374.8H813Q838.6 374.8 856.9 393.1Q875.2 411.4 875.2 437V750Q875.2 775.6 856.9 793.9Q838.6 812.2 813 812.2ZM812.1 749.8Q814.1 749.8 813.4 750.9Q812.8 752.1 812.8 749.1V437.9Q812.8 435.9 813.4 436.6Q814.1 437.2 812.1 437.2H625.9Q622.9 437.2 624.1 436.6Q625.2 435.9 625.2 437.9V749.1Q625.2 752.1 624.1 750.9Q622.9 749.8 625.9 749.8Z"></path></svg></span><span>Artifacts</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__navItem" disabled=""><span class="AppShell-module-scss-module__F71GCG__navSlot"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M797 812.2H203Q181.3 812.2 163.9 801.9Q146.5 791.6 135.6 773.7Q124.8 755.7 124.8 734V437Q124.8 403.3 141.6 374.9Q158.5 346.5 186.9 329.6Q215.3 312.8 250 312.8H750Q784.7 312.8 813.1 329.6Q841.5 346.5 858.4 374.9Q875.2 403.3 875.2 437V734Q875.2 755.7 864.4 773.7Q853.5 791.6 836.1 801.9Q818.7 812.2 797 812.2ZM797 749.8Q803.5 749.8 808.1 745.1Q812.8 740.5 812.8 734V437Q812.8 411.6 794.6 393.4Q776.4 375.2 750 375.2H250Q223.6 375.2 205.4 393.4Q187.2 411.6 187.2 437V734Q187.2 740.5 191.9 745.1Q196.5 749.8 203 749.8ZM375.2 344.9H312.8V250.9Q312.8 224.3 331.1 206.1Q349.4 187.8 375 187.8H625Q650.6 187.8 668.9 206.1Q687.2 224.4 687.2 250V344H624.8V250Q624.8 247.9 625.9 249.1Q627.1 250.2 624.1 250.2H375.9Q372.9 250.2 374.1 249.1Q375.2 247.9 375.2 250.9ZM156 562.2V499.8H844V562.2Z"></path></svg></span><span>Customize</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__navItem AppShell-module-scss-module__F71GCG__navItemDim" disabled=""><span class="AppShell-module-scss-module__F71GCG__navSlot"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M196.6 397.4Q187.8 387.4 187.8 374.9Q187.8 362.3 196.6 352.4Q205.3 343.8 218.5 343.8Q231.7 343.8 240.4 352.6L500 612.1L759.6 352.6Q768.2 343.8 781.2 343.8Q794.2 343.8 803.2 352.6Q812.2 362.6 812.2 375.1Q812.2 387.7 803.4 397.4L522.4 678.4Q512.4 687.2 499.9 687.2Q487.3 687.2 477.6 678.4Z"></path></svg></span><span>More</span></button></nav><div class="AppShell-module-scss-module__F71GCG__sessions"><div class="AppShell-module-scss-module__F71GCG__sessionGroup"><div class="AppShell-module-scss-module__F71GCG__sectionHeader">Pinned</div><div class="AppShell-module-scss-module__F71GCG__row AppShell-module-scss-module__F71GCG__rowActive"><button type="button" class="AppShell-module-scss-module__F71GCG__rowSelect"><span class="AppShell-module-scss-module__F71GCG__rowIcon AppShell-module-scss-module__F71GCG__rowIconDiff"><svg width="14" height="14" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M741 617Q757.9 617 769.4 627.1Q780.9 637.3 782.5 654.4Q784 670 772.9 682.5Q761.8 695 746 695Q724.8 696.6 709.9 712.1Q695 727.6 695 749.9Q695 773 710.9 789Q726.8 805 749.9 805Q773 805 789 789.1Q805 773.2 805 750.2Q805 728 790.1 712.3Q775.2 696.6 754 695Q737.6 695 726.8 682.7Q716 670.4 717 654.9Q718 638 729.8 627.5Q741.7 617 759 617Q793.6 619.2 821.6 637.7Q849.5 656.1 866.2 685.8Q883 715.4 883 750.1Q883 787 865.1 817.1Q847.2 847.3 817 865.1Q786.8 883 749.9 883Q713 883 682.9 865.1Q652.7 847.2 634.9 816.9Q617 786.7 617 749.7Q617 715 633.8 685.5Q650.5 656 678.4 637.6Q706.4 619.2 741 617ZM259 383Q242.1 383 230.6 372.9Q219.1 362.7 217.5 345.6Q216 330 227.1 317.5Q238.2 305 254 305Q275.2 303.4 290.1 287.9Q305 272.4 305 250.1Q305 227 289.1 211Q273.2 195 250.1 195Q227 195 211 210.9Q195 226.8 195 249.8Q195 272 209.9 287.7Q224.8 303.4 246 305Q262.4 305 273.2 317.3Q284 329.6 283 345.1Q282 362 270.2 372.5Q258.3 383 241 383Q206.4 380.8 178.4 362.3Q150.5 343.9 133.8 314.2Q117 284.6 117 249.9Q117 213 134.9 182.9Q152.8 152.7 183 134.9Q213.2 117 250.1 117Q287 117 317.1 134.9Q347.3 152.8 365.1 183.1Q383 213.3 383 250.3Q383 285 366.2 314.5Q349.5 344 321.6 362.4Q293.6 380.8 259 383ZM789 656Q789 673.2 777.2 684.1Q765.4 695 749.7 695Q734 695 722.5 684.1Q711 673.2 711 656V395Q711 359.9 686 335L602 251V344Q602 359.6 590.3 371.3Q578.7 383 563.1 383Q546 383 534.5 371.3Q523 359.6 523 344V156Q523 138.4 534.3 128Q545.6 117.6 561.8 116.8Q578 116 590 129L741 280Q789 327.7 789 395ZM750 117Q766 117 777.5 128.5Q789 139.9 789 155.2Q789 172 777.3 183.5Q765.6 195 750 195H563V117ZM211 344Q211 326.8 222.8 315.9Q234.6 305 250.3 305Q266 305 277.5 315.9Q289 326.8 289 344V604Q289 640.1 314 665L398 749V656Q398 640.4 409.2 628.7Q420.4 617 438 617Q454 617 465.5 628.7Q477 640.4 477 656V844Q477 861.6 465.2 872Q453.4 882.4 437.7 883.2Q422 884 410 871L259 720Q211 672.3 211 604ZM250 883Q234 883 222.5 871.5Q211 860.1 211 844.8Q211 828 222.7 816.5Q234.4 805 250 805H438V883Z"></path></svg></span><span class="AppShell-module-scss-module__F71GCG__rowLabel">Add a dark mode toggle to settings</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__rowMore" aria-label="Options for Add a dark mode toggle to settings" aria-haspopup="menu" aria-expanded="false"><svg width="12" height="12" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M564.3 495.4Q565.3 509.9 556.1 519.8Q546.9 529.7 533.4 531Q520 532.3 509.5 523Q499 513.8 497.7 500.6Q497.7 498.8 499.8 500.5Q501.8 502.3 500 502.3Q498.2 502.3 500.2 500.2Q502.3 498.2 502.3 500Q502.3 501.8 500.2 499.8Q498.2 497.7 500 497.7Q501.8 497.7 499.8 499.5Q497.7 501.2 497.7 499.4Q499 485.9 509.7 476.8Q520.4 467.7 533.8 468.7Q547.1 469.7 556.2 479.8Q565.3 489.8 564.3 504.6Q563.1 529.9 544.2 547.1Q525.2 564.3 499.9 564.3Q473.4 564.3 454.6 545.3Q435.7 526.3 435.7 499.9Q435.7 473.4 454.7 454.6Q473.7 435.7 500.2 435.7Q525.6 435.7 544.4 452.9Q563.2 470.1 564.3 495.4ZM564.3 745.4Q565.3 759.9 556.1 769.8Q546.9 779.7 533.4 781Q520 782.3 509.5 773Q499 763.8 497.7 750.6Q497.7 748.8 499.8 750.5Q501.8 752.3 500 752.3Q498.2 752.3 500.2 750.2Q502.3 748.2 502.3 750Q502.3 751.8 500.2 749.8Q498.2 747.7 500 747.7Q501.8 747.7 499.8 749.5Q497.7 751.2 497.7 749.4Q499 735.9 509.7 726.8Q520.4 717.7 533.8 718.7Q547.1 719.7 556.2 729.8Q565.3 739.8 564.3 754.6Q563.1 779.9 544.2 797.1Q525.2 814.3 499.9 814.3Q473.4 814.3 454.6 795.3Q435.7 776.3 435.7 749.9Q435.7 723.4 454.7 704.6Q473.7 685.7 500.2 685.7Q525.6 685.7 544.4 702.9Q563.2 720.1 564.3 745.4ZM564.3 245.4Q565.3 259.9 556.1 269.8Q546.9 279.7 533.4 281Q520 282.3 509.5 273Q499 263.8 497.7 250.6Q497.7 248.8 499.8 250.5Q501.8 252.3 500 252.3Q498.2 252.3 500.2 250.2Q502.3 248.2 502.3 250Q502.3 251.8 500.2 249.8Q498.2 247.7 500 247.7Q501.8 247.7 499.8 249.5Q497.7 251.2 497.7 249.4Q499 235.9 509.7 226.8Q520.4 217.7 533.8 218.7Q547.1 219.7 556.2 229.8Q565.3 239.8 564.3 254.6Q563.1 279.9 544.2 297.1Q525.2 314.3 499.9 314.3Q473.4 314.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4Z"></path></svg></button></div></div><div class="AppShell-module-scss-module__F71GCG__sessionGroup"><div class="AppShell-module-scss-module__F71GCG__sectionHeader">Scheduled</div><div class="AppShell-module-scss-module__F71GCG__row"><button type="button" class="AppShell-module-scss-module__F71GCG__rowSelect"><span class="AppShell-module-scss-module__F71GCG__rowIcon"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M875.2 500.1Q875.2 574.3 846.7 643.5Q818.3 712.6 765.4 765.4Q712.5 818.3 643.3 846.8Q574.2 875.2 499.9 875.2Q425.7 875.2 356.5 846.7Q287.4 818.3 234.6 765.4Q181.7 712.5 153.2 643.3Q124.8 574.2 124.8 499.9Q124.8 425.7 153.3 356.5Q181.7 287.4 234.6 234.6Q287.5 181.7 356.7 153.2Q425.8 124.8 500.1 124.8Q574.3 124.8 643.5 153.3Q712.6 181.7 765.4 234.6Q818.3 287.5 846.8 356.7Q875.2 425.8 875.2 500.1ZM812.8 499.7Q812.8 437.9 788.7 380.1Q764.7 322.3 720.5 279.3Q677.3 235.2 619.4 211.2Q561.5 187.2 499.7 187.2Q437.9 187.2 380.1 211.3Q322.3 235.3 279.3 279.5Q235.2 322.7 211.2 380.6Q187.2 438.5 187.2 500.3Q187.2 562.1 211.3 619.9Q235.3 677.7 279.5 720.7Q322.7 764.8 380.6 788.8Q438.5 812.8 500.3 812.8Q562.1 812.8 619.9 788.7Q677.7 764.7 720.7 720.5Q764.8 677.3 788.8 619.4Q812.8 561.5 812.8 499.7ZM531.2 500Q531.2 512.5 521.8 521.9Q512.4 531.2 499.9 531.2Q487.3 531.2 478.1 521.9Q468.8 512.5 468.8 500V344Q468.8 330.3 478.2 321.5Q487.6 312.8 500.1 312.8Q512.7 312.8 521.9 321.5Q531.2 330.3 531.2 344ZM486.3 527.8Q475.1 522.7 470.7 510.1Q466.3 497.6 472.6 486.3Q477.5 475.1 490 470.7Q502.4 466.3 513.7 472.2L638.7 534.7Q649.9 540.9 654.3 552.7Q658.7 564.4 652.4 577.1Q647.5 588.5 635 592.3Q622.6 596.1 611.3 590.3Z"></path></svg></span><span class="AppShell-module-scss-module__F71GCG__rowLabel">Weekly dependency audit</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__rowMore" aria-label="Options for Weekly dependency audit" aria-haspopup="menu" aria-expanded="false"><svg width="12" height="12" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M564.3 495.4Q565.3 509.9 556.1 519.8Q546.9 529.7 533.4 531Q520 532.3 509.5 523Q499 513.8 497.7 500.6Q497.7 498.8 499.8 500.5Q501.8 502.3 500 502.3Q498.2 502.3 500.2 500.2Q502.3 498.2 502.3 500Q502.3 501.8 500.2 499.8Q498.2 497.7 500 497.7Q501.8 497.7 499.8 499.5Q497.7 501.2 497.7 499.4Q499 485.9 509.7 476.8Q520.4 467.7 533.8 468.7Q547.1 469.7 556.2 479.8Q565.3 489.8 564.3 504.6Q563.1 529.9 544.2 547.1Q525.2 564.3 499.9 564.3Q473.4 564.3 454.6 545.3Q435.7 526.3 435.7 499.9Q435.7 473.4 454.7 454.6Q473.7 435.7 500.2 435.7Q525.6 435.7 544.4 452.9Q563.2 470.1 564.3 495.4ZM564.3 745.4Q565.3 759.9 556.1 769.8Q546.9 779.7 533.4 781Q520 782.3 509.5 773Q499 763.8 497.7 750.6Q497.7 748.8 499.8 750.5Q501.8 752.3 500 752.3Q498.2 752.3 500.2 750.2Q502.3 748.2 502.3 750Q502.3 751.8 500.2 749.8Q498.2 747.7 500 747.7Q501.8 747.7 499.8 749.5Q497.7 751.2 497.7 749.4Q499 735.9 509.7 726.8Q520.4 717.7 533.8 718.7Q547.1 719.7 556.2 729.8Q565.3 739.8 564.3 754.6Q563.1 779.9 544.2 797.1Q525.2 814.3 499.9 814.3Q473.4 814.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4ZM564.3 245.4Q565.3 259.9 556.1 269.8Q546.9 279.7 533.4 281Q520 282.3 509.5 273Q499 263.8 497.7 250.6Q497.7 248.8 499.8 250.5Q501.8 252.3 500 252.3Q498.2 252.3 500.2 250.2Q502.3 248.2 502.3 250Q502.3 251.8 500.2 249.8Q498.2 247.7 500 247.7Q501.8 247.7 499.8 249.5Q497.7 251.2 497.7 249.4Q499 235.9 509.7 226.8Q520.4 217.7 533.8 218.7Q547.1 219.7 556.2 229.8Q565.3 239.8 564.3 254.6Q563.1 279.9 544.2 297.1Q525.2 314.3 499.9 314.3Q473.4 314.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4Z"></path></svg></button></div></div><div class="AppShell-module-scss-module__F71GCG__sessionGroup"><div class="AppShell-module-scss-module__F71GCG__sectionHeader">Recents</div><div class="AppShell-module-scss-module__F71GCG__row"><button type="button" class="AppShell-module-scss-module__F71GCG__rowSelect"><span class="AppShell-module-scss-module__F71GCG__rowIcon AppShell-module-scss-module__F71GCG__rowIconDot AppShell-module-scss-module__F71GCG__rowIconWorking"></span><span class="AppShell-module-scss-module__F71GCG__rowLabel">Fix the double-charge bug in checkout</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__rowMore" aria-label="Options for Fix the double-charge bug in checkout" aria-haspopup="menu" aria-expanded="false"><svg width="12" height="12" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M564.3 495.4Q565.3 509.9 556.1 519.8Q546.9 529.7 533.4 531Q520 532.3 509.5 523Q499 513.8 497.7 500.6Q497.7 498.8 499.8 500.5Q501.8 502.3 500 502.3Q498.2 502.3 500.2 500.2Q502.3 498.2 502.3 500Q502.3 501.8 500.2 499.8Q498.2 497.7 500 497.7Q501.8 497.7 499.8 499.5Q497.7 501.2 497.7 499.4Q499 485.9 509.7 476.8Q520.4 467.7 533.8 468.7Q547.1 469.7 556.2 479.8Q565.3 489.8 564.3 504.6Q563.1 529.9 544.2 547.1Q525.2 564.3 499.9 564.3Q473.4 564.3 454.6 545.3Q435.7 526.3 435.7 499.9Q435.7 473.4 454.7 454.6Q473.7 435.7 500.2 435.7Q525.6 435.7 544.4 452.9Q563.2 470.1 564.3 495.4ZM564.3 745.4Q565.3 759.9 556.1 769.8Q546.9 779.7 533.4 781Q520 782.3 509.5 773Q499 763.8 497.7 750.6Q497.7 748.8 499.8 750.5Q501.8 752.3 500 752.3Q498.2 752.3 500.2 750.2Q502.3 748.2 502.3 750Q502.3 751.8 500.2 749.8Q498.2 747.7 500 747.7Q501.8 747.7 499.8 749.5Q497.7 751.2 497.7 749.4Q499 735.9 509.7 726.8Q520.4 717.7 533.8 718.7Q547.1 719.7 556.2 729.8Q565.3 739.8 564.3 754.6Q563.1 779.9 544.2 797.1Q525.2 814.3 499.9 814.3Q473.4 814.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4ZM564.3 245.4Q565.3 259.9 556.1 269.8Q546.9 279.7 533.4 281Q520 282.3 509.5 273Q499 263.8 497.7 250.6Q497.7 248.8 499.8 250.5Q501.8 252.3 500 252.3Q498.2 252.3 500.2 250.2Q502.3 248.2 502.3 250Q502.3 251.8 500.2 249.8Q498.2 247.7 500 247.7Q501.8 247.7 499.8 249.5Q497.7 251.2 497.7 249.4Q499 235.9 509.7 226.8Q520.4 217.7 533.8 218.7Q547.1 219.7 556.2 229.8Q565.3 239.8 564.3 254.6Q563.1 279.9 544.2 297.1Q525.2 314.3 499.9 314.3Q473.4 314.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4Z"></path></svg></button></div><div class="AppShell-module-scss-module__F71GCG__row"><button type="button" class="AppShell-module-scss-module__F71GCG__rowSelect"><span class="AppShell-module-scss-module__F71GCG__rowIcon AppShell-module-scss-module__F71GCG__rowIconDot AppShell-module-scss-module__F71GCG__rowIconWorking"></span><span class="AppShell-module-scss-module__F71GCG__rowLabel">Write tests for the payments module</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__rowMore" aria-label="Options for Write tests for the payments module" aria-haspopup="menu" aria-expanded="false"><svg width="12" height="12" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M564.3 495.4Q565.3 509.9 556.1 519.8Q546.9 529.7 533.4 531Q520 532.3 509.5 523Q499 513.8 497.7 500.6Q497.7 498.8 499.8 500.5Q501.8 502.3 500 502.3Q498.2 502.3 500.2 500.2Q502.3 498.2 502.3 500Q502.3 501.8 500.2 499.8Q498.2 497.7 500 497.7Q501.8 497.7 499.8 499.5Q497.7 501.2 497.7 499.4Q499 485.9 509.7 476.8Q520.4 467.7 533.8 468.7Q547.1 469.7 556.2 479.8Q565.3 489.8 564.3 504.6Q563.1 529.9 544.2 547.1Q525.2 564.3 499.9 564.3Q473.4 564.3 454.6 545.3Q435.7 526.3 435.7 499.9Q435.7 473.4 454.7 454.6Q473.7 435.7 500.2 435.7Q525.6 435.7 544.4 452.9Q563.2 470.1 564.3 495.4ZM564.3 745.4Q565.3 759.9 556.1 769.8Q546.9 779.7 533.4 781Q520 782.3 509.5 773Q499 763.8 497.7 750.6Q497.7 748.8 499.8 750.5Q501.8 752.3 500 752.3Q498.2 752.3 500.2 750.2Q502.3 748.2 502.3 750Q502.3 751.8 500.2 749.8Q498.2 747.7 500 747.7Q501.8 747.7 499.8 749.5Q497.7 751.2 497.7 749.4Q499 735.9 509.7 726.8Q520.4 717.7 533.8 718.7Q547.1 719.7 556.2 729.8Q565.3 739.8 564.3 754.6Q563.1 779.9 544.2 797.1Q525.2 814.3 499.9 814.3Q473.4 814.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4ZM564.3 245.4Q565.3 259.9 556.1 269.8Q546.9 279.7 533.4 281Q520 282.3 509.5 273Q499 263.8 497.7 250.6Q497.7 248.8 499.8 250.5Q501.8 252.3 500 252.3Q498.2 252.3 500.2 250.2Q502.3 248.2 502.3 250Q502.3 251.8 500.2 249.8Q498.2 247.7 500 247.7Q501.8 247.7 499.8 249.5Q497.7 251.2 497.7 249.4Q499 235.9 509.7 226.8Q520.4 217.7 533.8 218.7Q547.1 219.7 556.2 229.8Q565.3 239.8 564.3 254.6Q563.1 279.9 544.2 297.1Q525.2 314.3 499.9 314.3Q473.4 314.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4Z"></path></svg></button></div><div class="AppShell-module-scss-module__F71GCG__row"><button type="button" class="AppShell-module-scss-module__F71GCG__rowSelect"><span class="AppShell-module-scss-module__F71GCG__rowIcon AppShell-module-scss-module__F71GCG__rowIconRing"></span><span class="AppShell-module-scss-module__F71GCG__rowLabel">Explain what this repo does</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__rowMore" aria-label="Options for Explain what this repo does" aria-haspopup="menu" aria-expanded="false"><svg width="12" height="12" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M564.3 495.4Q565.3 509.9 556.1 519.8Q546.9 529.7 533.4 531Q520 532.3 509.5 523Q499 513.8 497.7 500.6Q497.7 498.8 499.8 500.5Q501.8 502.3 500 502.3Q498.2 502.3 500.2 500.2Q502.3 498.2 502.3 500Q502.3 501.8 500.2 499.8Q498.2 497.7 500 497.7Q501.8 497.7 499.8 499.5Q497.7 501.2 497.7 499.4Q499 485.9 509.7 476.8Q520.4 467.7 533.8 468.7Q547.1 469.7 556.2 479.8Q565.3 489.8 564.3 504.6Q563.1 529.9 544.2 547.1Q525.2 564.3 499.9 564.3Q473.4 564.3 454.6 545.3Q435.7 526.3 435.7 499.9Q435.7 473.4 454.7 454.6Q473.7 435.7 500.2 435.7Q525.6 435.7 544.4 452.9Q563.2 470.1 564.3 495.4ZM564.3 745.4Q565.3 759.9 556.1 769.8Q546.9 779.7 533.4 781Q520 782.3 509.5 773Q499 763.8 497.7 750.6Q497.7 748.8 499.8 750.5Q501.8 752.3 500 752.3Q498.2 752.3 500.2 750.2Q502.3 748.2 502.3 750Q502.3 751.8 500.2 749.8Q498.2 747.7 500 747.7Q501.8 747.7 499.8 749.5Q497.7 751.2 497.7 749.4Q499 735.9 509.7 726.8Q520.4 717.7 533.8 718.7Q547.1 719.7 556.2 729.8Q565.3 739.8 564.3 754.6Q563.1 779.9 544.2 797.1Q525.2 814.3 499.9 814.3Q473.4 814.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4ZM564.3 245.4Q565.3 259.9 556.1 269.8Q546.9 279.7 533.4 281Q520 282.3 509.5 273Q499 263.8 497.7 250.6Q497.7 248.8 499.8 250.5Q501.8 252.3 500 252.3Q498.2 252.3 500.2 250.2Q502.3 248.2 502.3 250Q502.3 251.8 500.2 249.8Q498.2 247.7 500 247.7Q501.8 247.7 499.8 249.5Q497.7 251.2 497.7 249.4Q499 235.9 509.7 226.8Q520.4 217.7 533.8 218.7Q547.1 219.7 556.2 229.8Q565.3 239.8 564.3 254.6Q563.1 279.9 544.2 297.1Q525.2 314.3 499.9 314.3Q473.4 314.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4Z"></path></svg></button></div><div class="AppShell-module-scss-module__F71GCG__row"><button type="button" class="AppShell-module-scss-module__F71GCG__rowSelect"><span class="AppShell-module-scss-module__F71GCG__rowIcon AppShell-module-scss-module__F71GCG__rowIconRing"></span><span class="AppShell-module-scss-module__F71GCG__rowLabel">Layout's broken on mobile</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__rowMore" aria-label="Options for Layout's broken on mobile" aria-haspopup="menu" aria-expanded="false"><svg width="12" height="12" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M564.3 495.4Q565.3 509.9 556.1 519.8Q546.9 529.7 533.4 531Q520 532.3 509.5 523Q499 513.8 497.7 500.6Q497.7 498.8 499.8 500.5Q501.8 502.3 500 502.3Q498.2 502.3 500.2 500.2Q502.3 498.2 502.3 500Q502.3 501.8 500.2 499.8Q498.2 497.7 500 497.7Q501.8 497.7 499.8 499.5Q497.7 501.2 497.7 499.4Q499 485.9 509.7 476.8Q520.4 467.7 533.8 468.7Q547.1 469.7 556.2 479.8Q565.3 489.8 564.3 504.6Q563.1 529.9 544.2 547.1Q525.2 564.3 499.9 564.3Q473.4 564.3 454.6 545.3Q435.7 526.3 435.7 499.9Q435.7 473.4 454.7 454.6Q473.7 435.7 500.2 435.7Q525.6 435.7 544.4 452.9Q563.2 470.1 564.3 495.4ZM564.3 745.4Q565.3 759.9 556.1 769.8Q546.9 779.7 533.4 781Q520 782.3 509.5 773Q499 763.8 497.7 750.6Q497.7 748.8 499.8 750.5Q501.8 752.3 500 752.3Q498.2 752.3 500.2 750.2Q502.3 748.2 502.3 750Q502.3 751.8 500.2 749.8Q498.2 747.7 500 747.7Q501.8 747.7 499.8 749.5Q497.7 751.2 497.7 749.4Q499 735.9 509.7 726.8Q520.4 717.7 533.8 718.7Q547.1 719.7 556.2 729.8Q565.3 739.8 564.3 754.6Q563.1 779.9 544.2 797.1Q525.2 814.3 499.9 814.3Q473.4 814.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4ZM564.3 245.4Q565.3 259.9 556.1 269.8Q546.9 279.7 533.4 281Q520 282.3 509.5 273Q499 263.8 497.7 250.6Q497.7 248.8 499.8 250.5Q501.8 252.3 500 252.3Q498.2 252.3 500.2 250.2Q502.3 248.2 502.3 250Q502.3 251.8 500.2 249.8Q498.2 247.7 500 247.7Q501.8 247.7 499.8 249.5Q497.7 251.2 497.7 249.4Q499 235.9 509.7 226.8Q520.4 217.7 533.8 218.7Q547.1 219.7 556.2 229.8Q565.3 239.8 564.3 254.6Q563.1 279.9 544.2 297.1Q525.2 314.3 499.9 314.3Q473.4 314.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4Z"></path></svg></button></div><div class="AppShell-module-scss-module__F71GCG__row"><button type="button" class="AppShell-module-scss-module__F71GCG__rowSelect"><span class="AppShell-module-scss-module__F71GCG__rowIcon AppShell-module-scss-module__F71GCG__rowIconDot AppShell-module-scss-module__F71GCG__rowIconUnread"></span><span class="AppShell-module-scss-module__F71GCG__rowLabel">Debug flaky CI tests</span></button><button type="button" class="AppShell-module-scss-module__F71GCG__rowMore" aria-label="Options for Debug flaky CI tests" aria-haspopup="menu" aria-expanded="false"><svg width="12" height="12" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M564.3 495.4Q565.3 509.9 556.1 519.8Q546.9 529.7 533.4 531Q520 532.3 509.5 523Q499 513.8 497.7 500.6Q497.7 498.8 499.8 500.5Q501.8 502.3 500 502.3Q498.2 502.3 500.2 500.2Q502.3 498.2 502.3 500Q502.3 501.8 500.2 499.8Q498.2 497.7 500 497.7Q501.8 497.7 499.8 499.5Q497.7 501.2 497.7 499.4Q499 485.9 509.7 476.8Q520.4 467.7 533.8 468.7Q547.1 469.7 556.2 479.8Q565.3 489.8 564.3 504.6Q563.1 529.9 544.2 547.1Q525.2 564.3 499.9 564.3Q473.4 564.3 454.6 545.3Q435.7 526.3 435.7 499.9Q435.7 473.4 454.7 454.6Q473.7 435.7 500.2 435.7Q525.6 435.7 544.4 452.9Q563.2 470.1 564.3 495.4ZM564.3 745.4Q565.3 759.9 556.1 769.8Q546.9 779.7 533.4 781Q520 782.3 509.5 773Q499 763.8 497.7 750.6Q497.7 748.8 499.8 750.5Q501.8 752.3 500 752.3Q498.2 752.3 500.2 750.2Q502.3 748.2 502.3 750Q502.3 751.8 500.2 749.8Q498.2 747.7 500 747.7Q501.8 747.7 499.8 749.5Q497.7 751.2 497.7 749.4Q499 735.9 509.7 726.8Q520.4 717.7 533.8 718.7Q547.1 719.7 556.2 729.8Q565.3 739.8 564.3 754.6Q563.1 779.9 544.2 797.1Q525.2 814.3 499.9 814.3Q473.4 814.3 454.6 295.3Q435.7 276.3 435.7 249.9Q435.7 223.4 454.7 204.6Q473.7 185.7 500.2 185.7Q525.6 185.7 544.4 202.9Q563.2 220.1 564.3 245.4Z"></path></svg></button></div></div></div><div class="AppShell-module-scss-module__F71GCG__footer"><span class="AppShell-module-scss-module__F71GCG__footerUser"><span class="AppShell-module-scss-module__F71GCG__footerAvatar"><svg width="20" height="20" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><rect width="28" height="28" fill="var(--color-olive)"></rect><path fill="var(--color-oat)" d="M21.3 8.9C21.33 9.17 21.3 9.42 21.28 9.67C21.28 9.69 21.3 9.87 21.28 9.87C20.89 9.89 20.49 9.92 20.12 9.95C19.97 9.96 19.86 9.99 19.72 9.99C19.55 10 19.35 9.99 19.15 9.99C19.05 10 18.93 10 18.79 10C18.79 10.05 18.82 10.08 18.82 10.09C18.79 10.2 18.79 10.35 18.76 10.48C18.76 10.76 18.79 11.05 18.79 11.32C18.76 11.56 18.73 11.77 18.73 11.99C18.73 12.17 18.71 12.59 18.71 12.59C18.71 12.59 18.6 12.59 18.54 12.59C18.13 12.64 17.73 12.69 17.29 12.68C17.18 12.68 17.07 12.64 16.92 12.67C16.74 12.68 16.52 12.68 16.31 12.69C16.28 12.69 16.14 12.7 16.14 12.7C16.14 12.7 16.14 12.87 16.14 12.89C16.17 13.57 16.14 14.26 16.14 14.89C16.13 15.12 16.14 15.33 16.14 15.54C16.36 15.54 16.52 15.53 16.69 15.54C16.84 15.54 16.99 15.54 17.18 15.54C17.64 15.55 18.09 15.5 18.56 15.53C18.59 15.53 18.86 15.54 18.86 15.54C18.86 15.54 18.86 15.7 18.86 15.74C18.92 16.02 18.93 16.29 18.93 16.59C18.95 16.91 18.96 17.24 19.01 17.57L19.05 18.05L21.3 18.03L21.28 21.31C21.22 21.31 21.16 21.31 21.08 21.31C20.75 21.31 20.41 21.35 20.08 21.33C19.89 21.33 19.68 21.29 19.49 21.29C18.76 21.26 18.05 21.31 17.35 21.31C16.41 21.33 15.46 21.22 14.48 21.26C14 21.29 13.52 21.31 13.01 21.33C12.76 21.33 12.54 21.31 12.29 21.29C11.37 21.27 10.44 21.33 9.51 21.33C8.74 21.33 7.96 21.33 7.18 21.33C7.03 21.33 6.88 21.33 6.7 21.33C6.7 21.05 6.7 21 6.7 20.71C6.7 20.66 6.7 20.4 6.7 20.37C6.67 19.96 6.7 19.59 6.73 19.21C6.77 18.87 6.75 18.14 6.75 18.14C6.75 18.14 6.99 18.12 7.1 18.12C7.51 18.07 7.92 18.03 8.23 18.03C8.51 18.03 8.82 18.03 8.82 18.03C8.8 17.91 8.83 17.8 8.83 17.68C8.85 17.17 8.85 16.79 8.86 16.29C8.86 16.13 8.89 15.83 8.89 15.65C9.04 15.65 9.21 15.65 9.38 15.65C9.91 15.65 10.46 15.62 10.97 15.59C11.26 15.59 11.58 15.59 11.86 15.56C11.87 15.56 11.93 15.56 11.93 15.56L11.82 12.69C11.67 12.7 11.38 12.69 11.21 12.68C10.9 12.67 10.68 12.64 10.33 12.64C10.01 12.6 9.68 12.64 9.35 12.64C9.28 12.63 8.93 12.64 8.83 12.64C8.78 12.48 8.83 12.36 8.82 12.2C8.78 11.68 8.76 11.12 8.72 10.58C8.72 10.52 8.72 10.09 8.69 10.08C8.37 10.08 8.04 10.09 7.74 10.09C7.6 10.09 7.48 10.08 7.36 10.08C7.17 10.08 6.99 10.08 6.77 10.08C6.77 9.8 6.75 9.47 6.77 9.17C6.77 8.71 6.72 8.25 6.72 7.79C6.72 7.38 6.77 6.68 6.77 6.68C6.77 6.68 6.95 6.68 7.1 6.68C7.89 6.65 8.73 6.7 9.55 6.75C10.29 6.77 11.01 6.72 11.75 6.72C12.24 6.7 12.74 6.74 13.25 6.75C13.86 6.75 14.51 6.72 15.15 6.74C15.5 6.75 15.84 6.77 16.21 6.77C16.49 6.75 16.74 6.74 17.02 6.72C17.64 6.72 18.24 6.75 18.86 6.75C19.19 6.74 19.49 6.7 19.82 6.7C20.16 6.7 20.52 6.72 20.86 6.74C21.02 6.75 21.13 6.75 21.26 6.77C21.28 6.79 21.24 7.19 21.24 7.23C21.22 7.65 21.26 8.07 21.27 8.48C21.28 8.62 21.3 8.77 21.3 8.9C21.3 8.9 21.3 8.9 21.3 8.9L21.3 8.9Z"></path></svg></span><span class="AppShell-module-scss-module__F71GCG__footerName">InsomniacZero</span><svg class="AppShell-module-scss-module__F71GCG__footerCaret" width="12" height="12" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M195.1 398.9Q185.7 388.2 185.7 374.8Q185.7 361.4 195.1 350.9Q204.4 341.7 218.5 341.7Q232.6 341.7 241.9 351.1L500 609.1L758.1 351.1Q767.3 341.7 781.1 341.7Q795 341.7 804.6 351.1Q814.3 361.8 814.3 375.2Q814.3 388.6 804.9 398.9L523.9 679.9Q513.2 689.3 499.8 689.3Q486.4 689.3 476.1 679.9Z"></path></svg></span><span class="AppShell-module-scss-module__F71GCG__footerAction"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M625.2 500.1Q625.2 533.8 607.8 562.2Q590.5 590.5 562 607.9Q533.6 625.2 499.9 625.2Q466.2 625.2 437.8 607.8Q409.5 590.5 392.1 562Q374.8 533.6 374.8 499.9Q374.8 466.2 392.2 437.8Q409.5 409.5 438 392.1Q466.4 374.8 500.1 374.8Q533.8 374.8 562.2 392.2Q590.5 409.5 607.9 438Q625.2 466.4 625.2 500.1ZM562.8 500.1Q562.8 474.7 544.2 455.9Q525.5 437.2 500.1 437.2Q474.7 437.2 455.9 455.8Q437.2 474.5 437.2 499.9Q437.2 525.3 455.8 544.1Q474.5 562.8 499.9 562.8Q525.3 562.8 544.1 544.2Q562.8 525.5 562.8 500.1ZM547 124.8Q568.7 124.8 586.1 135.6Q603.5 146.5 614.4 163.9Q625.2 181.3 625.2 203V229Q625.2 239.1 629.8 245.8Q634.3 252.5 640.9 256.7Q646.7 260.1 655 260.9Q663.2 261.8 671.9 256.7L694.9 243.7Q713.4 232.8 734.1 232.8Q754.8 232.8 772.6 243.1Q790.5 253.4 801.3 271.9L848.3 352.9Q859.2 371.4 858.7 392.1Q858.2 412.8 848.4 431.4Q838.7 449.9 819.1 459.8L797.1 473.3Q788.7 477.5 785 484.9Q781.2 492.3 781.2 499.8Q781.2 507.2 785 514.8Q788.7 522.4 797.1 526.7L819.1 540.2Q838.6 550 848.4 568.5Q858.1 587 858.7 607.7Q859.2 628.3 848.3 647.1L801.3 728.1Q790.5 746.6 772.5 756.9Q754.6 767.2 733.9 767.2Q713.2 767.2 694.9 756.3L671.9 743.3Q663.5 738.2 655.1 739.2Q646.8 740.2 640.1 743.5Q634.3 747.7 629.8 754.4Q625.2 761 625.2 771V797Q625.2 818.7 614.4 836.1Q603.5 853.5 586.1 864.4Q568.7 875.2 547 875.2H453Q431.3 875.2 413.9 864.4Q396.5 853.5 385.6 836.1Q374.8 818.7 374.8 797V771Q374.8 760.9 370.2 754.2Q365.7 747.5 359.1 743.3Q353.3 739.9 345 739.1Q336.8 738.2 328.1 743.3L305.1 756.3Q286.6 767.2 265.9 767.2Q245.2 767.2 227.4 756.9Q209.5 746.6 198.7 728.1L151.7 647.1Q140.8 628.6 141.3 607.9Q141.8 587.2 151.6 568.6Q161.3 550.1 180.9 540.2L202.9 526.7Q211.3 522.5 215 515.1Q218.8 507.7 218.8 500.2Q218.8 492.8 215 485.2Q211.3 477.6 202.9 473.3L180.9 459.8Q161.4 450 151.6 431.5Q141.9 413 141.3 392.3Q140.8 371.7 151.7 352.9L198.7 271.9Q209.5 253.4 227.5 243.1Q245.4 232.8 266.1 232.8Q286.8 232.8 305.1 243.7L328.1 256.7Q336.5 261.8 344.9 260.8Q353.2 259.8 359.9 256.5Q365.7 252.3 370.2 245.6Q374.8 239 374.8 229V203Q374.8 181.3 385.6 163.9Q396.5 146.5 413.9 135.6Q431.3 124.8 453 124.8ZM547 187.2H453Q446.5 187.2 441.9 191.9Q437.2 196.5 437.2 203V229Q437.2 255.7 424.4 277.1Q411.6 298.5 391.3 310.3Q369.9 322.1 344.8 323.2Q319.7 324.2 296.9 310.3L273.9 297.3Q268.1 294.1 262.2 295.8Q256.3 297.6 252.8 303.1L206.3 384.1Q202.7 389.9 204.5 396.3Q206.3 402.8 212.1 405.7L234.8 418.9Q257.4 432.1 269.3 453.7Q281.2 475.2 281.2 500.1Q281.2 523.8 269.4 545.6Q257.7 567.5 234.1 581.3L212.1 594.3Q206.3 597.2 204.5 603.7Q202.7 610.1 206.3 615.9L252.8 696.9Q256.3 702.4 262.2 704.2Q268.1 705.9 273.9 702.7L296.9 689.7Q319.4 676.8 344.6 677.3Q369.8 677.8 390.1 689.6Q411.5 701.4 424.4 722.8Q437.2 744.2 437.2 771V797Q437.2 803.5 441.9 808.1Q446.5 812.8 453 812.8H547Q553.5 812.8 558.1 808.1Q562.8 803.5 562.8 797V771Q562.8 744.3 575.6 722.9Q588.4 701.5 608.7 689.7Q630.1 677.9 655.2 676.8Q680.3 675.8 703.1 689.7L726.1 702.7Q731.9 705.9 738 704.2Q744.1 702.4 747.7 696.9L794.2 615.9Q797.3 610.1 795.5 603.7Q793.7 597.2 787.9 594.3L765.2 581.1Q742.6 567.9 730.7 545.9Q718.8 523.9 718.8 500.3Q718.8 475.7 730.6 454.2Q742.3 432.6 765.9 418.7L787.9 405.7Q793.7 402.8 795.5 396.3Q797.3 389.9 794.2 384.1L747.7 303.1Q744.1 297.6 738 295.8Q731.9 294.1 726.1 297.3L703.1 310.3Q680.6 324.2 655.4 323.2Q630.2 322.2 608.8 310.4Q588.5 298.6 575.6 277.2Q562.8 255.8 562.8 229V203Q562.8 196.5 558.1 191.9Q553.5 187.2 547 187.2Z"></path></svg></span></div></aside><div class="AppShell-module-scss-module__F71GCG__main" data-appshell-pane="main"><div class="AppShell-module-scss-module__F71GCG__mainScroll"><div class="AppShell-module-scss-module__F71GCG__col"><div class="AppShell-module-scss-module__F71GCG__breadcrumb"><span class="AppShell-module-scss-module__F71GCG__breadcrumbRepo">acme-dashboard</span><span class="AppShell-module-scss-module__F71GCG__breadcrumbSeparator">/</span><span class="AppShell-module-scss-module__F71GCG__breadcrumbTitle">Add a dark mode toggle to settings</span><div class="AppShell-module-scss-module__F71GCG__breadcrumbCaret" style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path d="M16.1338 6.16015C16.3217 5.95783 16.6375 5.94599 16.8399 6.13378C17.0421 6.32166 17.054 6.6375 16.8662 6.83984L10.3662 13.8398L10.2891 13.9082C10.2053 13.9675 10.1043 14 9.99999 14C9.86101 14 9.72836 13.9417 9.63377 13.8398L3.13374 6.83984L3.07221 6.75976C2.95129 6.56111 2.98312 6.29824 3.16011 6.13378C3.33708 5.96954 3.60085 5.95776 3.78999 6.09277L3.86616 6.16015L9.99999 12.7666L16.1338 6.16015Z"></path></svg></div></div><div class="AppShell-module-scss-module__F71GCG__transcriptBlocks"><div class="AppShell-module-scss-module__F71GCG__userMessage"><div class="AppShell-module-scss-module__F71GCG__userBubble">Add a dark mode toggle to the settings page. Should remember the choice and follow the system default until they pick one.</div></div><div class="AppShell-module-scss-module__F71GCG__reply AppShell-module-scss-module__F71GCG__message"><p><span>There's already a </span><code>ThemeProvider</code><span> wrapping the app but it's hard-wired to light. I'll lift the mode into context, persist it to </span><code>localStorage</code><span>, and add a Light / Dark segmented control under </span><strong>Settings → Appearance</strong><span>.</span></p><span class="AppShell-module-scss-module__F71GCG__messageActions"><button type="button" aria-label="Copy message"><div style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path d="M12.5 3C13.3284 3 14 3.67157 14 4.5V6H15.5C16.3284 6 17 6.67157 17 7.5V15.5C17 16.3284 16.3284 17 15.5 17H7.5C6.67157 17 6 16.3284 6 15.5V14H4.5C3.67157 14 3 13.3284 3 12.5V4.5C3 3.67157 3.67157 3 4.5 3H12.5ZM14 12.5C14 13.3284 13.3284 14 12.5 14H7V15.5C7 15.7761 7.22386 16 7.5 16H15.5C15.7761 16 16 15.7761 16 15.5V7.5C16 7.22386 15.7761 7 15.5 7H14V12.5ZM4.5 4C4.22386 4 4 4.22386 4 4.5V12.5C4 12.7761 4.22386 13 4.5 13H12.5C12.7761 13 13 12.7761 13 12.5V4.5C13 4.22386 12.7761 4 12.5 4H4.5Z"></path></svg></div></button><span class="AppShell-module-scss-module__F71GCG__messageTimestamp">just now</span></span></div><div class="AppShell-module-scss-module__F71GCG__toolCard"><button type="button" class="AppShell-module-scss-module__F71GCG__toolCardHeader" aria-expanded="false"><span>Read 4 files, searched the codebase</span><div class="AppShell-module-scss-module__F71GCG__toolCardCaret" style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path d="M6.13378 3.16011C6.29824 2.98312 6.5611 2.95129 6.75976 3.07221L6.83984 3.13374L13.8398 9.63377C13.9417 9.72836 14 9.86101 14 9.99999C14 10.1043 13.9675 10.2053 13.9082 10.289L13.8398 10.3662L6.83984 16.8662C6.6375 17.054 6.32166 17.0421 6.13378 16.8399C5.94599 16.6375 5.95783 16.3217 6.16015 16.1338L12.7666 9.99999L6.16015 3.86616L6.09277 3.78999C5.95776 3.60085 5.96954 3.33709 6.13378 3.16011Z"></path></svg></div></button></div><div class="AppShell-module-scss-module__F71GCG__toolCard" data-toolcard-id="themeprovider"><button type="button" class="AppShell-module-scss-module__F71GCG__toolCardHeader" aria-expanded="true"><span>Edited <strong>ThemeProvider.tsx</strong> <span class="AppShell-module-scss-module__F71GCG__diffAdded">+18</span> <span class="AppShell-module-scss-module__F71GCG__diffRemoved">-2</span></span><div class="AppShell-module-scss-module__F71GCG__toolCardCaret" style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path d="M16.1338 6.16015C16.3217 5.95783 16.6375 5.94599 16.8399 6.13378C17.0421 6.32166 17.054 6.6375 16.8662 6.83984L10.3662 13.8398L10.2891 13.9082C10.2053 13.9675 10.1043 14 9.99999 14C9.86101 14 9.72836 13.9417 9.63377 13.8398L3.13374 6.83984L3.07221 6.75976C2.95129 6.56111 2.98312 6.29824 3.16011 6.13378C3.33708 5.96954 3.60085 5.95776 3.78999 6.09277L3.86616 6.16015L9.99999 12.7666L16.1338 6.16015Z"></path></svg></div></button><div class="AppShell-module-scss-module__F71GCG__toolCardBodyBare"><div class="CodeCard-module-scss-module__xiQRCG__card"><div class="CodeCard-module-scss-module__xiQRCG__path">src/theme/ThemeProvider.tsx</div><button type="button" class="CodeCard-module-scss-module__xiQRCG__copy" aria-label="Copy code"><div style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path d="M12.5 3C13.3284 3 14 3.67157 14 4.5V6H15.5C16.3284 6 17 6.67157 17 7.5V15.5C17 16.3284 16.3284 17 15.5 17H7.5C6.67157 17 6 16.3284 6 15.5V14H4.5C3.67157 14 3 13.3284 3 12.5V4.5C3 3.67157 3.67157 3 4.5 3H12.5ZM14 12.5C14 13.3284 13.3284 14 12.5 14H7V15.5C7 15.7761 7.22386 16 7.5 16H15.5C15.7761 16 16 15.7761 16 15.5V7.5C16 7.22386 15.7761 7 15.5 7H14V12.5ZM4.5 4C4.22386 4 4 4.22386 4 4.5V12.5C4 12.7761 4.22386 13 4.5 13H12.5C12.7761 13 13 12.7761 13 12.5V4.5C13 4.22386 12.7761 4 12.5 4H4.5Z"></path></svg></div></button><div class="CodeCard-module-scss-module__xiQRCG__body"><div class="CodeCard-module-scss-module__xiQRCG__line"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">10</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign"></span><code class="CodeCard-module-scss-module__xiQRCG__code"><span class="CodeCard-module-scss-module__xiQRCG__keyword">export</span><span> </span><span class="CodeCard-module-scss-module__xiQRCG__keyword">function</span><span> </span><span class="CodeCard-module-scss-module__xiQRCG__fn">ThemeProvider</span><span>({</span><span>children</span><span>}:</span><span> </span><span>{</span><span>children</span><span>:</span><span> </span><span>ReactNode</span><span>})</span><span> </span><span>{</span></code></div><div class="CodeCard-module-scss-module__xiQRCG__line CodeCard-module-scss-module__xiQRCG__lineAdd"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">11</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign">+</span><code class="CodeCard-module-scss-module__xiQRCG__code"><span>  </span><span class="CodeCard-module-scss-module__xiQRCG__keyword">const</span><span> </span><span>prefersDark</span><span> </span><span>=</span><span> </span><span class="CodeCard-module-scss-module__xiQRCG__fn">useMediaQuery</span><span>('(</span><span>prefers</span><span>-</span><span>color</span><span>-</span><span>scheme</span><span>:</span><span> </span><span>dark</span><span>)')</span></code></div><div class="CodeCard-module-scss-module__xiQRCG__line"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">12</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign"></span><code class="CodeCard-module-scss-module__xiQRCG__code"><span>  </span><span class="CodeCard-module-scss-module__xiQRCG__keyword">const</span><span> </span><span>stored</span><span> </span><span>=</span><span> </span><span>localStorage</span><span>.</span><span class="CodeCard-module-scss-module__xiQRCG__fn">getItem</span><span>('</span><span>theme</span><span>')</span></code></div><div class="CodeCard-module-scss-module__xiQRCG__line CodeCard-module-scss-module__xiQRCG__lineAdd"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">13</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign">+</span><code class="CodeCard-module-scss-module__xiQRCG__code"><span>  </span><span class="CodeCard-module-scss-module__xiQRCG__keyword">const</span><span> </span><span>[</span><span>mode</span><span>,</span><span> </span><span>setMode</span><span>]</span><span> </span><span>=</span><span> </span><span class="CodeCard-module-scss-module__xiQRCG__fn">useState</span><span>(</span><span>stored</span><span> </span><span>??</span><span> </span><span>(</span><span>prefersDark</span><span> </span><span>?</span><span> </span><span class="CodeCard-module-scss-module__xiQRCG__string">'dark'</span><span> </span><span>:</span><span> </span><span class="CodeCard-module-scss-module__xiQRCG__string">'light'</span><span>))</span></code></div><div class="CodeCard-module-scss-module__xiQRCG__line"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">14</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign"></span><code class="CodeCard-module-scss-module__xiQRCG__code">&nbsp;</code></div><div class="CodeCard-module-scss-module__xiQRCG__line CodeCard-module-scss-module__xiQRCG__lineAdd"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">15</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign">+</span><code class="CodeCard-module-scss-module__xiQRCG__code"><span>  </span><span class="CodeCard-module-scss-module__xiQRCG__fn">useEffect</span><span>(()</span><span> </span><span>=&gt;</span><span> </span><span>{</span></code></div><div class="CodeCard-module-scss-module__xiQRCG__line CodeCard-module-scss-module__xiQRCG__lineAdd"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">16</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign">+</span><code class="CodeCard-module-scss-module__xiQRCG__code"><span>    </span><span>localStorage</span><span>.</span><span class="CodeCard-module-scss-module__xiQRCG__fn">setItem</span><span>('</span><span>theme</span><span>',</span><span> </span><span>mode</span><span>)</span></code></div><div class="CodeCard-module-scss-module__xiQRCG__line CodeCard-module-scss-module__xiQRCG__lineAdd"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">17</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign">+</span><code class="CodeCard-module-scss-module__xiQRCG__code"><span>  </span><span>},</span><span> </span><span>[</span><span>mode</span><span>])</span></code></div><div class="CodeCard-module-scss-module__xiQRCG__line"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">18</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign"></span><code class="CodeCard-module-scss-module__xiQRCG__code">&nbsp;</code></div><div class="CodeCard-module-scss-module__xiQRCG__line"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">19</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign"></span><code class="CodeCard-module-scss-module__xiQRCG__code"><span>  </span><span class="CodeCard-module-scss-module__xiQRCG__keyword">return</span><span> </span><span>(</span></code></div><div class="CodeCard-module-scss-module__xiQRCG__line"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">20</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign"></span><code class="CodeCard-module-scss-module__xiQRCG__code"><span>    </span><span>&lt;</span><span>ThemeContext</span><span>.</span><span>Provider</span><span> </span><span>value</span><span>={{</span><span>mode</span><span>,</span><span> </span><span>setMode</span><span>}}&gt;</span></code></div><div class="CodeCard-module-scss-module__xiQRCG__line"><span class="CodeCard-module-scss-module__xiQRCG__lineNumber">21</span><span class="CodeCard-module-scss-module__xiQRCG__lineSign"></span><code class="CodeCard-module-scss-module__xiQRCG__code"><span>      </span><span>{</span><span>children</span><span>}</span></code></div></div></div></div></div><div class="AppShell-module-scss-module__F71GCG__toolCard"><button type="button" class="AppShell-module-scss-module__F71GCG__toolCardHeader" aria-expanded="false"><span>Edited <strong>settings.tsx</strong> <span class="AppShell-module-scss-module__F71GCG__diffAdded">+21</span> <span class="AppShell-module-scss-module__F71GCG__diffRemoved">-0</span></span><div class="AppShell-module-scss-module__F71GCG__toolCardCaret" style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path d="M6.13378 3.16011C6.29824 2.98312 6.5611 2.95129 6.75976 3.07221L6.83984 3.13374L13.8398 9.63377C13.9417 9.72836 14 9.86101 14 9.99999C14 10.1043 13.9675 10.2053 13.9082 10.289L13.8398 10.3662L6.83984 16.8662C6.6375 17.054 6.32166 17.0421 6.13378 16.8399C5.94599 16.6375 5.95783 16.3217 6.16015 16.1338L12.7666 9.99999L6.16015 3.86616L6.09277 3.78999C5.95776 3.60085 5.96954 3.33709 6.13378 3.16011Z"></path></svg></div></button></div><div class="AppShell-module-scss-module__F71GCG__toolCard"><button type="button" class="AppShell-module-scss-module__F71GCG__toolCardHeader" aria-expanded="false"><span>Edited <strong>tokens.css</strong> <span class="AppShell-module-scss-module__F71GCG__diffAdded">+24</span> <span class="AppShell-module-scss-module__F71GCG__diffRemoved">-0</span></span><div class="AppShell-module-scss-module__F71GCG__toolCardCaret" style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path d="M6.13378 3.16011C6.29824 2.98312 6.5611 2.95129 6.75976 3.07221L6.83984 3.13374L13.8398 9.63377C13.9417 9.72836 14 9.86101 14 9.99999C14 10.1043 13.9675 10.2053 13.9082 10.289L13.8398 10.3662L6.83984 16.8662C6.6375 17.054 6.32166 17.0421 6.13378 16.8399C5.94599 16.6375 5.95783 16.3217 6.16015 16.1338L12.7666 9.99999L6.16015 3.86616L6.09277 3.78999C5.95776 3.60085 5.96954 3.33709 6.13378 3.16011Z"></path></svg></div></button></div><div class="AppShell-module-scss-module__F71GCG__toolCard"><button type="button" class="AppShell-module-scss-module__F71GCG__toolCardHeader" aria-expanded="false"><span>Ran 2 commands</span><div class="AppShell-module-scss-module__F71GCG__toolCardCaret" style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path d="M6.13378 3.16011C6.29824 2.98312 6.5611 2.95129 6.75976 3.07221L6.83984 3.13374L13.8398 9.63377C13.9417 9.72836 14 9.86101 14 9.99999C14 10.1043 13.9675 10.2053 13.9082 10.289L13.8398 10.3662L6.83984 16.8662C6.6375 17.054 6.32166 17.0421 6.13378 16.8399C5.94599 16.6375 5.95783 16.3217 6.16015 16.1338L12.7666 9.99999L6.16015 3.86616L6.09277 3.78999C5.95776 3.60085 5.96954 3.33709 6.13378 3.16011Z"></path></svg></div></button></div><div class="AppShell-module-scss-module__F71GCG__reply AppShell-module-scss-module__F71GCG__message"><p><span>Done — the </span><strong>Appearance</strong><span> section now has the toggle. Preview's on the right; flip it and the whole app should follow. Reduce-motion and density rows are stubbed so the page doesn't look bare.</span></p><span class="AppShell-module-scss-module__F71GCG__messageActions"><button type="button" aria-label="Copy message"><div style="width:12px;height:12px"><svg width="100%" height="100%" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path d="M12.5 3C13.3284 3 14 3.67157 14 4.5V6H15.5C16.3284 6 17 6.67157 17 7.5V15.5C17 16.3284 16.3284 17 15.5 17H7.5C6.67157 17 6 16.3284 6 15.5V14H4.5C3.67157 14 3 13.3284 3 12.5V4.5C3 3.67157 3.67157 3 4.5 3H12.5ZM14 12.5C14 13.3284 13.3284 14 12.5 14H7V15.5C7 15.7761 7.22386 16 7.5 16H15.5C15.7761 16 16 15.7761 16 15.5V7.5C16 7.22386 15.7761 7 15.5 7H14V12.5ZM4.5 4C4.22386 4 4 4.22386 4 4.5V12.5C4 12.7761 4.22386 13 4.5 13H12.5C12.7761 13 13 12.7761 13 12.5V4.5C13 4.22386 12.7761 4 12.5 4H4.5Z"></path></svg></div></button><span class="AppShell-module-scss-module__F71GCG__messageTimestamp">just now</span></span></div><div class="AppShell-module-scss-module__F71GCG__prChip"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><circle cx="4.75" cy="3.75" r="1.9" stroke="currentColor" stroke-width="1.3"></circle><circle cx="4.75" cy="12.25" r="1.9" stroke="currentColor" stroke-width="1.3"></circle><circle cx="12" cy="10.5" r="1.9" stroke="currentColor" stroke-width="1.3"></circle><path d="M4.75 5.65v4.7M4.75 6.5c0 2.9 2.35 4 5.35 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg><span class="AppShell-module-scss-module__F71GCG__prNumber">#112</span><span class="AppShell-module-scss-module__F71GCG__prRepo">acme-dashboard</span><span class="AppShell-module-scss-module__F71GCG__prBranch">claude/settings-dark-mode-Xk4fq</span><span class="AppShell-module-scss-module__F71GCG__prState"><span class="AppShell-module-scss-module__F71GCG__prStateDot"></span> CI</span></div></div></div></div><div class="AppShell-module-scss-module__F71GCG__col AppShell-module-scss-module__F71GCG__composerWrap"><div class="AppShell-module-scss-module__F71GCG__composer"><textarea rows="1" placeholder="Describe a task or ask a question" aria-label="Describe a task or ask a question"></textarea><button type="button" class="AppShell-module-scss-module__F71GCG__sendButton" disabled="" aria-label="Send"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M15.5 5v4.5a2 2 0 0 1-2 2h-8M8 8l-3.5 3.5L8 15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div><div class="AppShell-module-scss-module__F71GCG__composerToolbar"><div class="AppShell-module-scss-module__F71GCG__composerToolbarLeft"><div class="AppShell-module-scss-module__F71GCG__composerIcons"><button type="button" class="AppShell-module-scss-module__F71GCG__composerIconButton" disabled="" aria-label="Attach"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M468.8 219Q468.8 205.3 478.2 196.5Q487.6 187.8 500.1 187.8Q512.7 187.8 521.9 196.5Q531.2 205.3 531.2 219V781Q531.2 794.7 521.8 803.5Q512.4 812.2 499.9 812.2Q487.3 812.2 478.1 803.5Q468.8 794.7 468.8 781ZM781 468.8Q794.7 468.8 803.5 478.2Q812.2 487.6 812.2 500.1Q812.2 512.7 803.5 521.9Q794.7 531.2 781 531.2H219Q205.3 531.2 196.5 521.8Q187.8 512.4 187.8 499.9Q187.8 487.3 196.5 478.1Q205.3 468.8 219 468.8Z"></path></svg></button><button type="button" class="AppShell-module-scss-module__F71GCG__composerIconButton AppShell-module-scss-module__F71GCG__micCombo" disabled="" aria-label="Dictate"><svg width="16" height="16" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M343.8 281Q343.8 238.3 365.1 202.9Q386.5 167.5 421.9 146.1Q457.3 124.8 500.1 124.8Q542.8 124.8 578.2 146.1Q613.5 167.5 634.9 202.9Q656.2 238.3 656.2 281V469Q656.2 511.7 634.9 547.1Q613.5 582.5 578.1 603.9Q542.7 625.2 499.9 625.2Q457.2 625.2 421.8 603.9Q386.5 582.5 365.1 547.1Q343.8 511.7 343.8 469ZM406.2 281V469Q406.2 494.3 418.9 515.9Q431.5 537.5 452.6 550.1Q473.7 562.8 500 562.8Q526.2 562.8 547.3 550.1Q568.4 537.5 581.1 515.9Q593.8 494.3 593.8 469V281Q593.8 255.7 581.1 234.1Q568.5 212.5 547.4 199.9Q526.3 187.2 500 187.2Q473.8 187.2 452.7 199.9Q431.6 212.5 418.9 234.1Q406.2 255.7 406.2 281ZM218.8 406Q218.8 393.5 228.2 384.1Q237.6 374.8 250.1 374.8Q262.7 374.8 271.9 384.1Q281.2 393.5 281.2 406V468.2Q281.2 513.7 298.2 553.5Q315.2 593.4 345.4 623.6Q375.5 653.7 414.9 670.8Q454.3 687.8 500 687.8Q545.7 687.8 585.1 670.8Q624.4 653.7 654.6 623.6Q684.7 593.5 701.8 553.6Q718.8 513.7 718.8 469V406Q718.8 393.5 728.2 384.1Q737.6 374.8 750.1 374.8Q762.7 374.8 771.9 384.1Q781.2 393.5 781.2 406V469.7Q781.2 527.3 759.2 577.9Q737.2 628.6 698.9 667.4Q660.5 706.3 609.4 728.2Q558.3 750.2 500 750.2Q441.7 750.2 390.5 728.2Q339.4 706.2 301.1 667.4Q262.7 628.5 240.8 577.9Q218.8 527.3 218.8 469ZM468.8 719H531.2V844Q531.2 856.7 521.8 865.9Q512.4 875.2 499.9 875.2Q487.3 875.2 478.1 865.9Q468.8 856.5 468.8 844Z"></path></svg><svg class="AppShell-module-scss-module__F71GCG__micCaret" width="12" height="12" viewBox="0 0 1000 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M195.1 398.9Q185.7 388.2 185.7 374.8Q185.7 361.4 195.1 350.9Q204.4 341.7 218.5 341.7Q232.6 341.7 241.9 351.1L500 609.1L758.1 351.1Q767.3 341.7 781.1 341.7Q795 341.7 804.6 351.1Q814.3 361.8 814.3 375.2Q814.3 388.6 804.9 398.9L523.9 679.9Q513.2 689.3 499.8 689.3Q486.4 689.3 476.1 679.9Z"></path></svg></button></div><span class="AppShell-module-scss-module__F71GCG__modePillWrap"><button type="button" class="AppShell-module-scss-module__F71GCG__modePill" aria-haspopup="menu" aria-expanded="false">Auto</button></span></div><div class="AppShell-module-scss-module__F71GCG__composerToolbarRight"><span class="AppShell-module-scss-module__F71GCG__modelPickerWrap"><button type="button" class="AppShell-module-scss-module__F71GCG__modelPicker" aria-haspopup="menu" aria-expanded="false"><span class="AppShell-module-scss-module__F71GCG__modelName">Opus</span></button></span><span class="AppShell-module-scss-module__F71GCG__effortChip">Extra high</span><span class="AppShell-module-scss-module__F71GCG__usageChip"><span class="AppShell-module-scss-module__F71GCG__usageRing" style="--shell-usage-pct:56%" aria-hidden="true"></span></span></div></div></div></div></div></div></section>
+            </div>
+
+            <!-- Architecture Pipeline Banner -->
+            <div class="claudecode-pipeline-card">
+              <div class="claudecode-pipeline-node">
+                <span class="claudecode-pipeline-tag">CLI / Client</span>
+                <span class="claudecode-pipeline-title">Claude Code CLI</span>
+                <span class="claudecode-pipeline-sub">Anthropic SDK</span>
+              </div>
+              <div class="claudecode-pipeline-arrow">
+                <span>/v1/messages</span>
+                <svg width="20" height="12" viewBox="0 0 20 12" fill="none"><path d="M0 6H18M18 6L13 1M18 6L13 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="claudecode-pipeline-node highlight">
+                <span class="claudecode-pipeline-tag">Singularity Bridge</span>
+                <span class="claudecode-pipeline-title">:6045 Bridge</span>
+                <span class="claudecode-pipeline-sub">Protocol Translation</span>
+              </div>
+              <div class="claudecode-pipeline-arrow">
+                <span>OpenAI / Chat</span>
+                <svg width="20" height="12" viewBox="0 0 20 12" fill="none"><path d="M0 6H18M18 6L13 1M18 6L13 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="claudecode-pipeline-node">
+                <span class="claudecode-pipeline-tag">Core Gateway</span>
+                <span class="claudecode-pipeline-title">:9000 Daemon</span>
+                <span class="claudecode-pipeline-sub">Session & Quota Vault</span>
+              </div>
+              <div class="claudecode-pipeline-arrow">
+                <span>Native Upstream</span>
+                <svg width="20" height="12" viewBox="0 0 20 12" fill="none"><path d="M0 6H18M18 6L13 1M18 6L13 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="claudecode-pipeline-node">
+                <span class="claudecode-pipeline-tag">AI Engines</span>
+                <span class="claudecode-pipeline-title">Kimi · Gemini · Qwen</span>
+                <span class="claudecode-pipeline-sub">Deep Reasoning & Tools</span>
+              </div>
+            </div>
+
+            <!-- Claude Desktop Step-by-Step Setup Guide -->
+            <div class="claudecode-guide-section">
+              <div class="claudecode-section-header">
+                <div class="claudecode-section-title-wrap">
+                  <h4 class="claudecode-section-title">Claude Desktop Setup & Third-Party Inference Guide</h4>
+                  <span class="claudecode-platform-badge">Desktop App</span>
+                </div>
+                <p class="claudecode-section-desc">Follow these steps to enable Developer Mode in the official Claude Desktop application and configure Third-Party Inference through your local Singularity bridge.</p>
+              </div>
+
+              <div class="claudecode-steps-grid">
+                <!-- STEP 1 -->
+                <div class="guide-step-card">
+                  <div class="guide-step-header">
+                    <div class="guide-step-number">1</div>
+                    <div class="guide-step-info">
+                      <h5 class="guide-step-title">Install & Launch Claude Desktop</h5>
                     </div>
                   </div>
+                  <div class="guide-step-body">
+                    <p class="guide-step-desc">Download and install the official Claude Desktop app for macOS or Windows. Launch the application, but <strong>stay on the sign-in screen</strong> (do not log in with an Anthropic account):</p>
+                    <div class="guide-code-box">
+                      <pre><code>https://claude.ai/download</code></pre>
+                      <button class="btn-copy-code" data-copy="https://claude.ai/download" title="Copy URL">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                      </button>
+                    </div>
+                    <div class="guide-verify-box">
+                      <span>Windows Tip:</span> If the top menu is inaccessible while signed out, click the email input, press <code>Tab</code>, then press <code>Enter</code>.
+                    </div>
+                  </div>
+                </div>
 
-                  <div class="bio-output-body mode-split" id="bio-output-body">
-                    <!-- Code Pane -->
-                    <div class="bio-code-pane">
-                      <div class="bio-pane-header">
-                        <span>INLINE HTML (TEMPE JAI SPEC)</span>
-                        <span id="bio-code-stats">0 characters</span>
+                <!-- STEP 2 -->
+                <div class="guide-step-card">
+                  <div class="guide-step-header">
+                    <div class="guide-step-number">2</div>
+                    <div class="guide-step-info">
+                      <h5 class="guide-step-title">Start the Singularity Bridge</h5>
+                    </div>
+                  </div>
+                  <div class="guide-step-body">
+                    <p class="guide-step-desc">Click the <strong>Start Bridge</strong> button at the top of this panel, or run from your Singularity repo folder:</p>
+                    <div class="guide-code-box">
+                      <pre><code>./singular claudecode start</code></pre>
+                      <button class="btn-copy-code" data-copy="./singular claudecode start" title="Copy command">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                      </button>
+                    </div>
+                    <p class="guide-step-desc" style="margin-top: 10px;">Check bridge health and verify it is listening:</p>
+                    <div class="guide-code-box">
+                      <pre><code>curl -s http://127.0.0.1:6045/health</code></pre>
+                      <button class="btn-copy-code" data-copy="curl -s http://127.0.0.1:6045/health" title="Copy command">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- STEP 3 -->
+                <div class="guide-step-card">
+                  <div class="guide-step-header">
+                    <div class="guide-step-number">3</div>
+                    <div class="guide-step-info">
+                      <h5 class="guide-step-title">Enable Developer Mode</h5>
+                    </div>
+                  </div>
+                  <div class="guide-step-body">
+                    <p class="guide-step-desc">In Claude Desktop's top application menu bar, navigate to:</p>
+                    <div class="claudecode-commands-list">
+                      <div class="claudecode-cmd-row">
+                        <code>Top Menu</code>
+                        <span><strong>Help</strong> &gt; <strong>Troubleshooting</strong> &gt; <strong>Enable Developer Mode</strong> (or <strong>Help</strong> &gt; <strong>Enable Developer Mode</strong>)</span>
                       </div>
-                      <textarea class="bio-code-editor" id="bio-code-editor" spellcheck="false" placeholder="Generated HTML will stream here..."></textarea>
+                    </div>
+                    <p class="guide-step-desc" style="margin-top: 10px;">Claude Desktop will prompt to restart automatically. Click to restart. Once reopened, a new <strong>Developer</strong> menu item will appear in the top menu bar.</p>
+                  </div>
+                </div>
+
+                <!-- STEP 4 -->
+                <div class="guide-step-card">
+                  <div class="guide-step-header">
+                    <div class="guide-step-number">4</div>
+                    <div class="guide-step-info">
+                      <h5 class="guide-step-title">Configure Third-Party Inference</h5>
+                    </div>
+                  </div>
+                  <div class="guide-step-body">
+                    <p class="guide-step-desc">Click top menu: <strong>Developer</strong> &gt; <strong>Configure Third-Party Inference...</strong> and enter these parameters:</p>
+                    <div class="claudecode-commands-list">
+                      <div class="claudecode-cmd-row">
+                        <code>Provider</code>
+                        <span><strong>Gateway</strong> (Universal Gateway)</span>
+                      </div>
+                      <div class="claudecode-cmd-row">
+                        <code>Credential</code>
+                        <span><strong>Static API key</strong></span>
+                      </div>
+                      <div class="claudecode-cmd-row">
+                        <code>Base URL</code>
+                        <span><strong>http://127.0.0.1:6045</strong> <em>(do not append /v1)</em></span>
+                      </div>
+                      <div class="claudecode-cmd-row">
+                        <code>API Key</code>
+                        <span><strong>Insom-Singularity</strong> (or your custom Gateway key)</span>
+                      </div>
+                      <div class="claudecode-cmd-row">
+                        <code>Scheme</code>
+                        <span><strong>Bearer</strong></span>
+                      </div>
+                    </div>
+                    <p class="guide-step-desc" style="margin-top: 10px;">Quick copy Gateway Base URL:</p>
+                    <div class="guide-code-box">
+                      <pre><code>http://127.0.0.1:6045</code></pre>
+                      <button class="btn-copy-code" data-copy="http://127.0.0.1:6045" title="Copy Gateway URL">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- STEP 5 -->
+                <div class="guide-step-card">
+                  <div class="guide-step-header">
+                    <div class="guide-step-number">5</div>
+                    <div class="guide-step-info">
+                      <h5 class="guide-step-title">Turn Off Model Discovery & Add Models</h5>
+                    </div>
+                  </div>
+                  <div class="guide-step-body">
+                    <p class="guide-step-desc">In the same configuration dialog, scroll down past the Connection parameters:</p>
+                    <div class="claudecode-commands-list">
+                      <div class="claudecode-cmd-row">
+                        <code>Discovery</code>
+                        <span><strong>Turn OFF "Model discovery"</strong> (disable auto-discovery to unlock manual model definitions)</span>
+                      </div>
                     </div>
 
-                    <!-- Live Sandbox Preview -->
-                    <div class="bio-preview-pane">
-                      <div class="bio-pane-header">
-                        <span>JANITORAI LIVE SANDBOX (14 GOOGLE FONTS PRELOADED)</span>
-                        <span>Dark Obsidian Profile Canvas</span>
+                    <p class="guide-step-desc" style="margin-top: 12px;">Under <strong>Model list</strong>, click to add your models with these exact fields:</p>
+                    <div class="claudecode-commands-list">
+                      <div class="claudecode-cmd-row">
+                        <code>Model ID</code>
+                        <span><strong>claude-opus-4-6</strong> <em>(or any model ID from the table below)</em></span>
                       </div>
-                      <iframe class="bio-sandbox-frame" id="bio-sandbox-iframe" sandbox="allow-scripts" title="JanitorAI Bio Live Preview"></iframe>
+                      <div class="claudecode-cmd-row">
+                        <code>Display Name</code>
+                        <span><strong>Gemini 4 Argon</strong> <em>(custom name shown in Claude Desktop picker)</em></span>
+                      </div>
+                      <div class="claudecode-cmd-row">
+                        <code>1M Context</code>
+                        <span><strong>Turn ON "Offer 1m context variant"</strong></span>
+                      </div>
+                      <div class="claudecode-cmd-row">
+                        <code>Only 1M</code>
+                        <span><strong>Turn ON "Only show 1mil variant"</strong> (cleanly displays the 1M variant without duplicates)</span>
+                      </div>
+                      <div class="claudecode-cmd-row">
+                        <code>Tier Alias</code>
+                        <span>Set to <strong>opus</strong> (or <strong>sonnet</strong> / <strong>haiku</strong> depending on model class)</span>
+                      </div>
                     </div>
+                    <p class="guide-step-desc" style="margin-top: 10px;"><em>Repeat this step</em> for whatever models you need (e.g. <code>claude-opus-4-7</code> for Kimi K3, <code>claude-opus-4-8</code> for Qwen 3.8 Max, etc.).</p>
+                  </div>
+                </div>
+
+                <!-- STEP 6 -->
+                <div class="guide-step-card">
+                  <div class="guide-step-header">
+                    <div class="guide-step-number">6</div>
+                    <div class="guide-step-info">
+                      <h5 class="guide-step-title">Save Changes & Restart Claude Desktop</h5>
+                    </div>
+                  </div>
+                  <div class="guide-step-body">
+                    <p class="guide-step-desc">Click <strong>Apply locally</strong> (or <strong>Save changes</strong>) at the bottom of the dialog, then quit and restart Claude Desktop.</p>
+                    <p class="guide-step-desc" style="margin-top: 6px;">Claude Desktop will re-initialize in third-party inference mode (<em>Cowork on 3P</em>). You can now bypass the sign-in screen, pick your configured 1M models directly from the model selector, and enjoy unmetered frontier intelligence through Singularity!</p>
                   </div>
                 </div>
               </div>
             </div>
+
+            <!-- Models Routing Matrix Table -->
+            <div class="claudecode-models-section">
+              <div class="claudecode-section-header">
+                <div class="claudecode-section-title-wrap">
+                  <h4 class="claudecode-section-title">Supported Claude Models & Mapping Matrix</h4>
+                  <span class="claudecode-platform-badge">Auto-Routed</span>
+                </div>
+                <p class="claudecode-section-desc">The bridge translates Anthropic model strings into powerful Singularity reasoning backends with real-time SSE streaming, tool calls, and thinking emulation.</p>
+              </div>
+
+              <div class="claudecode-models-table-wrap">
+                <table class="claudecode-models-table">
+                  <thead>
+                    <tr>
+                      <th>Claude Code Alias</th>
+                      <th>Singularity Engine</th>
+                      <th>Provider Backend</th>
+                      <th>Special Capabilities</th>
+                      <th style="text-align: right;">Model ID Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <span class="model-alias-pill highlight">claude-opus-4-7</span>
+                        <span class="model-alias-tag">Recommended</span>
+                      </td>
+                      <td><strong>Kimi K3 Thinking</strong></td>
+                      <td>Moonshot / Kimi</td>
+                      <td>
+                        <span class="cap-tag">Thinking Stream</span>
+                        <span class="cap-tag">DuckDuckGo Search</span>
+                        <span class="cap-tag">Tool Calls</span>
+                      </td>
+                      <td style="text-align: right;">
+                        <button class="btn btn-secondary btn-xs btn-copy-code" data-copy="claude-opus-4-7">Copy Model ID</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <span class="model-alias-pill">claude-opus-4-6</span>
+                      </td>
+                      <td><strong>Gemini 4 Argon High</strong></td>
+                      <td>Google Gemini</td>
+                      <td>
+                        <span class="cap-tag">Multimodal Vision</span>
+                        <span class="cap-tag">1M Context</span>
+                        <span class="cap-tag">Code AST</span>
+                      </td>
+                      <td style="text-align: right;">
+                        <button class="btn btn-secondary btn-xs btn-copy-code" data-copy="claude-opus-4-6">Copy Model ID</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <span class="model-alias-pill">claude-sonnet-4-6</span>
+                      </td>
+                      <td><strong>Gemini 3.8 Flash</strong></td>
+                      <td>Google Gemini</td>
+                      <td>
+                        <span class="cap-tag">Ultra Fast</span>
+                        <span class="cap-tag">Multimodal Vision</span>
+                        <span class="cap-tag">1M Context</span>
+                      </td>
+                      <td style="text-align: right;">
+                        <button class="btn btn-secondary btn-xs btn-copy-code" data-copy="claude-sonnet-4-6">Copy Model ID</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <span class="model-alias-pill">claude-opus-4-8</span>
+                      </td>
+                      <td><strong>Qwen 3.8 Max</strong></td>
+                      <td>Alibaba Qwen</td>
+                      <td>
+                        <span class="cap-tag">Complex Math</span>
+                        <span class="cap-tag">Refactoring</span>
+                        <span class="cap-tag">High Precision</span>
+                      </td>
+                      <td style="text-align: right;">
+                        <button class="btn btn-secondary btn-xs btn-copy-code" data-copy="claude-opus-4-8">Copy Model ID</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. JANITOR BIO STUDIO TAB (Papercraft & DelightfulTempe Unrestricted Bio Engine - On-Demand Lazy Loaded) -->
+        <div class="tab-pane" id="pane-bio" data-loaded="false">
+          <div class="module-lazy-placeholder">
+            <div class="module-lazy-spinner"></div>
+            <div class="module-lazy-label">Loading Tempest Bio Studio...</div>
           </div>
         </div>
 
@@ -2450,7 +2099,7 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
                     <ul class="skiper-features-list">
                       <li class="skiper-feature-item">
                         <span class="skiper-feature-tag feat">Feat</span>
-                        <div class="skiper-feature-text"><strong>10 Frontier Providers:</strong> Full ChatGPT, Claude, Gemini, Grok, Kimi, GLM, DeepSeek, Qwen, Antigravity, and Xiaomi MiMo reverse proxy engines.</div>
+                        <div class="skiper-feature-text"><strong>Frontier Providers:</strong> Full Claude, Gemini, Kimi, GLM, DeepSeek, Qwen, Antigravity, and Xiaomi MiMo reverse proxy engines.</div>
                       </li>
                       <li class="skiper-feature-item">
                         <span class="skiper-feature-tag sec">Sec</span>
@@ -2458,7 +2107,7 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
                       </li>
                       <li class="skiper-feature-item">
                         <span class="skiper-feature-tag feat">Feat</span>
-                        <div class="skiper-feature-text"><strong>Multimodal Media Pipeline:</strong> Google Omni conversation and Veo cinematic video generation.</div>
+                        <div class="skiper-feature-text"><strong>Multimodal Media Pipeline:</strong> Google Imagen image generation and Veo cinematic video generation.</div>
                       </li>
                     </ul>
 
@@ -2483,12 +2132,12 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
                       <span class="skiper-date-tag">September 2026</span>
                     </div>
 
-                    <h4 class="skiper-card-title">Tavern Studio Dual-Boot &amp; GenUI Sandboxing</h4>
+                    <h4 class="skiper-card-title">Pure-Python Gateway &amp; GenUI Sandboxing</h4>
 
                     <ul class="skiper-features-list">
                       <li class="skiper-feature-item">
                         <span class="skiper-feature-tag feat">Feat</span>
-                        <div class="skiper-feature-text"><strong>Tavern Web Studio:</strong> Seamless dual-boot of Singularity (:9000) and SillyTavern Studio (:5173).</div>
+                        <div class="skiper-feature-text"><strong>Standalone Architecture:</strong> Pure-Python Starlette gateway with zero Rust toolchains and instant boot.</div>
                       </li>
                       <li class="skiper-feature-item">
                         <span class="skiper-feature-tag sec">Sec</span>
@@ -2523,55 +2172,12 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
           </div>
         </div>
 
-        <!-- 10. S-CONNECT TAB (Domcord Cards Matrix & JanitorAI Bot Hub) -->
-        <div class="tab-pane" id="pane-connect">
-          <!-- Top Navigation Bar (Exact Domcord Nav Bar) -->
-          <header class="cards-top-nav-bar" id="cards-top-nav-bar">
-            <span class="cards-mobile-header-title">S-Connect</span>
-            <button type="button" class="cards-top-back-btn" id="cards-top-back-btn" onclick="SConnect.navigateBack()" title="Back" aria-label="Back">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-              <span>Back</span>
-            </button>
-            <div class="cards-top-user-wrap">
-              <button type="button" class="cards-top-avatar-btn" id="cards-top-avatar-btn" onclick="SConnect.toggleUserMenu(event)" aria-label="User Menu" aria-expanded="false" title="Menu">
-                <span class="cards-top-avatar-box" id="cards-top-avatar-box"></span>
-              </button>
-              <div class="cards-top-user-dropdown" id="cards-top-user-dropdown" role="menu">
-                <button type="button" class="cards-top-menu-item" onclick="SConnect.selectUserMenuItem('creators')" role="menuitem">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                  <span>Creators Followed</span>
-                </button>
-                <button type="button" class="cards-top-menu-item" onclick="SConnect.selectUserMenuItem('personas')" role="menuitem">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                  <span>My Personas</span>
-                </button>
-              </div>
-            </div>
-          </header>
-
-          <!-- Main Dynamic Container for Views (Discover, Detail, Creators, etc.) -->
-          <main id="connect-main-view" class="cards-app-container">
-            <!-- Dynamically populated by SConnect -->
-          </main>
-
-          <nav class="cards-nav-capsule" role="tablist">
-            <button type="button" class="cards-nav-pill-btn is-active" id="cnav-discover" onclick="SConnect.navigate('discover')" title="Discover" aria-label="Discover">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>
-              <span>Discover</span>
-            </button>
-            <button type="button" class="cards-nav-pill-btn" id="cnav-following" onclick="SConnect.navigate('following')" title="Following Feed" aria-label="Following Feed">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-              <span>Following Feed</span>
-            </button>
-            <button type="button" class="cards-nav-pill-btn" id="cnav-my-chats" onclick="SConnect.navigate('my-chats')" title="My Chats" aria-label="My Chats">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-              <span>My Chats</span>
-            </button>
-            <button type="button" class="cards-nav-pill-btn" id="cnav-library" onclick="SConnect.navigate('library')" title="Library" aria-label="Library">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-              <span>Library</span>
-            </button>
-          </nav>
+        <!-- 10. S-CONNECT TAB (Domcord Cards Matrix & JanitorAI Bot Hub - On-Demand Lazy Loaded) -->
+        <div class="tab-pane" id="pane-connect" data-loaded="false">
+          <div class="module-lazy-placeholder">
+            <div class="module-lazy-spinner"></div>
+            <div class="module-lazy-label">Loading Singularity S-Connect...</div>
+          </div>
         </div>
       </section>
     </main>
@@ -3012,7 +2618,6 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
                     <button type="button" class="btn btn-secondary btn-sm preset-origin-btn" data-origin="https://lorebary.com" style="font-size: 11px; padding: 3px 10px;">+ LoreBary</button>
                     <button type="button" class="btn btn-secondary btn-sm preset-origin-btn" data-origin="https://venus.chub.ai" style="font-size: 11px; padding: 3px 10px;">+ Chub Venus</button>
                     <button type="button" class="btn btn-secondary btn-sm preset-origin-btn" data-origin="https://agnai.chat" style="font-size: 11px; padding: 3px 10px;">+ Agnai Chat</button>
-                    <button type="button" class="btn btn-secondary btn-sm preset-origin-btn" data-origin="http://localhost:5173" style="font-size: 11px; padding: 3px 10px;">+ Tavern Web</button>
                   </div>
                   <!-- Custom Input Row -->
                   <div style="display: flex; gap: 8px;">
@@ -3240,7 +2845,7 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
                   <span class="badge" style="background: var(--color-success-bg); color: var(--color-success); border: 1px solid var(--color-success-border); font-size: 11px; padding: 4px 8px; border-radius: 6px; font-family: var(--font-mono);">Enabled</span>
                 </div>
               </div>
-              <div class="claude-settings-row" data-search-text="skills image synthesis dall-e imagen grok aurora">
+              <div class="claude-settings-row" data-search-text="skills image synthesis imagen gemini aurora">
                 <div class="claude-settings-row-label">
                   <div class="claude-settings-item-title">High-Definition Image Synthesis</div>
                   <div class="claude-settings-item-desc">Direct synthesis pipeline with WebGL fluid simulation loading states and instant export.</div>
@@ -3266,7 +2871,7 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
               <div class="claude-settings-row" data-search-text="fleet models catalog frontier gemini">
                 <div class="claude-settings-row-label">
                   <div class="claude-settings-item-title">Cataloged Frontier Models</div>
-                  <div class="claude-settings-item-desc">All ChatGPT, Claude, Gemini, Grok, DeepSeek, Kimi, GLM, Qwen, Antigravity, and Xiaomi MiMo frontier models.</div>
+                  <div class="claude-settings-item-desc">All Claude, Gemini, DeepSeek, Kimi, GLM, Qwen, Antigravity, and Xiaomi MiMo frontier models.</div>
                 </div>
                 <div class="claude-settings-row-control">
                   <span style="font-family: var(--font-mono); font-weight: 700; color: var(--brand-primary); font-size: 14px;">259+ Models</span>
@@ -3467,13 +3072,10 @@ The AI architect will refine, elevate, and structure it into a gorgeous tactile 
   <script src="/static/bench-panel.js?v=1"></script>
   <script src="/static/preloader.js?v=1"></script>
   <script src="/static/vendor/supabase.min.js"></script>
-  <script src="/static/supabase-sync.js?v=5"></script>
-  <script src="/static/app.js?v=90"></script>
-  <script src="/static/glass-dock.js?v=67"></script>
-  <script src="/static/janitor-bio.js?v=6"></script>
-  <script src="/static/janitor-canvas.js?v=9"></script>
+  <script src="/static/supabase-sync.js?v=7"></script>
+  <script src="/static/app.js?v=109"></script>
+  <script src="/static/glass-dock.js?v=82"></script>
   <script src="/static/updates-panel.js?v=2"></script>
-  <script src="/static/connect-panel.js?v=39"></script>
 </body>
 
 </html>
