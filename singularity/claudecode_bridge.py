@@ -47,6 +47,47 @@ DUMMY_THINKING_SIGNATURE = (
 
 _RECENT_SEARCH_SOURCES: Dict[str, str] = {}
 
+MOCK_ACCOUNT = {
+    "uuid": "guest-user",
+    "email_address": "guest@local",
+    "full_name": "Singularity User",
+    "display_name": "Singularity",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z",
+    "is_verified": True,
+    "onboarding_complete": True,
+    "age_is_verified": True,
+    "grove_locked_by_claude_science": False,
+    "settings": {
+        "enabled_experiments": []
+    },
+    "memberships": [
+        {
+            "role": "admin",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "organization": {
+                "uuid": "guest-org",
+                "name": "Local Singularity",
+                "settings": {},
+                "capabilities": ["claude_pro", "cowork", "code", "artifacts"],
+                "rate_limit_tier": "tier_default",
+                "billing_type": "stripe",
+                "has_hosted_code_environments": True
+            }
+        }
+    ]
+}
+
+MOCK_BOOTSTRAP = {
+    "account": MOCK_ACCOUNT,
+    "growthbook": {
+        "features": {},
+        "hashing_algorithm": "sha256",
+        "user": {}
+    }
+}
+
 
 def build_routes(gateway_url: str = DEFAULT_GATEWAY) -> Dict[str, Dict[str, Any]]:
     gw = gateway_url.rstrip("/")
@@ -665,10 +706,47 @@ class ClaudeBridgeProxy(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        url_path = urllib.parse.urlparse(self.path).path
+        print(f"[ClaudeBridge GET] {url_path}")
+
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
+
+        if url_path.endswith("/bootstrap") or "/api/bootstrap" in url_path:
+            self.wfile.write(json.dumps(MOCK_BOOTSTRAP).encode())
+            return
+
+        if url_path.endswith("/users/me") or url_path == "/api/account":
+            self.wfile.write(json.dumps(MOCK_ACCOUNT).encode())
+            return
+
+        if url_path.endswith("/organizations") or url_path == "/api/organizations":
+            self.wfile.write(json.dumps([MOCK_ACCOUNT["memberships"][0]["organization"]]).encode())
+            return
+
+        if "chat_conversations" in url_path:
+            if url_path.endswith("/chat_conversations"):
+                self.wfile.write(b"[]")
+                return
+            conv_uuid = url_path.split("/")[-1]
+            convo = {
+                "uuid": conv_uuid,
+                "name": "New Chat",
+                "summary": "",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+                "settings": {},
+                "chat_messages": []
+            }
+            self.wfile.write(json.dumps(convo).encode())
+            return
+
+        if url_path.startswith("/api/"):
+            self.wfile.write(b"{}")
+            return
+
         routes = build_routes(self.gateway_url)
         keys = ["claude-sonnet-4-5", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8", "claude-sonnet-4-6"]
         resp_data = {
@@ -688,6 +766,26 @@ class ClaudeBridgeProxy(BaseHTTPRequestHandler):
         except Exception:
             data = {}
 
+        url_path = urllib.parse.urlparse(self.path).path
+        print(f"[ClaudeBridge POST] {url_path}")
+
+        if url_path.endswith("/chat_conversations"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            convo = {
+                "uuid": f"convo-{int(time.time())}",
+                "name": "New Chat",
+                "summary": "",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+                "settings": {},
+                "chat_messages": []
+            }
+            self.wfile.write(json.dumps(convo).encode())
+            return
+
         if "count_tokens" in self.path:
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -695,10 +793,20 @@ class ClaudeBridgeProxy(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"input_tokens": 50}).encode())
             return
 
+        messages = data.get("messages", [])
+        if "completion" in url_path or "retry" in url_path:
+            prompt_text = data.get("prompt", "")
+            if not prompt_text and "message" in data:
+                prompt_text = data["message"].get("text", "")
+            if not prompt_text and "text" in data:
+                prompt_text = data.get("text", "")
+            if not messages and prompt_text:
+                messages = [{"role": "user", "content": prompt_text}]
+                data["messages"] = messages
+
         requested_model = data.get("model", "claude-sonnet-4-5")
         is_stream = data.get("stream", True)
         tools = data.get("tools", [])
-        messages = data.get("messages", [])
 
         if data.get("max_tokens", 999) <= 5 and not is_stream:
             send_instant_text_response(self, requested_model, "ok", False)

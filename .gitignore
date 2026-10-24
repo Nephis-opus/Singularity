@@ -40,6 +40,9 @@ singularity/static/generated/*
 singularity/bin/*
 !singularity/bin/.gitkeep
 # Local workspace projects
+ClaudeCodeAndroid/
+*.apk
+REA/
 Sunless/
 Laya/
 laya/
