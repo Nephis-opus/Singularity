@@ -4882,11 +4882,11 @@ def main():
         pass
 
     try:
-        bridge_res = claudecode_bridge.start_bridge(port=claudecode_bridge.DEFAULT_PORT, gateway_url=f"http://127.0.0.1:{port}")
+        bridge_res = claudecode_bridge.start_bridge_thread(port=claudecode_bridge.DEFAULT_PORT, gateway_url=f"http://127.0.0.1:{port}")
         if bridge_res.get("running"):
             print(f"  {C_DIM}•{C_RESET}  {C_DIM}Bridge:{C_RESET}   {C_BOLD}Claude Code & Mobile Bridge{C_RESET} {C_GREEN}● running{C_RESET} on port {claudecode_bridge.DEFAULT_PORT}", flush=True)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"ClaudeCode bridge thread not started: {e}")
 
     # Mute noisy uvicorn access logs (background heartbeats, polls & cloud sync stay completely silent)
     debug_mode = os.getenv("SINGULARITY_DEBUG", "").lower() in ("1", "true", "yes")

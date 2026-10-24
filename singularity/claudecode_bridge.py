@@ -714,6 +714,17 @@ class ClaudeBridgeProxy(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
+        if "melange/read" in url_path or url_path.endswith("/melange/read"):
+            doc = {
+                "path": "/memory.json",
+                "size_bytes": 2,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "content": "{}",
+                "display_name": "Claude"
+            }
+            self.wfile.write(json.dumps(doc).encode())
+            return
+
         if url_path.endswith("/bootstrap") or "/api/bootstrap" in url_path:
             self.wfile.write(json.dumps(MOCK_BOOTSTRAP).encode())
             return
@@ -743,6 +754,14 @@ class ClaudeBridgeProxy(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(convo).encode())
             return
 
+        if any(k in url_path for k in ("projects", "skills", "conversations_v2", "channels")):
+            self.wfile.write(b"[]")
+            return
+
+        if any(k in url_path for k in ("settings", "reflections", "election", "notification", "prepaid", "credits", "model_selector")):
+            self.wfile.write(b"{}")
+            return
+
         if url_path.startswith("/api/"):
             self.wfile.write(b"{}")
             return
@@ -769,6 +788,21 @@ class ClaudeBridgeProxy(BaseHTTPRequestHandler):
         url_path = urllib.parse.urlparse(self.path).path
         print(f"[ClaudeBridge POST] {url_path}")
 
+        if "melange/read" in url_path or url_path.endswith("/melange/read"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            doc = {
+                "path": "/memory.json",
+                "size_bytes": 2,
+                "updated_at": "2026-01-01T00:00:00Z",
+                "content": "{}",
+                "display_name": "Claude"
+            }
+            self.wfile.write(json.dumps(doc).encode())
+            return
+
         if url_path.endswith("/chat_conversations"):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -791,6 +825,18 @@ class ClaudeBridgeProxy(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"input_tokens": 50}).encode())
+            return
+
+        # Defensive guard: Non-completion POST endpoints must never fall through to LLM chat completions!
+        if not any(k in url_path for k in ("completion", "messages", "retry")):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            if any(k in url_path for k in ("projects", "skills", "conversations_v2", "channels")):
+                self.wfile.write(b"[]")
+            else:
+                self.wfile.write(b"{}")
             return
 
         messages = data.get("messages", [])
@@ -1437,6 +1483,40 @@ def get_bridge_status(port: int = DEFAULT_PORT) -> Dict[str, Any]:
     }
 
 
+_inproc_bridge_httpd: Optional[ThreadingHTTPServer] = None
+_inproc_bridge_thread: Optional[threading.Thread] = None
+
+
+def start_bridge_thread(port: int = DEFAULT_PORT, gateway_url: str = DEFAULT_GATEWAY) -> Dict[str, Any]:
+    """Start Claude Code & Mobile Bridge as an in-process daemon thread (zero external sub-process required)."""
+    global _inproc_bridge_httpd, _inproc_bridge_thread
+    if is_port_open(port):
+        return {**get_bridge_status(port), "message": "Claude Code Bridge is already running."}
+
+    class ConfiguredProxy(ClaudeBridgeProxy):
+        gateway_url = gateway_url
+
+    socketserver.TCPServer.allow_reuse_address = True
+    httpd = ThreadingHTTPServer(("0.0.0.0", port), ConfiguredProxy)
+    _inproc_bridge_httpd = httpd
+
+    def _serve():
+        try:
+            httpd.serve_forever()
+        except Exception:
+            pass
+
+    _inproc_bridge_thread = threading.Thread(target=_serve, daemon=True, name="ClaudeCodeBridge")
+    _inproc_bridge_thread.start()
+
+    for _ in range(25):
+        time.sleep(0.1)
+        if is_port_open(port):
+            break
+
+    return get_bridge_status(port)
+
+
 def start_bridge(port: int = DEFAULT_PORT, gateway_url: str = DEFAULT_GATEWAY) -> Dict[str, Any]:
     current = get_bridge_status(port)
     if current["running"]:
@@ -1473,6 +1553,15 @@ def start_bridge(port: int = DEFAULT_PORT, gateway_url: str = DEFAULT_GATEWAY) -
 
 
 def stop_bridge(port: int = DEFAULT_PORT) -> Dict[str, Any]:
+    global _inproc_bridge_httpd
+    if _inproc_bridge_httpd:
+        try:
+            _inproc_bridge_httpd.shutdown()
+            _inproc_bridge_httpd.server_close()
+        except Exception:
+            pass
+        _inproc_bridge_httpd = None
+
     pid = get_bridge_pid()
     if pid:
         try:
