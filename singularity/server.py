@@ -4693,6 +4693,14 @@ async def on_startup():
         antigravity.start_oauth_listener()
     except Exception:
         pass
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    try:
+        claudecode_bridge.stop_bridge()
+    except Exception:
+        pass
 def free_listening_ports(ports: List[int]):
     """Terminate stale processes listening on specified ports so uvicorn can bind cleanly."""
     import signal
@@ -4815,8 +4823,8 @@ def main():
     host = os.getenv("HOST") or ("0.0.0.0" if lan_mode else "127.0.0.1")
     port = int(os.getenv("PORT", "9000"))
 
-    # Free port 9000 (gateway) and port 3000 (OAuth bridge)
-    free_listening_ports([port, 3000])
+    # Free port 9000 (gateway), port 3000 (OAuth bridge), and port 6045 (Claude Code / Mobile bridge)
+    free_listening_ports([port, 3000, 6045])
     start_oauth_redirect_bridge(target_port=port)
 
     try:
@@ -4870,6 +4878,13 @@ def main():
                 start_provider(p)
             except Exception:
                 pass
+    except Exception:
+        pass
+
+    try:
+        bridge_res = claudecode_bridge.start_bridge(port=claudecode_bridge.DEFAULT_PORT, gateway_url=f"http://127.0.0.1:{port}")
+        if bridge_res.get("running"):
+            print(f"  {C_DIM}•{C_RESET}  {C_DIM}Bridge:{C_RESET}   {C_BOLD}Claude Code & Mobile Bridge{C_RESET} {C_GREEN}● running{C_RESET} on port {claudecode_bridge.DEFAULT_PORT}", flush=True)
     except Exception:
         pass
 

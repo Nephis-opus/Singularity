@@ -279,19 +279,19 @@ case "$1" in
             shift
         fi
 
-        # Cleanly terminate any stale processes holding port 9000
+        # Cleanly terminate any stale processes holding port 9000, 3000, and 6045
         GATEWAY_PORT="${PORT:-9000}"
         if [ "$IS_RESTART" = "1" ]; then
             echo "  [🔄] Restarting Singularity (clearing port $GATEWAY_PORT)..."
         fi
-        kill_port_listeners "$GATEWAY_PORT" 3000
+        kill_port_listeners "$GATEWAY_PORT" 3000 6045
         sleep 0.2
 
         "$PYTHON_BIN" server.py "$@"
         exit $?
         ;;
     *)
-        kill_port_listeners "${PORT:-9000}" 3000
+        kill_port_listeners "${PORT:-9000}" 3000 6045
         exec "$PYTHON_BIN" server.py "$@"
         ;;
 esac
