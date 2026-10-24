@@ -29,6 +29,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import socketserver
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -1494,7 +1496,8 @@ def start_bridge_thread(port: int = DEFAULT_PORT, gateway_url: str = DEFAULT_GAT
         return {**get_bridge_status(port), "message": "Claude Code Bridge is already running."}
 
     class ConfiguredProxy(ClaudeBridgeProxy):
-        gateway_url = gateway_url
+        pass
+    ConfiguredProxy.gateway_url = gateway_url
 
     socketserver.TCPServer.allow_reuse_address = True
     httpd = ThreadingHTTPServer(("0.0.0.0", port), ConfiguredProxy)
