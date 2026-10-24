@@ -1431,6 +1431,11 @@ def _get_family_candidates(model: str) -> List[str]:
     # Provider family alias clusters
     if "kimi" in m:
         candidates.extend([
+            "kimi-k3.1-pro-thinking-search",
+            "kimi-k3.1-pro-thinking",
+            "kimi-k3.1-pro-search",
+            "kimi-k3.1-pro",
+            "kimi-k3.1-pro-highspeed",
             "kimi-k3-thinking-search",
             "kimi-k3-thinking",
             "kimi-k3",

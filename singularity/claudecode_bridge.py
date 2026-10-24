@@ -35,6 +35,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+    if hasattr(sys.stderr, "reconfigure"):
+        try:
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
 DATA_DIR = Path(__file__).resolve().parent / "data"
 PID_FILE = DATA_DIR / "claudecode_bridge.pid"
 LOG_FILE = DATA_DIR / "claudecode_bridge.log"
@@ -103,9 +115,9 @@ def build_routes(gateway_url: str = DEFAULT_GATEWAY) -> Dict[str, Dict[str, Any]
             "format": "openai",
         },
         "claude-opus-4-7": {
-            "display_name": "Kimi K3 Thinking",
+            "display_name": "Kimi K3.1 Pro Thinking",
             "base_url": gw,
-            "model": "kimi-k3-thinking-search",
+            "model": "kimi-k3.1-pro-thinking-search",
             "api_key": api_key,
             "format": "openai",
         },
@@ -124,9 +136,9 @@ def build_routes(gateway_url: str = DEFAULT_GATEWAY) -> Dict[str, Dict[str, Any]
             "format": "openai",
         },
         "claude-sonnet-4-5": {
-            "display_name": "Kimi K3 Thinking",
+            "display_name": "Kimi K3.1 Pro Thinking",
             "base_url": gw,
-            "model": "kimi-k3-thinking-search",
+            "model": "kimi-k3.1-pro-thinking-search",
             "api_key": api_key,
             "format": "openai",
         },
@@ -145,16 +157,44 @@ def build_routes(gateway_url: str = DEFAULT_GATEWAY) -> Dict[str, Dict[str, Any]
             "format": "openai",
         },
         "claude-opus-4-5": {
-            "display_name": "Kimi K3 Thinking",
+            "display_name": "Kimi K3.1 Pro Thinking",
             "base_url": gw,
-            "model": "kimi-k3-thinking-search",
+            "model": "kimi-k3.1-pro-thinking-search",
             "api_key": api_key,
             "format": "openai",
         },
         "claude-haiku-4-5": {
-            "display_name": "Kimi K3 Thinking",
+            "display_name": "Kimi K3.1 Pro Highspeed",
             "base_url": gw,
-            "model": "kimi-k3-thinking-search",
+            "model": "kimi-k3.1-pro-highspeed",
+            "api_key": api_key,
+            "format": "openai",
+        },
+        "kimi-k3.1-pro": {
+            "display_name": "Kimi K3.1 Pro Flagship",
+            "base_url": gw,
+            "model": "kimi-k3.1-pro",
+            "api_key": api_key,
+            "format": "openai",
+        },
+        "kimi-k3.1-pro-thinking": {
+            "display_name": "Kimi K3.1 Pro Thinking",
+            "base_url": gw,
+            "model": "kimi-k3.1-pro-thinking",
+            "api_key": api_key,
+            "format": "openai",
+        },
+        "kimi-k3.1-pro-thinking-search": {
+            "display_name": "Kimi K3.1 Pro Thinking Search",
+            "base_url": gw,
+            "model": "kimi-k3.1-pro-thinking-search",
+            "api_key": api_key,
+            "format": "openai",
+        },
+        "kimi-k3.1-pro-highspeed": {
+            "display_name": "Kimi K3.1 Pro Highspeed",
+            "base_url": gw,
+            "model": "kimi-k3.1-pro-highspeed",
             "api_key": api_key,
             "format": "openai",
         },
@@ -898,9 +938,11 @@ class ClaudeBridgeProxy(BaseHTTPRequestHandler):
         routes = build_routes(self.gateway_url)
         route = routes.get(requested_model)
         if not route:
-            if "qwen" in req_lower or "4-8" in req_lower:
+            if "highspeed" in req_lower:
+                route = routes.get("kimi-k3.1-pro-highspeed", routes["claude-opus-4-7"])
+            elif "qwen" in req_lower or "4-8" in req_lower:
                 route = routes["claude-opus-4-8"]
-            elif "kimi" in req_lower or "4-7" in req_lower or "haiku" in req_lower or "4-5" in req_lower:
+            elif "kimi" in req_lower or "4-7" in req_lower or "3.1" in req_lower or "haiku" in req_lower or "4-5" in req_lower:
                 route = routes["claude-opus-4-7"]
             elif "flash" in req_lower or "4-6-flash" in req_lower or "sonnet-4-6" in req_lower:
                 route = routes.get("claude-sonnet-4-6", routes["claude-opus-4-6"])
@@ -1445,30 +1487,87 @@ def is_port_open(port: int, host: str = "127.0.0.1") -> bool:
         return False
 
 
+def is_pid_alive(pid: int) -> bool:
+    """Check if a process with given PID is currently active across Windows and POSIX."""
+    if not pid or pid <= 0:
+        return False
+    if sys.platform != "win32":
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+    else:
+        try:
+            import ctypes
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if not handle:
+                return False
+            exit_code = ctypes.c_ulong()
+            success = kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+            kernel32.CloseHandle(handle)
+            # STILL_ACTIVE = 259
+            return bool(success and exit_code.value == 259)
+        except Exception:
+            return False
+
+
+def reclaim_port(port: int) -> None:
+    """Terminate any stale process listening on the given port across Windows and POSIX."""
+    if sys.platform == "win32":
+        try:
+            cmd = f'netstat -ano | findstr /R /C:":{port} .*LISTENING"'
+            out = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.DEVNULL)
+            for line in out.splitlines():
+                parts = line.strip().split()
+                if len(parts) >= 5:
+                    p = parts[-1]
+                    if p.isdigit() and int(p) > 0:
+                        subprocess.run(["taskkill", "/F", "/T", "/PID", p], capture_output=True)
+        except Exception:
+            pass
+    else:
+        try:
+            out = subprocess.check_output(["lsof", "-ti", f":{port}"], text=True, stderr=subprocess.DEVNULL)
+            for line in out.splitlines():
+                p = line.strip()
+                if p.isdigit() and int(p) > 0:
+                    try:
+                        os.kill(int(p), signal.SIGKILL)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+
 def get_bridge_pid() -> Optional[int]:
     if not PID_FILE.exists():
         return None
     try:
-        pid = int(PID_FILE.read_text().strip())
-        if sys.platform != "win32":
-            os.kill(pid, 0)
-        return pid
+        pid = int(PID_FILE.read_text(encoding="utf-8").strip())
+        if is_pid_alive(pid):
+            return pid
     except (ValueError, OSError):
-        if PID_FILE.exists():
-            try:
-                PID_FILE.unlink()
-            except Exception:
-                pass
-        return None
+        pass
+
+    if PID_FILE.exists():
+        try:
+            PID_FILE.unlink()
+        except Exception:
+            pass
+    return None
 
 
 def get_bridge_status(port: int = DEFAULT_PORT) -> Dict[str, Any]:
     online = is_port_open(port)
     pid = get_bridge_pid()
-    routes = build_routes()
+    if not online and pid:
+        pid = None
 
     models_info = [
-        {"id": "claude-opus-4-7", "target": "Kimi K3 Thinking & Search", "provider": "Kimi", "desc": "Ultra Reasoning (200k)"},
+        {"id": "claude-opus-4-7", "target": "Kimi K3.1 Pro Thinking", "provider": "Kimi", "desc": "Flagship 2.8T MoE Reasoning (1M Context)"},
         {"id": "claude-opus-4-6", "target": "Claude Opus 5.5 (Antigravity)", "provider": "Antigravity", "desc": "Flagship High-Intelligence Reasoning"},
         {"id": "claude-sonnet-4-6", "target": "Claude Sonnet 5.5 (Antigravity)", "provider": "Antigravity", "desc": "Fast High-Efficiency Coding"},
         {"id": "claude-opus-4-8", "target": "Qwen 3.8 Max", "provider": "Qwen", "desc": "Advanced Code & Math"},
@@ -1523,36 +1622,79 @@ def start_bridge_thread(port: int = DEFAULT_PORT, gateway_url: str = DEFAULT_GAT
 def start_bridge(port: int = DEFAULT_PORT, gateway_url: str = DEFAULT_GATEWAY) -> Dict[str, Any]:
     current = get_bridge_status(port)
     if current["running"]:
-        return {**current, "message": "Claude Code Bridge is already running."}
+        return {**current, "message": f"Claude Code Bridge is already running on http://127.0.0.1:{port}"}
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     bridge_script = Path(__file__).resolve()
+    root_dir = str(bridge_script.parent.parent)
+    sing_dir = str(bridge_script.parent)
 
-    log_f = open(LOG_FILE, "a")
+    child_env = dict(os.environ)
+    child_env["PYTHONIOENCODING"] = "utf-8"
+    child_env["PYTHONUTF8"] = "1"
+    child_env["PYTHONPATH"] = f"{root_dir}{os.pathsep}{sing_dir}" + (f"{os.pathsep}{child_env['PYTHONPATH']}" if "PYTHONPATH" in child_env else "")
+
     extra_kwargs: Dict[str, Any] = {}
     if sys.platform != "win32":
         extra_kwargs["start_new_session"] = True
     else:
-        extra_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        CREATE_NEW_PROCESS_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+        extra_kwargs["creationflags"] = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 
-    proc = subprocess.Popen(
-        [sys.executable, str(bridge_script), "--port", str(port), "--gateway", gateway_url],
-        stdout=log_f,
-        stderr=subprocess.STDOUT,
-        cwd=str(Path(__file__).resolve().parent.parent),
-        **extra_kwargs,
-    )
+    with open(LOG_FILE, "a", encoding="utf-8", errors="replace") as log_f:
+        proc = subprocess.Popen(
+            [sys.executable, str(bridge_script), "--port", str(port), "--gateway", gateway_url],
+            stdout=log_f,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            cwd=root_dir,
+            env=child_env,
+            close_fds=(sys.platform != "win32"),
+            **extra_kwargs,
+        )
 
-    PID_FILE.write_text(str(proc.pid))
+    PID_FILE.write_text(str(proc.pid), encoding="utf-8")
 
-    # Wait up to 3s for port to open
-    for _ in range(30):
+    # Poll up to 4s for port to open
+    for _ in range(40):
         time.sleep(0.1)
         if is_port_open(port):
             break
+        if proc.poll() is not None:
+            break
 
     status = get_bridge_status(port)
-    return {**status, "message": f"Claude Code Bridge started on http://127.0.0.1:{port}"}
+    if status.get("running"):
+        return {
+            **status,
+            "running": True,
+            "status": "online",
+            "message": f"Claude Code Bridge started on http://127.0.0.1:{port}",
+        }
+
+    err_detail = ""
+    if proc.poll() is not None:
+        try:
+            if LOG_FILE.exists():
+                lines = [l.strip() for l in LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines() if l.strip()]
+                if lines:
+                    err_detail = f" (error: {lines[-1]})"
+        except Exception:
+            pass
+
+    if PID_FILE.exists():
+        try:
+            PID_FILE.unlink()
+        except Exception:
+            pass
+
+    return {
+        **status,
+        "running": False,
+        "status": "stopped",
+        "message": f"Failed to start Claude Code Bridge on port {port}{err_detail}",
+    }
 
 
 def stop_bridge(port: int = DEFAULT_PORT) -> Dict[str, Any]:
@@ -1571,13 +1713,7 @@ def stop_bridge(port: int = DEFAULT_PORT) -> Dict[str, Any]:
             if sys.platform != "win32":
                 os.kill(pid, signal.SIGTERM)
             else:
-                subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
-        except Exception:
-            pass
-
-    if PID_FILE.exists():
-        try:
-            PID_FILE.unlink()
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
         except Exception:
             pass
 
@@ -1586,6 +1722,19 @@ def stop_bridge(port: int = DEFAULT_PORT) -> Dict[str, Any]:
         time.sleep(0.1)
         if not is_port_open(port):
             break
+
+    if is_port_open(port):
+        reclaim_port(port)
+        for _ in range(15):
+            time.sleep(0.1)
+            if not is_port_open(port):
+                break
+
+    if PID_FILE.exists():
+        try:
+            PID_FILE.unlink()
+        except Exception:
+            pass
 
     status = get_bridge_status(port)
     return {**status, "message": "Claude Code Bridge stopped."}
@@ -1602,15 +1751,19 @@ def run_server(port: int = DEFAULT_PORT, gateway: str = DEFAULT_GATEWAY):
         gateway_url = gateway
 
     server_address = ("127.0.0.1", port)
+    ThreadingHTTPServer.allow_reuse_address = True
     httpd = ThreadingHTTPServer(server_address, ConfiguredProxy)
-    print(f"============================================================")
-    print(f"⚡ Claude Code Bridge running on http://127.0.0.1:{port}")
-    print(f"🎯 Target Singularity Gateway: {gateway}")
-    print(f"============================================================")
+    httpd.daemon_threads = True
+    print("============================================================")
+    print(f"[*] Claude Code Bridge running on http://127.0.0.1:{port}")
+    print(f"[*] Target Singularity Gateway: {gateway}")
+    print("============================================================")
+    sys.stdout.flush()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\n[Bridge] Shutting down...")
+        sys.stdout.flush()
         httpd.server_close()
 
 

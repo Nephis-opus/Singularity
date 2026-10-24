@@ -858,9 +858,17 @@ def cmd_claudecode(args):
         print(f"  Target GW  : {stat.get('gateway')}")
         if is_running:
             print(f"  PID        : {stat.get('pid')}")
-        print("\n  Config Commands for Claude Code (Linux):")
+        print("\n  Config Commands for Claude Code (Linux / macOS):")
         print(f'    export ANTHROPIC_BASE_URL="{stat.get("endpoint")}"')
         print('    export ANTHROPIC_API_KEY="sk-singularity-local"')
+        print("    claude --model claude-opus-4-7\n")
+        print("  Config Commands for Claude Code (Windows CMD):")
+        print(f'    set ANTHROPIC_BASE_URL={stat.get("endpoint")}')
+        print('    set ANTHROPIC_API_KEY=sk-singularity-local')
+        print("    claude --model claude-opus-4-7\n")
+        print("  Config Commands for Claude Code (Windows PowerShell):")
+        print(f'    $env:ANTHROPIC_BASE_URL="{stat.get("endpoint")}"')
+        print('    $env:ANTHROPIC_API_KEY="sk-singularity-local"')
         print("    claude --model claude-opus-4-7\n")
 
     elif action == "start":

@@ -28,12 +28,16 @@ KIMI_DEFAULT_SCENARIO = "SCENARIO_K3"
 def resolve_kimi_scenarios(model: str, enable_search: bool = False) -> List[str]:
     """
     Resolve ordered candidate scenarios for Moonshot Kimi models.
-    Prioritizes SCENARIO_K3 for K3 variants and falls back gracefully to sibling
+    Prioritizes SCENARIO_K3 for K3 / K3.1 variants and falls back gracefully to sibling
     scenarios if Moonshot temporarily sheds free load on a specific route.
     """
     m = model.lower()
     if enable_search:
         return ["SCENARIO_K3", "SCENARIO_SEARCH", "SCENARIO_K3_THINKING"]
+    if "thinking" in m:
+        return ["SCENARIO_K3_THINKING", "SCENARIO_K3", "SCENARIO_SEARCH", "SCENARIO_CHAT"]
+    if "highspeed" in m or "fast" in m:
+        return ["SCENARIO_K3", "SCENARIO_CHAT", "SCENARIO_SEARCH"]
     if "k3" in m:
         return ["SCENARIO_K3", "SCENARIO_K3_THINKING", "SCENARIO_SEARCH", "SCENARIO_CHAT"]
     if "k2" in m:
@@ -526,7 +530,8 @@ async def stream_kimi_chat(
         except Exception:
             pass
 
-    enable_thinking = ("thinking" in model.lower() or "k3" in model.lower())
+    m_lower = model.lower()
+    enable_thinking = ("thinking" in m_lower or ("k3" in m_lower and "highspeed" not in m_lower))
     if thinking_budget is not None:
         enable_thinking = thinking_budget > 0
     elif kwargs.get("thinking") is not None:
@@ -536,7 +541,7 @@ async def stream_kimi_chat(
         elif isinstance(th, bool):
             enable_thinking = th
 
-    enable_search = "search" in model.lower()
+    enable_search = "search" in m_lower
     attached_images = _extract_images_from_messages(messages)
     prompt_text = _format_messages_to_prompt(messages, thinking_budget=thinking_budget if enable_thinking else None)
 

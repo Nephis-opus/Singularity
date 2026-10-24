@@ -5608,6 +5608,9 @@
         console.warn('Failed to fetch /api/models:', e);
       }
       return [
+        { id: 'kimi-k3.1-pro', name: 'Kimi K3.1 Pro (1M Flagship)', provider: 'kimi' },
+        { id: 'kimi-k3.1-pro-thinking', name: 'Kimi K3.1 Pro Thinking', provider: 'kimi' },
+        { id: 'kimi-k3.1-pro-highspeed', name: 'Kimi K3.1 Pro Highspeed', provider: 'kimi' },
         { id: 'kimi-k3', name: 'Kimi K3 (Roleplay & Reasoning)', provider: 'kimi' },
         { id: 'kimi-k3-thinking', name: 'Kimi K3 Thinking', provider: 'kimi' },
         { id: 'deepseek-v4', name: 'DeepSeek V4', provider: 'deepseek' },

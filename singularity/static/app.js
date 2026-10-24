@@ -1253,7 +1253,7 @@ function initClaudeSettings() {
       { id: 'claude', name: 'Anthropic Claude', meta: 'Claude 3.7 Sonnet, Thinking, Opus, Haiku', icon: '/static/icons/claude.svg' },
       { id: 'gemini', name: 'Google Gemini', meta: 'Gemini 3.8 Flash & Thinking, 3.7, 3.1 Pro', icon: '/static/icons/gemini.svg' },
       { id: 'deepseek', name: 'DeepSeek AI', meta: 'DeepSeek V4, V3, R1 Reasoner', icon: '/static/icons/deepseek.svg' },
-      { id: 'kimi', name: 'Moonshot Kimi', meta: 'Kimi K2.5, K1.5 Long Context & Research', icon: '/static/icons/kimi.svg' },
+      { id: 'kimi', name: 'Moonshot Kimi', meta: 'Kimi K3.1 Pro (1M ctx), K3, K2.8 Long Context & Research', icon: '/static/icons/kimi.svg' },
       { id: 'glm', name: 'Zhipu GLM', meta: 'GLM-5, GLM-4 Plus & Flash', icon: '/static/icons/glm.svg' },
       { id: 'qwen', name: 'Alibaba Qwen', meta: 'Qwen 2.5 Max, QwQ 32B Reasoner', icon: '/static/icons/qwen.svg' },
       { id: 'antigravity', name: 'DeepMind Antigravity', meta: 'Claude Opus 5.5, Sonnet 5.5, Gemini 3.8 Flash, GPT-OSS', icon: '/static/icons/antigravity.svg' },
@@ -2074,6 +2074,7 @@ function getModelVariantInfo(model) {
     { regex: /-(?:thinking-search|think-search)$/i, label: 'Thinking + Search', order: 4 },
     { regex: /-(?:thinking|think)$/i, label: 'Thinking', order: 2 },
     { regex: /-search$/i, label: 'Search', order: 3 },
+    { regex: /-highspeed$/i, label: 'Highspeed', order: 5 },
     { regex: /-extra-low$/i, label: 'Extra-Low', order: 4 },
     { regex: /-high$/i, label: 'High', order: 1 },
     { regex: /-medium$/i, label: 'Medium', order: 2 },
@@ -2097,9 +2098,9 @@ function getModelVariantInfo(model) {
 
 function getCleanModelTitle(model, baseId) {
   let name = model.name || baseId;
-  name = name.replace(/\s*\((?:High|Medium|Low|Extra-Low|Thinking|Search|Default)\)/ig, '');
+  name = name.replace(/\s*\((?:High|Medium|Low|Extra-Low|Thinking|Search|Default|Highspeed)\)/ig, '');
   name = name.replace(/\b(?:High|Medium|Low|Extra-Low)\b/g, '');
-  name = name.replace(/\s+(?:Thinking|Search|Thinking Search)$/ig, '');
+  name = name.replace(/\s+(?:Thinking|Search|Thinking Search|Highspeed)$/ig, '');
   name = name.replace(/\s{2,}/g, ' ');
   return name.trim();
 }
@@ -8678,8 +8679,10 @@ async function toggleClaudeCodeBridge() {
 
     if (data.running) {
       showToast(data.message || 'ClaudeCode Bridge is running on port 6045!', 'success', 3000);
-    } else {
+    } else if (isOnline) {
       showToast(data.message || 'ClaudeCode Bridge stopped', 'info', 2500);
+    } else {
+      showToast(data.message || 'Failed to start ClaudeCode Bridge', 'error', 3500);
     }
   } catch (err) {
     console.error('Failed to toggle ClaudeCode bridge:', err);
@@ -8699,7 +8702,11 @@ async function restartClaudeCodeBridge() {
     const data = await res.json();
     claudecodeState = data;
     updateClaudeCodeUI();
-    showToast(data.message || 'ClaudeCode Bridge restarted successfully', 'success', 2500);
+    if (data.running) {
+      showToast(data.message || 'ClaudeCode Bridge restarted successfully', 'success', 2500);
+    } else {
+      showToast(data.message || 'Failed to restart ClaudeCode Bridge', 'error', 3500);
+    }
   } catch (err) {
     console.error('Failed to restart ClaudeCode bridge:', err);
     showToast(`Error restarting bridge: ${err.message}`, 'error', 3000);
